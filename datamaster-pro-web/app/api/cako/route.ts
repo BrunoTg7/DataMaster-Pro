@@ -89,8 +89,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, user_id: userData.id, plan: planType }, { status: 200 })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error processing webhook:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 })
   }
 }

@@ -4,6 +4,7 @@ Dashboard Page - Main grid of tools
 import customtkinter as ctk
 import sys
 import os
+import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
@@ -26,7 +27,9 @@ class DashboardPage(ctk.CTkFrame):
         self.execution_tracker = execution_tracker
         self.on_settings = on_settings
 
+        self._update_banner = None
         self._setup_ui()
+        self._check_update_on_entry()
 
     def _setup_ui(self):
         self.grid_columnconfigure(0, weight=1)
@@ -192,7 +195,11 @@ class DashboardPage(ctk.CTkFrame):
         for idx, (tool_key, tool_info) in enumerate(tools):
             row = (idx // 3) + 1
             col = idx % 3
-            if allowed_tools == "all" or tool_key in allowed_tools:
+            
+            is_coming_soon = tool_info.get("status") == "coming_soon"
+            
+            # Se for "Em Breve" ou se estiver no plano, mostra o card normal (com lógica interna de bloqueio se necessário)
+            if is_coming_soon or allowed_tools == "all" or tool_key in allowed_tools:
                 self._create_tool_card(content, tool_key, tool_info, row, col, stats)
             else:
                 self._create_locked_card(content, tool_key, tool_info, row, col)
@@ -276,18 +283,49 @@ class DashboardPage(ctk.CTkFrame):
             text_color=config.Colors.TEXT_SECONDARY,
             wraplength=180
         )
-        desc.pack(pady=5, padx=15)
+        desc.pack(pady=(5, 10), padx=15)
+
+        # ---- Lógica de "Em Breve" (Bloqueio) ----
+        is_coming_soon = tool_info.get("status") == "coming_soon"
+        
+        if is_coming_soon:
+            # Lista de funcionalidades futuras
+            features_frame = ctk.CTkFrame(card, fg_color="transparent")
+            features_frame.pack(pady=5, padx=20, fill="x")
+            
+            for feature in tool_info.get("features", []):
+                f_lbl = ctk.CTkLabel(
+                    features_frame,
+                    text=f"• {feature}",
+                    font=ctk.CTkFont(family="Inter", size=10, weight="bold"),
+                    text_color=config.Colors.PRIMARY,
+                    anchor="w",
+                    justify="left"
+                )
+                f_lbl.pack(fill="x")
+            
+            btn_text = "Em Breve"
+            btn_state = "disabled"
+            btn_fg = config.Colors.BORDER
+            btn_text_color = config.Colors.TEXT_SECONDARY
+        else:
+            btn_text = "Abrir"
+            btn_state = "normal"
+            btn_fg = config.Colors.PRIMARY
+            btn_text_color = "white"
 
         btn = ctk.CTkButton(
             card,
-            text="Abrir",
+            text=btn_text,
+            state=btn_state,
             width=120,
             height=35,
-            fg_color=config.Colors.PRIMARY,
+            fg_color=btn_fg,
             hover_color=config.Colors.PRIMARY_HOVER,
+            text_color=btn_text_color,
             font=ctk.CTkFont(family="Inter", size=14, weight="bold"),
             corner_radius=8,
-            command=lambda tk=tool_key: self._open_tool(tk)
+            command=lambda tk=tool_key: self._open_tool(tk) if not is_coming_soon else None
         )
         btn.pack(pady=(15, 20))
 
@@ -393,13 +431,13 @@ class DashboardPage(ctk.CTkFrame):
         )
         self.sync_label.grid(row=0, column=3, padx=10, pady=10)
 
-        version_label = ctk.CTkLabel(
+        self.version_footer_label = ctk.CTkLabel(
             footer,
             text=f"v{config.APP_VERSION}",
             font=ctk.CTkFont(size=12),
             text_color=config.Colors.TEXT_SECONDARY
         )
-        version_label.grid(row=0, column=4, padx=20, pady=10)
+        self.version_footer_label.grid(row=0, column=4, padx=20, pady=10)
 
     def update_connection_status(self, is_online: bool):
         """Atualiza o status de conexão"""
@@ -422,5 +460,185 @@ class DashboardPage(ctk.CTkFrame):
                     self.after(0, lambda: self.sync_label.configure(text="✓ Sincronizado", text_color="#10B981"))
                 elif result.get("offline"):
                     self.after(0, lambda: self.sync_label.configure(text=f"Sync: {pending} pendentes", text_color=config.Colors.ALERT))
-            import threading
             threading.Thread(target=async_sync, daemon=True).start()
+
+    # ==================== SISTEMA DE ATUALIZAÇÃO ====================
+    def _check_update_on_entry(self):
+        """Observa o cache global de updates sem fazer novas requisições"""
+        if config.SESSION_BANNER_SHOWN:
+            return
+            
+        self._poll_attempts = 0
+        
+        def poll_cache():
+            # Se o resultado já chegou no cache e há update disponível
+            if config.LAST_UPDATE_DATA and config.LAST_UPDATE_DATA.get("available"):
+                config.SESSION_BANNER_SHOWN = True
+                self.after(0, lambda: self._show_update_banner(config.LAST_UPDATE_DATA))
+                return
+            
+            # Se ainda não chegou, tenta de novo por alguns segundos
+            self._poll_attempts += 1
+            if self._poll_attempts < 10: # Tenta por 5 segundos (500ms * 10)
+                self.after(500, poll_cache)
+        
+        poll_cache()
+
+    def _show_update_banner(self, update_info):
+        """Mostra um banner elegante de atualização em tons de laranja/âmbar"""
+        if self._update_banner:
+            try: self._update_banner.destroy()
+            except: pass
+
+        # Cores Premium Orange
+        bg_color = "#2a1b0a"      # Fundo âmbar escuro
+        border_color = "#f59e0b"  # Borda âmbar vibrante
+        text_color = "#fbbf24"    # Texto âmbar claro
+        btn_color = "#f59e0b"     # Botão laranja
+
+        banner = ctk.CTkFrame(
+            self,
+            fg_color=bg_color,
+            border_width=2,
+            border_color=border_color,
+            corner_radius=12,
+            height=60
+        )
+        # POSICIONAMENTO FLUTUANTE (MODAL)
+        # Aparece no topo, centralizado horizontalmente, por cima de tudo
+        banner.place(relx=0.5, y=90, anchor="n", relwidth=0.9)
+        
+        banner.grid_columnconfigure(1, weight=1)
+        banner.lift() # Garante que fique no topo da pilha visual
+        self._update_banner = banner
+
+        # Ícone e Título
+        ctk.CTkLabel(
+            banner,
+            text=f"✨ Nova versão {update_info.get('version', '')} disponível!",
+            font=ctk.CTkFont(family="Inter", size=15, weight="bold"),
+            text_color=text_color
+        ).grid(row=0, column=0, padx=(25, 15), pady=15, sticky="w")
+
+        # Changelog resumido
+        ctk.CTkLabel(
+            banner,
+            text=f"➜ {update_info.get('changelog', '')[:70]}...",
+            font=ctk.CTkFont(family="Inter", size=13),
+            text_color="#d4d4d8"
+        ).grid(row=0, column=1, padx=5, pady=15, sticky="w")
+
+        # Botão de Ação
+        ctk.CTkButton(
+            banner,
+            text="ATUALIZAR AGORA",
+            width=150,
+            height=34,
+            fg_color=btn_color,
+            hover_color="#d97706",
+            text_color="#000000",
+            font=ctk.CTkFont(family="Inter", size=12, weight="bold"),
+            corner_radius=8,
+            command=lambda: self._start_silent_update(update_info)
+        ).grid(row=0, column=2, padx=10, pady=15)
+
+        # Botão Fechar
+        ctk.CTkButton(
+            banner,
+            text="✕",
+            width=32,
+            height=32,
+            fg_color="transparent",
+            hover_color="#451a03",
+            text_color=text_color,
+            font=ctk.CTkFont(size=16, weight="bold"),
+            command=lambda: self._dismiss_banner()
+        ).grid(row=0, column=3, padx=(5, 20), pady=15)
+
+        # Auto-dismiss após 30 segundos
+        self.after(30000, self._dismiss_banner)
+
+    def _dismiss_banner(self):
+        if self._update_banner:
+            try:
+                self._update_banner.destroy()
+            except:
+                pass
+            self._update_banner = None
+
+    def _start_silent_update(self, update_info):
+        """Baixa e instala a atualização silenciosamente"""
+        download_url = update_info.get("download_url", "")
+        if not download_url:
+            return
+
+        # Transforma o banner em barra de progresso
+        if self._update_banner:
+            try:
+                self._update_banner.destroy()
+            except:
+                pass
+
+        # POSICIONAMENTO FLUTUANTE (MODAL)
+        progress_banner.place(relx=0.5, y=100, anchor="n", relwidth=0.9)
+        
+        progress_banner.grid_columnconfigure(1, weight=1)
+        progress_banner.lift()
+        self._update_banner = progress_banner
+
+        status_label = ctk.CTkLabel(
+            progress_banner,
+            text="📥 Baixando atualização...",
+            font=ctk.CTkFont(family="Inter", size=13, weight="bold"),
+            text_color=config.Colors.PRIMARY
+        )
+        status_label.grid(row=0, column=0, padx=(20, 10), pady=12, sticky="w")
+
+        progress_bar = ctk.CTkProgressBar(
+            progress_banner,
+            progress_color=config.Colors.PRIMARY,
+            fg_color=config.Colors.BORDER,
+            height=12,
+            corner_radius=6
+        )
+        progress_bar.grid(row=0, column=1, padx=10, pady=12, sticky="ew")
+        progress_bar.set(0)
+
+        percent_label = ctk.CTkLabel(
+            progress_banner,
+            text="0%",
+            font=ctk.CTkFont(family="Inter", size=12, weight="bold"),
+            text_color=config.Colors.TEXT_PRIMARY
+        )
+        percent_label.grid(row=0, column=2, padx=(5, 20), pady=12)
+
+        def on_progress(percent):
+            self.after(0, lambda p=percent: [
+                progress_bar.set(p / 100),
+                percent_label.configure(text=f"{p}%")
+            ])
+
+        def on_complete(file_path, error):
+            if error:
+                self.after(0, lambda: status_label.configure(text=f"❌ Erro: {error[:50]}", text_color="#EF4444"))
+                self.after(5000, self._dismiss_banner)
+                return
+
+            self.after(0, lambda: self._prompt_install(file_path, status_label))
+
+        from src.core.update.update_checker import UpdateChecker
+        checker = UpdateChecker(config.APP_VERSION)
+        checker.download_and_install(download_url, on_progress=on_progress, on_complete=on_complete)
+
+    def _prompt_install(self, file_path, status_label):
+        """Pergunta ao usuário se deseja instalar agora"""
+        import subprocess
+        status_label.configure(text="✅ Download concluído! Instalando...", text_color="#22c55e")
+
+        try:
+            # Executa o instalador silenciosamente e fecha o app
+            subprocess.Popen([file_path], shell=True)
+            self.after(2000, lambda: self.master.destroy())
+        except Exception as e:
+            status_label.configure(text=f"❌ Erro ao iniciar instalador: {str(e)[:40]}", text_color="#EF4444")
+            self.after(5000, self._dismiss_banner)

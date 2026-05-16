@@ -1,0 +1,20 @@
+TERMOS DE USO E LICENÇA DE SOFTWARE - DATAMASTER PRO v1.0.0
+
+Ao instalar e utilizar o DataMaster Pro ("Software"), você concorda com os seguintes termos:
+
+1. CONCESSÃO DE LICENÇA: O DataMaster concede a você uma licença pessoal, intransferível e não exclusiva para usar o Software em conformidade com o plano adquirido.
+
+2. RESTRIÇÕES: Você não pode:
+   a) Realizar engenharia reversa, descompilar ou desmontar o Software.
+   b) Alugar, arrendar ou emprestar o Software sem autorização.
+   c) Utilizar o Software para atividades ilícitas ou que violem os termos de serviço das plataformas mineradas (Amazon, Mercado Livre, Shopee, etc).
+
+3. PROPRIEDADE INTELECTUAL: Todos os direitos, títulos e interesses no Software e nos direitos de propriedade intelectual associados são de propriedade exclusiva do desenvolvedor BrunoTg7.
+
+4. ISENÇÃO DE GARANTIA: O Software é fornecido "COMO ESTÁ", sem garantias de qualquer tipo, expressas ou implícitas, incluindo garantias de comercialização ou adequação a um propósito específico.
+
+5. LIMITAÇÃO DE RESPONSABILIDADE: Em nenhuma circunstância o desenvolvedor será responsável por quaisquer danos (incluindo, sem limitação, danos por perda de lucros comerciais, interrupção de negócios ou perda de informações comerciais) decorrentes do uso ou da incapacidade de usar este Software.
+
+6. COLETA DE DADOS: O Software pode coletar dados de uso e logs de erros para melhoria contínua da ferramenta, respeitando a privacidade dos dados do usuário conforme LGPD.
+
+DataMaster Pro © 2026 - Todos os direitos reservados.

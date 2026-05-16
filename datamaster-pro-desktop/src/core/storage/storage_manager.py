@@ -10,12 +10,22 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
 from src.utils.encryption import encrypt_data, decrypt_data
-
+from src.core.security.security_manager import SecurityManager
 
 class StorageManager:
     def __init__(self):
         self.db_path = config.DB_PATH
+        # Gera uma chave dinâmica amarrada ao Hardware deste PC
+        self._hw_key = f"{config.ENCRYPTION_KEY}-{SecurityManager.get_hwid()[:16]}"
         self._init_database()
+
+    def _encrypt(self, data: str) -> str:
+        """Criptografia amarrada ao hardware"""
+        return encrypt_data(data, key=self._hw_key)
+
+    def _decrypt(self, data: str) -> str:
+        """Descriptografia amarrada ao hardware"""
+        return decrypt_data(data, key=self._hw_key)
 
     def _init_database(self):
         conn = sqlite3.connect(self.db_path)
@@ -87,8 +97,8 @@ class StorageManager:
         conn.close()
 
     def save_user_session(self, user_data: Dict):
-        encrypted_token = encrypt_data(user_data.get("session_token", ""))
-        encrypted_password = encrypt_data(user_data.get("password", ""))
+        encrypted_token = self._encrypt(user_data.get("session_token", ""))
+        encrypted_password = self._encrypt(user_data.get("password", ""))
 
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -125,8 +135,8 @@ class StorageManager:
         conn.close()
 
         if row:
-            session_token = decrypt_data(row[4]) if row[4] else ""
-            password = decrypt_data(row[5]) if row[5] else ""
+            session_token = self._decrypt(row[4]) if row[4] else ""
+            password = self._decrypt(row[5]) if row[5] else ""
             return {
                 "id": row[0],
                 "email": row[1],

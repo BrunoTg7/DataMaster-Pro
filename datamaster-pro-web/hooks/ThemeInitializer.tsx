@@ -13,20 +13,20 @@ export function ThemeInitializer() {
     async function initTheme() {
       const { data: { session } } = await supabase.auth.getSession()
       console.log('[ThemeInitializer] Session:', session?.user?.id)
-      
+
       if (session?.user) {
         const { data: profile } = await supabase
           .from('usuarios')
           .select('preferencias_tema')
           .eq('id', session.user.id)
           .single()
-        
+
         const theme = profile?.preferencias_tema || 'system'
         console.log('[ThemeInitializer] Tema do DB:', theme)
         applyTheme(theme)
       } else {
-        console.log('[ThemeInitializer] Sem session, usando system')
-        applyTheme('system')
+        console.log('[ThemeInitializer] Sem session, usando light')
+        applyTheme('light')
       }
     }
 
@@ -36,7 +36,7 @@ export function ThemeInitializer() {
       root.classList.remove('light', 'dark')
 
       if (themeName === 'system') {
-        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        const systemTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
         console.log('[ThemeInitializer] System detected:', systemTheme)
         root.classList.add(systemTheme)
       } else {
@@ -44,6 +44,7 @@ export function ThemeInitializer() {
       }
       console.log('[ThemeInitializer] Classes finais:', root.className)
     }
+
 
     initTheme()
   }, [])

@@ -31,11 +31,28 @@ from src.core.auth.auth_manager import AuthManager
 from src.core.storage.storage_manager import StorageManager
 from src.core.sync.sync_manager import SyncManager, ExecutionTracker
 from src.utils.network import check_internet_connection
+from src.core.update.update_checker import check_update_on_start
 
 
 class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self):
+        # --- TRAVA DE SEGURANÇA (ANTI-CLONAGEM) ---
+        from src.core.security.security_manager import SecurityManager
+        self._lock_socket = SecurityManager.check_instance_lock()
+        if not self._lock_socket:
+            from tkinter import messagebox
+            import customtkinter as ctk_temp
+            # Cria uma janela temporária oculta apenas para o messagebox
+            temp_root = ctk_temp.CTk()
+            temp_root.withdraw()
+            messagebox.showwarning("DataMaster Pro", "O aplicativo já está em execução.\nPor favor, feche a instância anterior.")
+            import sys as _sys
+            _sys.exit(0)
+        # ------------------------------------------
+
         super().__init__()
+        self.TkdndVersion = None
+        
         try:
             self.TkdndVersion = TkinterDnD._require(self)
         except Exception as e:
@@ -155,6 +172,16 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
     def _on_login_success(self, user_data: dict):
         self.auth_manager.set_current_user(user_data)
         self._sync_theme_from_supabase()
+        
+        # Verifica atualizações uma única vez após o login e guarda o resultado
+        if not config.SESSION_UPDATE_CHECKED:
+            def run_and_cache():
+                from src.core.update.update_checker import check_update_on_start
+                config.LAST_UPDATE_DATA = check_update_on_start()
+                config.SESSION_UPDATE_CHECKED = True
+            
+            threading.Thread(target=run_and_cache, daemon=True).start()
+
         self._show_dashboard()
     
     def _sync_theme_from_supabase(self):

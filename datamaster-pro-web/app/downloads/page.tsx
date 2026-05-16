@@ -1,26 +1,52 @@
 import { CheckCircle, Download, FileText, Monitor } from "lucide-react";
 import { Metadata } from "next";
+import { supabase } from "@/lib/supabase";
 
 export const metadata: Metadata = {
   title: "Downloads - DataMaster Pro",
   description: "Baixe o aplicativo DataMaster Pro para Windows",
 };
 
-export default function DownloadsPage() {
+// Revalida a cada 2 hora para não cachear link antigo eternamente
+export const revalidate = 7200;
+
+async function getLatestDownload() {
+  try {
+    const { data, error } = await supabase
+      .from("check_updates")
+      .select("*")
+      .order("id", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("Erro ao buscar link de download:", error);
+    return null;
+  }
+}
+
+export default async function DownloadsPage() {
+  const latestUpdate = await getLatestDownload();
+
   const downloads = [
     {
       platform: "Windows",
       icon: Monitor,
-      version: "1.0.0",
-      date: "08/05/2026",
-      size: "179 MB",
+      version: latestUpdate?.versao_disponivel || "1.0.0",
+      date: latestUpdate?.created_at ? new Date(latestUpdate.created_at).toLocaleDateString('pt-BR') : "08/05/2026",
+      size: latestUpdate?.tamanho_arquivo || "119 MB",
       requirements: ["Windows 10 ou superior", "4GB RAM", "200MB disco"],
-      changelog: [
-        "5 ferramentas completas",
-        "Supabase Auth integrado",
-        "Modo offline",
-      ],
-      downloadUrl: "/DataMaster Pro Setup.exe",
+      changelog: latestUpdate?.changelog
+        ? latestUpdate.changelog.split(/\\n|\n/).map((line: string) => line.replace(/^#+\s*|^-\s*|^\*\s*/, '').trim()).filter((i: string) => i)
+        : [
+          "5 ferramentas completas",
+          "Modo offline",
+          "Segurança total Nos Seus dados",
+          "Criptografia de ponta a ponta",
+        ],
+      downloadUrl: latestUpdate?.url_download || "https://github.com/BrunoTg7/DataMaster-Pro-Upgrade/releases/download/v1.0.0/DataMaster.Pro.Setup.v1.0.0.exe",
     },
   ];
 
@@ -60,13 +86,17 @@ export default function DownloadsPage() {
                 {download.downloadUrl ? (
                   <a
                     href={download.downloadUrl}
-                    download="DataMaster-Pro.exe"
+                    download="DataMaster-Pro-Setup.exe"
                     className="btn-primary flex items-center"
                   >
                     <Download className="w-5 h-5 mr-2" />
-                    Baixar
+                    Baixar Instalador
                   </a>
-                ) : null}
+                ) : (
+                  <button disabled className="btn-secondary flex items-center opacity-50 cursor-not-allowed">
+                    Indisponível
+                  </button>
+                )}
               </div>
 
               <div className="grid sm:grid-cols-2 gap-6">
@@ -89,12 +119,12 @@ export default function DownloadsPage() {
 
                 <div>
                   <h3 className="font-semibold text-surface-900 mb-3">
-                    Novidades
+                    Notas da Versão ({download.version})
                   </h3>
                   <ul className="space-y-2">
-                    {download.changelog.map((item) => (
+                    {download.changelog.map((item: string, i: number) => (
                       <li
-                        key={item}
+                        key={i}
                         className="flex items-center gap-2 text-sm text-surface-600"
                       >
                         <CheckCircle className="w-4 h-4 text-primary-500" />

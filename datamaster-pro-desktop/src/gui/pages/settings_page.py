@@ -305,7 +305,87 @@ class SettingsPage(ctk.CTkFrame):
     
     def _check_updates(self):
         is_online = check_internet_connection()
-        if is_online:
-            messagebox.showinfo("Atualizações", f"Você está na versão mais recente: {config.APP_VERSION}")
+        if not is_online:
+            messagebox.showwarning("Sem Conexão", "Verifique sua internet para buscar atualizações.")
+            return
+
+        from src.core.update.update_checker import check_update_on_start, UpdateChecker
+        
+        result = check_update_on_start()
+        
+        if result.get("available"):
+            msg = f"Uma nova versão ({result['version']}) está disponível!\n\n"
+            msg += f"Novidades:\n{result.get('changelog', '')}\n\n"
+            msg += "Deseja baixar e instalar agora?"
+            
+            if messagebox.askyesno("Atualização Disponível", msg):
+                self._start_settings_update(result)
         else:
-            messagebox.showwarning("Sem Conexão", "Verifique sua internet.")
+            messagebox.showinfo("Atualizações", f"Você já está na versão mais recente: {config.APP_VERSION}")
+
+    def _start_settings_update(self, update_info):
+        """Baixa e instala silenciosamente a partir das Configurações"""
+        import threading
+        
+        download_url = update_info.get("download_url", "")
+        if not download_url:
+            return
+        
+        # Cria um frame de progresso no lugar do botão de update
+        self._progress_frame = ctk.CTkFrame(self, fg_color=config.Colors.CARD, corner_radius=12, border_width=1, border_color=config.Colors.PRIMARY)
+        self._progress_frame.grid(row=2, column=0, sticky="ew", padx=20, pady=10)
+        self._progress_frame.grid_columnconfigure(1, weight=1)
+
+        self._update_status = ctk.CTkLabel(
+            self._progress_frame,
+            text="📥 Baixando atualização...",
+            font=ctk.CTkFont(family="Inter", size=13, weight="bold"),
+            text_color=config.Colors.PRIMARY
+        )
+        self._update_status.grid(row=0, column=0, padx=(20, 10), pady=15, sticky="w")
+
+        self._update_bar = ctk.CTkProgressBar(
+            self._progress_frame,
+            progress_color=config.Colors.PRIMARY,
+            fg_color=config.Colors.BORDER,
+            height=14,
+            corner_radius=7
+        )
+        self._update_bar.grid(row=0, column=1, padx=10, pady=15, sticky="ew")
+        self._update_bar.set(0)
+
+        self._update_percent = ctk.CTkLabel(
+            self._progress_frame,
+            text="0%",
+            font=ctk.CTkFont(family="Inter", size=12, weight="bold"),
+            text_color=config.Colors.TEXT_PRIMARY
+        )
+        self._update_percent.grid(row=0, column=2, padx=(5, 20), pady=15)
+
+        def on_progress(percent):
+            self.after(0, lambda p=percent: [
+                self._update_bar.set(p / 100),
+                self._update_percent.configure(text=f"{p}%")
+            ])
+
+        def on_complete(file_path, error):
+            if error:
+                self.after(0, lambda: self._update_status.configure(
+                    text=f"❌ Erro: {error[:50]}", text_color="#EF4444"
+                ))
+                return
+            self.after(0, lambda: self._run_installer(file_path))
+
+        from src.core.update.update_checker import UpdateChecker
+        checker = UpdateChecker(config.APP_VERSION)
+        checker.download_and_install(download_url, on_progress=on_progress, on_complete=on_complete)
+
+    def _run_installer(self, file_path):
+        """Executa o instalador e fecha o app"""
+        import subprocess
+        self._update_status.configure(text="✅ Instalando... O app será reiniciado.", text_color="#22c55e")
+        try:
+            subprocess.Popen([file_path], shell=True)
+            self.after(2000, lambda: self.master.destroy())
+        except Exception as e:
+            self._update_status.configure(text=f"❌ Erro: {str(e)[:40]}", text_color="#EF4444")

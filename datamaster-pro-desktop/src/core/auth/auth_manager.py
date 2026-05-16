@@ -79,28 +79,47 @@ class AuthManager:
         return "gratis"
 
     def _ensure_user_profile(self, auth_user, token: str) -> Dict:
-        """Garante que o perfil do usuário existe na tabela pública 'usuarios' e retorna os dados"""
+        """Garante que o perfil do usuário existe e verifica o vínculo de hardware (HWID)"""
         try:
+            from src.core.security.security_manager import SecurityManager
+            current_hwid = SecurityManager.get_hwid()
+            
             from supabase import create_client
             supabase = create_client(config.SUPABASE_URL, config.SUPABASE_ANON_KEY)
             supabase.postgrest.auth(token)
             
-            # Tentar buscar perfil
+            # Buscar perfil
             res = supabase.table("usuarios").select("*").eq("id", auth_user.id).execute()
+            
             if res.data:
-                return res.data[0]
+                profile = res.data[0]
+                stored_hwid = profile.get("hwid")
+                
+                # Se não houver HWID no banco, vinculamos este computador
+                if not stored_hwid:
+                    supabase.table("usuarios").update({"hwid": current_hwid}).eq("id", auth_user.id).execute()
+                    profile["hwid"] = current_hwid
+                    return profile
+                
+                # Se houver HWID e for diferente, bloqueamos o acesso
+                if stored_hwid != current_hwid:
+                    raise ValueError("ACESSO BLOQUEADO: Esta licença está vinculada a outro dispositivo. Entre em contato com o suporte para transferir sua licença.")
+                
+                return profile
             else:
-                # Criar perfil básico se não existir
+                # Criar perfil novo já com o HWID vinculado
                 new_profile = {
                     "id": auth_user.id,
                     "email": auth_user.email,
                     "nome": auth_user.email.split("@")[0],
-                    "plano_tipo": "gratis"
+                    "plano_tipo": "gratis",
+                    "hwid": current_hwid
                 }
                 insert_res = supabase.table("usuarios").insert(new_profile).execute()
-                if insert_res.data:
-                    return insert_res.data[0]
-                return new_profile
+                return insert_res.data[0] if insert_res.data else new_profile
+                
+        except ValueError as ve:
+            raise ve
         except Exception as e:
             print(f"[AUTH] Erro ao garantir perfil: {e}")
             return {"plano_tipo": "gratis", "created_at": datetime.now().isoformat()}

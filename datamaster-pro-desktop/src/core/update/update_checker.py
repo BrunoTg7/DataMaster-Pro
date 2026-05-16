@@ -1,138 +1,95 @@
 """
-Auto-Update Checker - Verifica e baixa atualizações automaticamente
+Auto-Update Checker Pro v3.7 - Final Release
+Correção de sincronização entre Core e GUI (has_update -> available).
 """
 import os
 import sys
-import json
-import requests
-import subprocess
-import tempfile
-from pathlib import Path
-from typing import Optional, Dict
 import threading
-
+from typing import Optional, Dict
+from supabase import create_client
 
 class UpdateChecker:
-    """Sistema de verificação e instalação de atualizações"""
+    """Sistema de atualização nativo via Supabase"""
 
-    def __init__(self, current_version: str, update_url: str = None):
+    def __init__(self, current_version: str):
         self.current_version = current_version
-        self.update_url = update_url or os.getenv("UPDATE_URL", "")
-        self.update_info: Optional[Dict] = None
+        import config
+        self.supabase_url = config.SUPABASE_URL
+        self.supabase_key = config.SUPABASE_ANON_KEY
 
     def check_for_updates(self) -> Dict:
-        """
-        Verifica se há atualização disponível.
-        Returns: {has_update: bool, version: str, download_url: str, changelog: str}
-        """
-        if not self.update_url:
-            return {"has_update": False, "reason": "URL de update não configurada"}
+        print(f"\n[UPDATE] 🔍 Verificando... (Local: {self.current_version})", flush=True)
+        
+        if not self.supabase_url or not self.supabase_key:
+            return {"has_update": False}
 
         try:
-            response = requests.get(self.update_url, timeout=10)
-            if response.status_code != 200:
-                return {"has_update": False, "reason": "Erro ao buscar atualizações"}
+            supabase = create_client(self.supabase_url, self.supabase_key)
+            response = supabase.table("check_updates").select("*").order("id", desc=True).limit(1).execute()
+            
+            if not response.data:
+                return {"has_update": False}
 
-            data = response.json()
-            latest_version = data.get("version", "")
+            latest_data = response.data[0]
+            latest_version = latest_data.get("versao_disponivel", "")
+            download_url = latest_data.get("url_download", "")
 
             if self._is_newer_version(latest_version, self.current_version):
+                print(f"[UPDATE] 🔥 UPDATE DETECTADO: {latest_version}", flush=True)
                 return {
                     "has_update": True,
                     "version": latest_version,
-                    "download_url": data.get("download_url", ""),
-                    "changelog": data.get("changelog", ""),
-                    "file_size": data.get("file_size", 0),
-                    "mandatory": data.get("mandatory", False)
+                    "download_url": download_url,
+                    "changelog": latest_data.get("changelog", "Melhorias de estabilidade."),
+                    "mandatory": latest_data.get("mandatory", False)
                 }
 
-            return {"has_update": False, "reason": "Você já tem a última versão"}
+            return {"has_update": False}
 
         except Exception as e:
-            return {"has_update": False, "reason": f"Erro: {str(e)}"}
+            print(f"[UPDATE] 🛑 Erro: {str(e)}", flush=True)
+            return {"has_update": False}
 
     def _is_newer_version(self, new: str, current: str) -> bool:
-        """Compara versões"""
         try:
-            new_parts = [int(x) for x in new.split('.')]
-            cur_parts = [int(x) for x in current.split('.')]
-
+            new_parts = [int(x) for x in str(new).split('.')]
+            cur_parts = [int(x) for x in str(current).split('.')]
             for i in range(max(len(new_parts), len(cur_parts))):
                 n = new_parts[i] if i < len(new_parts) else 0
                 c = cur_parts[i] if i < len(cur_parts) else 0
-                if n > c:
-                    return True
-                elif n < c:
-                    return False
+                if n > c: return True
+                elif n < c: return False
             return False
-        except:
-            return False
+        except: return False
 
     def download_and_install(self, download_url: str, on_progress=None, on_complete=None):
-        """Baixa e instala a atualização em background"""
-
         def worker():
+            import requests, tempfile
             try:
-                # Baixar installer
-                response = requests.get(download_url, stream=True)
+                response = requests.get(download_url, stream=True, timeout=60)
                 total_size = int(response.headers.get('content-length', 0))
-
                 with tempfile.NamedTemporaryFile(suffix='.exe', delete=False) as f:
                     temp_file = f.name
                     downloaded = 0
-
-                    for chunk in response.iter_content(chunk_size=8192):
+                    for chunk in response.iter_content(chunk_size=65536):
                         if chunk:
                             f.write(chunk)
                             downloaded += len(chunk)
                             if on_progress and total_size:
-                                progress = int((downloaded / total_size) * 100)
-                                on_progress(progress)
-
-                # Executar installer (silencioso)
-                if on_complete:
-                    on_complete(temp_file, None)
-
+                                on_progress(int((downloaded / total_size) * 100))
+                if on_complete: on_complete(temp_file, None)
             except Exception as e:
-                if on_complete:
-                    on_complete(None, str(e))
-
-        thread = threading.Thread(target=worker, daemon=True)
-        thread.start()
-
+                if on_complete: on_complete(None, str(e))
+        threading.Thread(target=worker, daemon=True).start()
 
 def check_update_on_start():
-    """Função para chamar ao iniciar a aplicação"""
+    """Função padronizada para a GUI"""
     try:
-        config = __import__('config', fromlist=['APP_VERSION', 'ENVIRONMENT'])
-        current_version = getattr(config, 'APP_VERSION', '1.0.0')
-
-        checker = UpdateChecker(current_version)
+        import config
+        checker = UpdateChecker(config.APP_VERSION)
         result = checker.check_for_updates()
-
-        if result.get("has_update"):
-            return {
-                "available": True,
-                "version": result.get("version"),
-                "changelog": result.get("changelog", ""),
-                "mandatory": result.get("mandatory", False)
-            }
+        # Sincroniza o nome do campo para a GUI
+        result["available"] = result.get("has_update", False)
+        return result
     except:
-        pass
-
-    return {"available": False}
-
-
-# ============================================================
-# ARQUIVO DE CONFIGURAÇÃO DE UPDATE (JSON)
-# ============================================================
-# O servidor deve retornar um JSON como este:
-"""
-{
-    "version": "1.1.0",
-    "download_url": "https://seu-servidor.com/releases/DataMaster-Pro-1.1.0.exe",
-    "changelog": "- Nova ferramenta de comissões\n- Correções de bugs",
-    "file_size": 52428800,
-    "mandatory": false
-}
-"""
+        return {"available": False}

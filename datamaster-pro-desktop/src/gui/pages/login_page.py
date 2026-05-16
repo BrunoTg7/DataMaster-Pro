@@ -127,7 +127,8 @@ class LoginPage(ctk.CTkFrame):
                 user_data = result.get("user")
                 user_data["password"] = saved_session.get("password")
                 self.storage_manager.save_user_session(user_data)
-                self.on_login_success(user_data)
+                # Delay de 100ms para evitar erro de 'bad window path' no Tkinter
+                self.after(100, lambda: self.on_login_success(user_data))
                 return
             else:
                 self.status_label.configure(text="Login falhou: " + result.get("error", ""))
@@ -154,7 +155,8 @@ class LoginPage(ctk.CTkFrame):
                 user_data = result.get("user")
                 user_data["password"] = password
                 self.storage_manager.save_user_session(user_data)
-                self.on_login_success(user_data)
+                # Delay de 100ms para evitar erro de 'bad window path' no Tkinter
+                self.after(100, lambda: self.on_login_success(user_data))
             else:
                 self.status_label.configure(text=result.get("error", "Erro ao fazer login"))
         except Exception as e:
