@@ -227,10 +227,14 @@ export async function updateUserConfig(userId: string, chave: string, valor: str
  */
 export function subscribeToUserChanges(userId: string, callback: (data: any) => void) {
   return supabase
-    .from(`usuarios:id=eq.${userId}`)
-    .on('*', payload => {
-      callback(payload.new)
-    })
+    .channel(`public:usuarios:id=eq.${userId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'usuarios', filter: `id=eq.${userId}` },
+      (payload) => {
+        callback(payload.new)
+      }
+    )
     .subscribe()
 }
 
