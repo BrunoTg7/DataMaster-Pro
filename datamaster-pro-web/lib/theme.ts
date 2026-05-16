@@ -1,9 +1,7 @@
-import { clsx } from 'clsx'
-
 type Theme = 'light' | 'dark' | 'system'
 
 export function cn(...classes: (string | undefined | null | false)[]) {
-  return clsx(classes)
+  return classes.filter(Boolean).join(' ')
 }
 
 export function getThemeClass(theme: Theme, lightClass: string, darkClass: string): string {
