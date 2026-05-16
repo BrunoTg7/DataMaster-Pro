@@ -1,0 +1,32 @@
+# Version Info for PyInstaller
+VSVersionInfo(
+    ffi=FixedFileInfo(
+        filevers=(1, 0, 0, 0),
+        prodvers=(1, 0, 0, 0),
+        mask=0x3f,
+        flags=0x0,
+        OS=0x40004,
+        fileType=0x1,
+        subtype=0x1,
+        date=(0, 0)
+    ),
+    kids=[
+        StringFileInfo(
+            [
+                StringTable(
+                    u'040904B0',
+                    [
+                        StringStruct(u'CompanyName', u'DataMaster'),
+                        StringStruct(u'FileDescription', u'DataMaster Pro - Ferramentas de Automação'),
+                        StringStruct(u'FileVersion', u'1.0.0'),
+                        StringStruct(u'InternalName', u'datamaster-pro'),
+                        StringStruct(u'OriginalFilename', u'DataMaster Pro.exe'),
+                        StringStruct(u'ProductName', u'DataMaster Pro'),
+                        StringStruct(u'ProductVersion', u'1.0.0'),
+                    ]
+                )
+            ]
+        ),
+        VarFileInfo([VarStruct(u'Translation', [0x0409, 0x04B0])])
+    ]
+)

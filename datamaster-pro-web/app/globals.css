@@ -1,0 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Sora:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 255, 255, 255;
+  --background-end-rgb: 250, 250, 250;
+  --font-dm-sans: 'DM Sans', system-ui, sans-serif;
+  --font-sora: 'Sora', system-ui, sans-serif;
+}
+
+.dark {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 9, 9, 11;
+  --background-end-rgb: 18, 18, 27;
+}
+
+/* Tema escuro */
+html.dark {
+  background-color: #09090b;
+}
+
+html.dark body,
+html.dark main {
+  background-color: #09090b;
+  color: #fafafa;
+}
+
+html.dark [class*="bg-white"],
+html.dark [class*="bg-surface-50"],
+html.dark [class*="bg-surface-100"] {
+  background-color: #18181b !important;
+}
+
+html.dark [class*="bg-surface-900"] {
+  background-color: #18181b !important;
+  border-color: #27272a !important;
+}
+
+html.dark [class*="text-surface-900"],
+html.dark [class*="text-surface-800"],
+html.dark [class*="text-surface-700"] {
+  color: #fafafa !important;
+}
+
+html.dark [class*="text-surface-600"] {
+  color: #a1a1aa !important;
+}
+
+html.dark [class*="text-surface-500"],
+html.dark [class*="text-surface-400"] {
+  color: #71717a !important;
+}
+
+html.dark [class*="border-surface-200"],
+html.dark [class*="border-surface-100"] {
+  border-color: #27272a !important;
+}
+
+html.dark [class*="shadow-xl"] {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+}
+
+/* PDF Preview - apenas na página de demonstração de orçamentos */
+html.dark .min-h-\[297mm\],
+html.dark .min-h-\[297mm\] *,
+html.dark .min-h-\[297mm\]\.bg-white {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-dm-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html,
+  html.light {
+    background-color: #fafafa;
+    color: #18181b;
+  }
+
+  html.dark {
+    background-color: #09090b;
+    color: #fafafa;
+  }
+
+  ::selection {
+    background-color: #d48214;
+    color: white;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 active:bg-primary-800 transition-all duration-200 ease-out shadow-lg shadow-primary-600/25 hover:shadow-primary-600/40 hover:-translate-y-0.5;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-6 py-3 bg-surface-100 text-surface-900 font-semibold rounded-lg hover:bg-surface-200 active:bg-surface-300 transition-all duration-200 ease-out border border-surface-200;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-4 py-2 text-surface-600 font-medium rounded-lg hover:bg-surface-100 hover:text-surface-900 transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl border border-surface-200 shadow-sm hover:shadow-md transition-all duration-300;
+  }
+
+  .dark .card {
+    @apply bg-surface-900 border-surface-800 shadow-none;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 bg-white border border-surface-200 rounded-lg text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all;
+  }
+
+  .dark .input-field {
+    @apply bg-surface-800 border-surface-700 text-surface-50 placeholder:text-surface-500;
+  }
+}

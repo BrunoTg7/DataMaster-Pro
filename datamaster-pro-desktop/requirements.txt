@@ -1,0 +1,44 @@
+# GUI Framework
+customtkinter>=5.2.0
+
+# Backend & Database
+supabase>=2.0.0
+
+# Data Processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+numpy>=1.24.0
+
+# Security & Utilities
+cryptography>=41.0.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# File Processing
+pypdf>=4.0.0
+pymupdf>=1.23.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# UI Extensions
+tkinterdnd2>=0.4.3
+
+# Data Matching
+fuzzywuzzy>=0.18.0
+python-Levenshtein>=0.21.0
+
+# Web Scraping & Browser Automation
+playwright>=1.40.0
+textblob>=0.17.1
+
+# OCR & Image Processing
+pytesseract>=0.3.10
+Pillow>=10.0.0
+pdf2image>=1.16.3
+
+# Data Sanitizer
+phonenumbers>=8.13.0
+
+# Build & Installation (Windows)
+PyInstaller>=6.0.0; sys_platform == 'win32'
+pywin32>=305; sys_platform == 'win32'

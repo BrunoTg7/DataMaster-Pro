@@ -1,0 +1,1 @@
+from .validador_links_v2 import ValidadorLinks

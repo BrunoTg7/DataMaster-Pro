@@ -1,0 +1,254 @@
+{
+  "faturamento_receitas": {
+    "keywords": [
+      "venda",
+      "receita",
+      "faturamento",
+      "pix recebido",
+      "transferência recebida",
+      "ted recebida",
+      "pagamento cliente",
+      "depósito",
+      "rendimento",
+      "estorno recebido",
+      "kiwify",
+      "hotmart",
+      "eduzz",
+      "monetizze",
+      "stripe",
+      "pagseguro",
+      "mercado pago"
+    ],
+    "priority": 10
+  },
+  "impostos_e_contribuicoes": {
+    "keywords": [
+      "darf",
+      "simples nacional",
+      "das",
+      "fgts",
+      "inss",
+      "gps",
+      "iptu",
+      "ipva",
+      "irrf",
+      "iss",
+      "icms",
+      "pis",
+      "cofins",
+      "taxa prefeitura",
+      "alvará",
+      "jucepa",
+      "jucesp",
+      "receita federal",
+      "contabilidade"
+    ],
+    "priority": 10
+  },
+  "infraestrutura_e_cloud": {
+    "keywords": [
+      "aws",
+      "amazon web services",
+      "google cloud",
+      "azure",
+      "gcp",
+      "digitalocean",
+      "heroku",
+      "cloudflare",
+      "hospedagem",
+      "hostgator",
+      "locaweb",
+      "umbler",
+      "domínio",
+      "registro.br",
+      "ssl",
+      "vps",
+      "servidor"
+    ],
+    "priority": 9
+  },
+  "software_e_ferramentas_saas": {
+    "keywords": [
+      "openai",
+      "chatgpt",
+      "midjourney",
+      "cursor",
+      "anthropic",
+      "claude",
+      "github",
+      "microsoft 365",
+      "google workspace",
+      "canva",
+      "adobe",
+      "figma",
+      "slack",
+      "zoom",
+      "trello",
+      "monday",
+      "notion",
+      "zapier",
+      "make.com",
+      "rd station"
+    ],
+    "priority": 9
+  },
+  "marketing_e_trafego_pago": {
+    "keywords": [
+      "facebook ads",
+      "meta ads",
+      "google ads",
+      "instagram ads",
+      "linkedin ads",
+      "tiktok ads",
+      "anúncio",
+      "tráfego",
+      "agência marketing",
+      "copywriter",
+      "gestor de tráfego",
+      "newsletter",
+      "mailchimp",
+      "activecampaign"
+    ],
+    "priority": 8
+  },
+  "folha_e_pessoal": {
+    "keywords": [
+      "salário",
+      "pró-labore",
+      "bonus",
+      "comissão",
+      "vale refeição",
+      "vale transporte",
+      "plano de saúde",
+      "hapvida",
+      "unimed",
+      "bradesco saude",
+      "sulamerica",
+      "rescisão",
+      "férias",
+      "13º salário",
+      "contribuicão sindical"
+    ],
+    "priority": 9
+  },
+  "operacional_e_utilidades": {
+    "keywords": [
+      "aluguel",
+      "condomínio",
+      "energia",
+      "luz",
+      "equatorial",
+      "enel",
+      "cpfl",
+      "light",
+      "água",
+      "embasa",
+      "sabesp",
+      "internet",
+      "claro",
+      "vivo",
+      "oi",
+      "tim",
+      "limpeza",
+      "segurança",
+      "manutenção",
+      "reforma"
+    ],
+    "priority": 7
+  },
+  "financeiro_e_bancario": {
+    "keywords": [
+      "tarifa bancária",
+      "juros",
+      "iof",
+      "anuidade",
+      "emprestimo",
+      "financiamento",
+      "consórcio",
+      "seguro empresa",
+      "ted enviada",
+      "pix enviado",
+      "transferência enviada",
+      "mensalidade conta"
+    ],
+    "priority": 8
+  },
+  "logistica_e_suprimentos": {
+    "keywords": [
+      "correios",
+      "sedex",
+      "pac",
+      "melhor envio",
+      "loggi",
+      "jadlog",
+      "frete",
+      "motoboy",
+      "embalagem",
+      "caixa",
+      "fita adesiva",
+      "estoque",
+      "fornecedor",
+      "insumo",
+      "matéria prima"
+    ],
+    "priority": 8
+  },
+  "viagens_e_representacao": {
+    "keywords": [
+      "uber",
+      "99app",
+      "táxi",
+      "passagem aérea",
+      "hotel",
+      "hospedagem",
+      "airbnb",
+      "estacionamento",
+      "pedágio",
+      "refeição",
+      "almoço",
+      "jantar",
+      "confraternização",
+      "evento",
+      "workshop"
+    ],
+    "priority": 6
+  },
+  "equipamentos_e_ti": {
+    "keywords": [
+      "notebook",
+      "computador",
+      "monitor",
+      "teclado",
+      "mouse",
+      "impressora",
+      "toner",
+      "papelaria",
+      "smartphone",
+      "iphone",
+      "apple",
+      "samsung",
+      "dell",
+      "hp",
+      "hardware"
+    ],
+    "priority": 7
+  },
+  "saude_e_bem_estar": {
+    "keywords": [
+      "farmácia",
+      "drogaria",
+      "hospital",
+      "exame",
+      "consulta",
+      "dentista",
+      "academia",
+      "gympass",
+      "psicólogo"
+    ],
+    "priority": 5
+  },
+  "outros_e_nao_classificados": {
+    "keywords": [],
+    "priority": 0
+  }
+}

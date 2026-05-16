@@ -1,0 +1,18 @@
+[functions.cakto-webhook]
+verify_jwt = "false"
+
+[auth]
+site_url = "https://datamasterpro.com.br"
+additional_redirect_urls = ["https://datamasterpro.com.br"]
+jwt_expiry = 3600
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = false
+enable_confirmations = false
+
+[storage]
+enabled = true
+
+[edge_runtime]
+enabled = true

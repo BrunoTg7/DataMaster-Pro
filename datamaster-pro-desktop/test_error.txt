@@ -1,0 +1,4 @@
+INFO | HTTP Request: POST https://aytpuefpisvmlxmqkbfm.supabase.co/auth/v1/token?grant_type=password "HTTP/2 200 OK"
+INFO | HTTP Request: GET https://aytpuefpisvmlxmqkbfm.supabase.co/rest/v1/usuarios?select=%2A&id=eq.55a4e837-8434-4a2a-aacf-f37e9a63bbad "HTTP/2 200 OK"
+INFO | HTTP Request: GET https://aytpuefpisvmlxmqkbfm.supabase.co/rest/v1/usuarios?select=preferencias_tema&id=eq.55a4e837-8434-4a2a-aacf-f37e9a63bbad "HTTP/2 200 OK"
+INFO | HTTP Request: GET https://aytpuefpisvmlxmqkbfm.supabase.co/rest/v1/execucoes?select=%2A&usuario_id=eq.55a4e837-8434-4a2a-aacf-f37e9a63bbad&created_at=gte.2026-04-13T20%3A28%3A03.378843 "HTTP/2 200 OK"

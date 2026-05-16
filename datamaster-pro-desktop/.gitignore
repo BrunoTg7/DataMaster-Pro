@@ -1,0 +1,33 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Secrets & Config
+.env
+*.db
+datamaster.db
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Local App Data
+.datamaster/
+logs/
+cache/
+
+# IDEs
+.vscode/
+.idea/
+
+# Distribution / Build
+dist/
+build/
+*.spec

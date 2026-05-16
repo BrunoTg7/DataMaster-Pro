@@ -1,0 +1,41 @@
+# --- PYTHON (Desktop) ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.datamaster/
+*.db
+datamaster.db
+
+# --- NODE.JS / NEXT.JS (Dashboard Web) ---
+node_modules/
+.next/
+out/
+build/
+.vercel
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- SECRETS & CONFIG ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# --- OS FILES ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- DIST/BUILD ---
+dist/
+build/
+*.exe
+*.msi
+*.spec

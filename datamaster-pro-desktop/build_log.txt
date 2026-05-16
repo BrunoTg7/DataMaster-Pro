@@ -1,0 +1,248 @@
+164 INFO: PyInstaller: 6.20.0, contrib hooks: 2026.5
+164 INFO: Python: 3.12.10
+186 INFO: Platform: Windows-11-10.0.26200-SP0
+186 INFO: Python environment: C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0
+193 INFO: Removing temporary files and cleaning cache in C:\Users\bruno\AppData\Local\pyinstaller
+1612 INFO: Module search paths (PYTHONPATH):
+['c:\\Users\\Public\\projetos\\ferramente excel\\datamaster-pro-desktop',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\python312.zip',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\DLLs',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0',
+ 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages',
+ 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\win32',
+ 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\win32\\lib',
+ 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\Pythonwin',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\\Lib\\site-packages',
+ 'c:\\Users\\Public\\projetos\\ferramente excel\\datamaster-pro-desktop']
+4959 INFO: Appending 'datas' from .spec
+4965 INFO: checking Analysis
+4966 INFO: Building Analysis because Analysis-00.toc is non existent
+4966 INFO: Looking for Python shared library...
+4966 INFO: Using Python shared library: C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\python312.dll
+4966 INFO: Running Analysis Analysis-00.toc
+4966 INFO: Target bytecode optimization level: 0
+4966 INFO: Initializing module dependency graph...
+4967 INFO: Initializing module graph hook caches...
+5101 INFO: Analyzing modules for base_library.zip ...
+6590 INFO: Processing standard module hook 'hook-encodings.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+8328 INFO: Processing standard module hook 'hook-pickle.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+9191 INFO: Processing standard module hook 'hook-heapq.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+9803 INFO: Caching module dependency graph...
+9859 INFO: Analyzing c:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\main.py
+9965 INFO: Processing standard module hook 'hook-customtkinter.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+10102 INFO: Processing pre-find-module-path hook 'hook-tkinter.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_find_module_path'
+10121 INFO: TclTkInfo: initializing cached Tcl/Tk info...
+10588 INFO: Processing standard module hook 'hook-_tkinter.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+10715 INFO: Processing standard module hook 'hook-platform.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+10748 INFO: Processing standard module hook 'hook-_ctypes.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+10748 INFO: Processing pre-safe-import-module hook 'hook-packaging.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+10764 INFO: SetuptoolsInfo: initializing cached setuptools info...
+12527 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+12796 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+12951 INFO: Processing standard module hook 'hook-xml.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+13944 INFO: Processing standard module hook 'hook-PIL.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+14055 INFO: Processing standard module hook 'hook-PIL.Image.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+14511 INFO: Processing standard module hook 'hook-xml.etree.cElementTree.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+14631 INFO: Processing standard module hook 'hook-xml.dom.domreg.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+15438 INFO: Processing standard module hook 'hook-sysconfig.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+15786 INFO: Processing standard module hook 'hook-pycparser.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+16067 INFO: Processing standard module hook 'hook-setuptools.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+16127 INFO: Processing pre-safe-import-module hook 'hook-distutils.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+16224 INFO: Processing pre-safe-import-module hook 'hook-jaraco.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+16232 INFO: Setuptools: 'jaraco' appears to be a full setuptools-vendored copy - creating alias to 'setuptools._vendor.jaraco'!
+16261 INFO: Processing pre-safe-import-module hook 'hook-more_itertools.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+16269 INFO: Setuptools: 'more_itertools' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.more_itertools'!
+16868 INFO: Processing standard module hook 'hook-setuptools._vendor.jaraco.text.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+16882 INFO: Processing pre-safe-import-module hook 'hook-importlib_resources.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+16914 INFO: Processing pre-safe-import-module hook 'hook-backports.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+16917 INFO: Setuptools: 'backports' appears to be a full setuptools-vendored copy - creating alias to 'setuptools._vendor.backports'!
+17245 INFO: Processing pre-safe-import-module hook 'hook-importlib_metadata.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+17282 INFO: Processing standard module hook 'hook-importlib_metadata.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+17294 INFO: Processing pre-safe-import-module hook 'hook-zipp.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+17861 INFO: Processing pre-safe-import-module hook 'hook-tomli.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+17861 INFO: Setuptools: 'tomli' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.tomli'!
+18794 INFO: Processing pre-safe-import-module hook 'hook-wheel.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+18801 INFO: Setuptools: 'wheel' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.wheel'!
+20207 INFO: Processing standard module hook 'hook-difflib.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+21012 INFO: Processing standard module hook 'hook-numpy.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+22610 INFO: Processing standard module hook 'hook-psutil.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+25048 INFO: Processing standard module hook 'hook-PIL.ImageFilter.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+25561 INFO: Processing standard module hook 'hook-tkinterdnd2.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+25617 INFO: Processing standard module hook 'hook-cryptography.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+27729 INFO: hook-cryptography: cryptography does not seem to be using dynamically linked OpenSSL.
+28689 INFO: Processing standard module hook 'hook-certifi.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+29197 INFO: Processing standard module hook 'hook-anyio.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+32428 INFO: Processing standard module hook 'hook-pygments.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+34152 INFO: Processing standard module hook 'hook-chardet.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+35062 INFO: Processing standard module hook 'hook-rich.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+38150 INFO: Processing standard module hook 'hook-pydantic.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+C:\Users\bruno\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\pydantic\experimental\__init__.py:7: PydanticExperimentalWarning: This module is experimental, its contents are subject to change and deprecation.
+  warnings.warn(
+39661 INFO: Processing standard module hook 'hook-zoneinfo.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+41545 INFO: Processing standard module hook 'hook-websockets.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+44945 INFO: Processing standard module hook 'hook-pyarrow.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+46617 INFO: Processing standard module hook 'hook-urllib3.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+47325 INFO: Processing standard module hook 'hook-charset_normalizer.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+47847 INFO: Processing standard module hook 'hook-fsspec.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+48648 INFO: Processing standard module hook 'hook-pandas.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+52235 INFO: Processing standard module hook 'hook-pytz.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+52995 INFO: Processing standard module hook 'hook-scipy.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+53158 INFO: Processing standard module hook 'hook-pytest.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+54112 INFO: Processing standard module hook 'hook-py.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+57174 INFO: Processing standard module hook 'hook-scipy.linalg.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+57556 INFO: Processing standard module hook 'hook-scipy.special._ufuncs.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+59983 INFO: Processing standard module hook 'hook-scipy.spatial._ckdtree.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+60118 INFO: Processing standard module hook 'hook-matplotlib.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+60996 INFO: Processing pre-safe-import-module hook 'hook-gi.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+61379 INFO: Processing standard module hook 'hook-matplotlib.backend_bases.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+62264 INFO: Processing standard module hook 'hook-jinja2.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+63018 INFO: Processing standard module hook 'hook-matplotlib.backends.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+63136 INFO: Processing standard module hook 'hook-matplotlib.pyplot.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+64426 INFO: Processing standard module hook 'hook-dateutil.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+64568 INFO: Processing pre-safe-import-module hook 'hook-six.moves.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+68472 INFO: Processing standard module hook 'hook-scipy.spatial.transform.rotation.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+70014 INFO: Processing standard module hook 'hook-scipy.stats._stats.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+70813 INFO: Processing standard module hook 'hook-scipy.sparse.csgraph.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+72694 INFO: Processing standard module hook 'hook-scipy.special._ellip_harm_2.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+76330 INFO: Processing standard module hook 'hook-numba.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+76415 INFO: Processing standard module hook 'hook-llvmlite.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+79018 INFO: Processing standard module hook 'hook-sqlite3.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+85404 INFO: Processing pre-safe-import-module hook 'hook-win32com.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\pre_safe_import_module'
+85565 INFO: Processing standard module hook 'hook-win32com.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+85574 INFO: Processing standard module hook 'hook-pythoncom.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+85732 INFO: Processing standard module hook 'hook-pywintypes.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+88175 INFO: Processing standard module hook 'hook-pandas.io.formats.style.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+90647 INFO: Processing standard module hook 'hook-pandas.plotting.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+91479 INFO: Processing standard module hook 'hook-openpyxl.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+91729 INFO: Processing standard module hook 'hook-lxml.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+92263 INFO: Processing standard module hook 'hook-lxml.etree.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+93751 INFO: Processing standard module hook 'hook-pandas.io.clipboard.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+103129 INFO: Processing standard module hook 'hook-google.api_core.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+103813 INFO: Processing standard module hook 'hook-grpc.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+105568 INFO: Processing standard module hook 'hook-reportlab.lib.utils.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+105671 INFO: Processing standard module hook 'hook-reportlab.pdfbase._fontdata.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+107196 INFO: Processing standard module hook 'hook-pyphen.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+108779 INFO: Analyzing hidden import 'qrcode'
+109058 INFO: Analyzing hidden import 'beautifulsoup4'
+109059 ERROR: Hidden import 'beautifulsoup4' not found
+109059 INFO: Analyzing hidden import 'playwright'
+109071 INFO: Analyzing hidden import 'python-dotenv'
+109073 ERROR: Hidden import 'python-dotenv' not found
+109073 INFO: Analyzing hidden import 'pypdf'
+110490 INFO: Analyzing hidden import 'fuzzywuzzy'
+110491 ERROR: Hidden import 'fuzzywuzzy' not found
+110491 INFO: Analyzing hidden import 'reportlab.graphics.barcode'
+110646 INFO: Analyzing hidden import 'reportlab.graphics.barcode.code128'
+110662 INFO: Analyzing hidden import 'reportlab.graphics.barcode.code39'
+110688 INFO: Analyzing hidden import 'reportlab.graphics.barcode.code93'
+110694 INFO: Analyzing hidden import 'reportlab.graphics.barcode.ecc200datamatrix'
+110723 INFO: Analyzing hidden import 'reportlab.graphics.barcode.fourstate'
+110736 INFO: Analyzing hidden import 'reportlab.graphics.barcode.lto'
+110743 INFO: Analyzing hidden import 'reportlab.graphics.barcode.test'
+110788 INFO: Analyzing hidden import 'reportlab.graphics.charts.axes'
+110924 INFO: Analyzing hidden import 'reportlab.graphics.charts.barcharts'
+111014 INFO: Analyzing hidden import 'reportlab.graphics.charts.dotbox'
+111122 INFO: Analyzing hidden import 'reportlab.graphics.charts.doughnut'
+111139 INFO: Analyzing hidden import 'reportlab.graphics.charts.markers'
+111156 INFO: Analyzing hidden import 'reportlab.graphics.charts.slidebox'
+111176 INFO: Analyzing hidden import 'reportlab.graphics.charts.spider'
+111205 INFO: Analyzing hidden import 'reportlab.graphics.samples'
+111206 INFO: Analyzing hidden import 'reportlab.graphics.samples.bubble'
+111224 INFO: Analyzing hidden import 'reportlab.graphics.samples.clustered_bar'
+111241 INFO: Analyzing hidden import 'reportlab.graphics.samples.clustered_column'
+111258 INFO: Analyzing hidden import 'reportlab.graphics.samples.exploded_pie'
+111262 INFO: Analyzing hidden import 'reportlab.graphics.samples.filled_radar'
+111277 INFO: Analyzing hidden import 'reportlab.graphics.samples.line_chart'
+111283 INFO: Analyzing hidden import 'reportlab.graphics.samples.linechart_with_markers'
+111298 INFO: Analyzing hidden import 'reportlab.graphics.samples.radar'
+111311 INFO: Analyzing hidden import 'reportlab.graphics.samples.runall'
+111324 INFO: Analyzing hidden import 'reportlab.graphics.samples.scatter'
+111338 INFO: Analyzing hidden import 'reportlab.graphics.samples.scatter_lines'
+111346 INFO: Analyzing hidden import 'reportlab.graphics.samples.scatter_lines_markers'
+111352 INFO: Analyzing hidden import 'reportlab.graphics.samples.simple_pie'
+111356 INFO: Analyzing hidden import 'reportlab.graphics.samples.stacked_bar'
+111361 INFO: Analyzing hidden import 'reportlab.graphics.samples.stacked_column'
+111368 INFO: Analyzing hidden import 'reportlab.graphics.svgpath'
+111394 INFO: Analyzing hidden import 'reportlab.graphics.testdrawings'
+111398 INFO: Analyzing hidden import 'reportlab.graphics.widgets.adjustableArrow'
+111413 INFO: Analyzing hidden import 'reportlab.graphics.widgets.eventcal'
+111433 INFO: Analyzing hidden import 'reportlab.graphics.widgets.table'
+111440 INFO: Analyzing hidden import 'reportlab.lib.codecharts'
+111508 INFO: Analyzing hidden import 'reportlab.lib.extformat'
+111523 INFO: Analyzing hidden import 'reportlab.lib.fontfinder'
+111546 INFO: Analyzing hidden import 'reportlab.lib.pygments2xpre'
+111551 INFO: Analyzing hidden import 'reportlab.lib.testutils'
+111576 INFO: Analyzing hidden import 'reportlab.lib.yaml'
+111593 INFO: Analyzing hidden import 'reportlab.pdfbase._can_cmap_data'
+111598 INFO: Analyzing hidden import 'reportlab.pdfbase.pdfform'
+111625 INFO: Analyzing hidden import 'reportlab.platypus.figures'
+111652 INFO: Analyzing hidden import 'reportlab.platypus.para'
+111717 INFO: Analyzing hidden import 'reportlab.platypus.tableofcontents'
+111757 INFO: Analyzing hidden import 'reportlab.rl_settings'
+111761 INFO: Processing module hooks (post-graph stage)...
+114114 INFO: Processing standard module hook 'hook-lxml.isoschematron.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+114429 WARNING: Hidden import "pycparser.lextab" not found!
+114429 WARNING: Hidden import "pycparser.yacctab" not found!
+115525 INFO: Processing standard module hook 'hook-matplotlib.backends.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+115525 INFO: Matplotlib backend selection method: automatic discovery of used backends
+115996 INFO: Trying determine the default backend as first importable candidate from the list: ['QtAgg', 'Qt5Agg', 'Gtk4Agg', 'Gtk3Agg', 'TkAgg', 'WxAgg']
+118747 INFO: Selected matplotlib backends: ['TkAgg']
+119530 INFO: Processing standard module hook 'hook-PIL.SpiderImagePlugin.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+123834 WARNING: Hidden import "scipy.special._cdflib" not found!
+123883 INFO: Processing standard module hook 'hook-_tkinter.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+123885 INFO: Processing standard module hook 'hook-lxml.objectify.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+123886 INFO: Processing standard module hook 'hook-tzdata.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+125030 INFO: Performing binary vs. data reclassification (3162 entries)
+132303 INFO: Looking for ctypes DLLs
+132318 WARNING: Ignoring AppKit.framework/AppKit imported from C:\Users\bruno\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\darkdetect\_mac_detect.py - only basenames are supported with ctypes imports!
+132714 INFO: Analyzing run-time hooks ...
+132732 INFO: Including run-time hook 'pyi_rth_inspect.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\rthooks'
+132733 INFO: Including run-time hook 'pyi_rth_pkgutil.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\rthooks'
+132749 INFO: Including run-time hook 'pyi_rth_multiprocessing.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\rthooks'
+132763 INFO: Including run-time hook 'pyi_rth_setuptools.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\rthooks'
+132765 INFO: Including run-time hook 'pyi_rth_cryptography_openssl.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\rthooks'
+132765 INFO: Including run-time hook 'pyi_rth_mplconfig.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\rthooks'
+132765 INFO: Processing pre-find-module-path hook 'hook-_pyi_rth_utils.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\pre_find_module_path'
+132783 INFO: Processing standard module hook 'hook-_pyi_rth_utils.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks'
+132799 INFO: Including run-time hook 'pyi_rth_pywintypes.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\rthooks'
+132799 INFO: Including run-time hook 'pyi_rth_pythoncom.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\_pyinstaller_hooks_contrib\\rthooks'
+132815 INFO: Including run-time hook 'pyi_rth__tkinter.py' from 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\rthooks'
+132949 INFO: Creating base_library.zip...
+132983 INFO: Looking for dynamic libraries
+Could not find an up-to-date installation of `packaging`. License expressions might not be validated. To enforce validation, please install `packaging>=24.2`.
+C:\Users\bruno\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\pydantic\experimental\__init__.py:7: PydanticExperimentalWarning: This module is experimental, its contents are subject to change and deprecation.
+  warnings.warn(
+C:\Users\bruno\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\PyInstaller\building\build_main.py:227: UserWarning: The numpy.array_api submodule is still experimental. See NEP 47.
+  __import__(package)
+149837 INFO: Extra DLL search directories (AddDllDirectory): ['C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\numpy.libs', 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\pandas.libs', 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\scipy.libs']
+149839 INFO: Extra DLL search directories (PATH): []
+155383 WARNING: Library not found: could not resolve 'tbb12.dll', dependency of 'C:\\Users\\bruno\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\numba\\np\\ufunc\\tbbpool.cp312-win_amd64.pyd'.
+155583 INFO: Warnings written to c:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\build\datamaster\warn-datamaster.txt
+155983 INFO: Graph cross-reference written to c:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\build\datamaster\xref-datamaster.html
+156215 INFO: checking PYZ
+156215 INFO: Building PYZ because PYZ-00.toc is non existent
+156215 INFO: Building PYZ (ZlibArchive) c:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\build\datamaster\PYZ-00.pyz
+159510 INFO: Building PYZ (ZlibArchive) c:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\build\datamaster\PYZ-00.pyz completed successfully.
+159665 INFO: checking PKG
+159666 INFO: Building PKG because PKG-00.toc is non existent
+159666 INFO: Building PKG (CArchive) DataMaster Pro.pkg
+199427 INFO: Building PKG (CArchive) DataMaster Pro.pkg completed successfully.
+199503 INFO: Bootloader C:\Users\bruno\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\PyInstaller\bootloader\Windows-64bit-intel\runw.exe
+199503 INFO: checking EXE
+199503 INFO: Building EXE because EXE-00.toc is non existent
+199503 INFO: Building EXE from EXE-00.toc
+199504 INFO: Copying bootloader EXE to c:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\dist\DataMaster Pro.exe
+199516 INFO: Copying icon to EXE
+199523 INFO: Copying version information to EXE
+199596 INFO: Copying 0 resources to EXE
+199596 INFO: Embedding manifest in EXE
+199640 INFO: Appending PKG archive to EXE
+200382 INFO: Fixing EXE headers
+209642 INFO: Building EXE from EXE-00.toc completed successfully.
+209718 INFO: Build complete! The results are available in: c:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\dist
