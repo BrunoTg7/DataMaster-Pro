@@ -243,7 +243,7 @@ export function subscribeToUserChanges(userId: string, callback: (data: any) => 
  */
 export async function unsubscribe(subscription: any) {
   if (subscription) {
-    await supabase.removeSubscription(subscription)
+    await supabase.removeChannel(subscription)
   }
 }
 
