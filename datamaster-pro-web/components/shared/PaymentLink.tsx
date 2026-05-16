@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase/client'
 import Link from 'next/link'
 
 // Link do Cakto para pagamento
-const CAKTO_CHECKOUT_URL = 'https://pay.cakto.com.br/zqno7nv_881188'
+const CAKTO_CHECKOUT_URL = 'https://pay.cakto.com.br/pnujmgs'
 
 interface PaymentLinkProps {
   children: React.ReactNode
@@ -15,13 +15,17 @@ interface PaymentLinkProps {
 
 export function PaymentLink({ children, className, planId }: PaymentLinkProps) {
   const [email, setEmail] = useState<string>('')
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function getUserEmail() {
       const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user?.email) {
-        setEmail(session.user.email)
+      if (session?.user) {
+        setIsLoggedIn(true)
+        if (session.user.email) {
+          setEmail(session.user.email)
+        }
       }
       setLoading(false)
     }
@@ -36,17 +40,33 @@ export function PaymentLink({ children, className, planId }: PaymentLinkProps) {
     )
   }
 
+  if (planId === 'free') {
+    return (
+      <Link href={isLoggedIn ? '/dashboard' : '/auth/registro'} className={className}>
+        {children}
+      </Link>
+    )
+  }
+
+  if (!isLoggedIn && planId === 'pro') {
+    return (
+      <Link href="/auth/registro" className={className}>
+        {children}
+      </Link>
+    )
+  }
+
   // Build URL com email pré-definido
   // Formatos comuns de plataformas de checkout:
   const params = new URLSearchParams()
-  
+
   if (email) {
     // Tenta diferentes parâmetros (Cakto pode usar um desses)
     params.set('email', email)
     params.set('customer_email', email)
     params.set('pre_email', email)
   }
-  
+
   if (planId) {
     params.set('plan', planId)
   }
@@ -68,13 +88,13 @@ export function usePaymentUrl(planId?: string) {
   useEffect(() => {
     async function getPaymentUrl() {
       const { data: { session } } = await supabase.auth.getSession()
-      
+
       const params = new URLSearchParams()
-      
+
       if (session?.user?.email) {
         params.set('email', session.user.email)
       }
-      
+
       if (planId) {
         params.set('plan', planId)
       }

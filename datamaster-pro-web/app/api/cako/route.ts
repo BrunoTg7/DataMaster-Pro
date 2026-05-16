@@ -2,6 +2,14 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
   try {
+    const authHeader = request.headers.get('authorization') || request.headers.get('x-cakto-signature')
+    const expectedSecret = process.env.CAKTO_WEBHOOK_SECRET
+
+    if (expectedSecret && authHeader !== expectedSecret && authHeader !== `Bearer ${expectedSecret}`) {
+      console.warn('Webhook Unauthorized: Invalid signature')
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const payload = await request.json()
     console.log('Cakto webhook received:', JSON.stringify(payload))
 

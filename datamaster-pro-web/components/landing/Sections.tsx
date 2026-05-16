@@ -3,6 +3,8 @@
 import { motion } from 'framer-motion'
 import { ArrowRight, Download, Star, Users, Quote } from 'lucide-react'
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase/client'
 
 const testimonials = [
   {
@@ -92,6 +94,14 @@ export function TestimonialsSection() {
 }
 
 export function CTASection() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setIsLoggedIn(!!data.session)
+    })
+  }, [])
+
   return (
     <section className="py-20 lg:py-32 bg-surface-900 relative overflow-hidden">
       <div className="absolute inset-0">
@@ -119,8 +129,8 @@ export function CTASection() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-5 mb-12">
-            <Link href="/auth/registro" className="btn-primary group text-base px-10 py-4">
-              Começar Gratuitamente
+            <Link href={isLoggedIn ? "/dashboard" : "/auth/registro"} className="btn-primary group text-base px-10 py-4">
+              {isLoggedIn ? "Acessar Painel" : "Começar Gratuitamente"}
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Link>
             <Link href="/planos" className="btn-secondary bg-transparent border-surface-600 text-white hover:bg-surface-800 text-base px-8 py-4">

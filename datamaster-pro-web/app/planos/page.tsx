@@ -28,7 +28,7 @@ export default function PlanosPage() {
             </span>
           </h1>
           <p className="text-lg text-surface-600 max-w-2xl mx-auto leading-relaxed">
-            Escolha o plano ideal para sua necessidade. Todos os planos incluem suporte 
+            Escolha o plano ideal para sua necessidade. Todos os planos incluem suporte
             e atualizações gratuitas.
           </p>
         </div>
@@ -37,11 +37,10 @@ export default function PlanosPage() {
           {PLANS.map((plan, index) => (
             <div
               key={plan.id}
-              className={`relative bg-white rounded-3xl p-8 animate-slide-up ${
-                plan.highlighted
-                  ? 'ring-2 ring-primary-500 shadow-2xl shadow-primary-500/15 scale-105 lg:scale-110 z-10'
-                  : 'border border-surface-200 shadow-lg shadow-surface-200/50 hover:shadow-xl hover:border-primary-200/50 transition-all duration-300'
-              }`}
+              className={`relative bg-white rounded-3xl p-8 animate-slide-up ${plan.highlighted
+                ? 'ring-2 ring-primary-500 shadow-2xl shadow-primary-500/15 scale-105 lg:scale-110 z-10'
+                : 'border border-surface-200 shadow-lg shadow-surface-200/50 hover:shadow-xl hover:border-primary-200/50 transition-all duration-300'
+                }`}
               style={{ animationDelay: `${index * 0.1}s` }}
             >
               {'savings' in plan && plan.savings && (
@@ -69,18 +68,23 @@ export default function PlanosPage() {
               <div className="text-center mb-8">
                 {plan.price === null ? (
                   <div className="text-4xl font-bold text-surface-900 font-display">Custom</div>
-                ) : (
+                ) : plan.price > 0 ? (
                   <>
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <span className="text-lg text-surface-400 line-through font-medium">R$ 160,00</span>
+                      <span className="inline-flex items-center px-2 py-0.5 bg-red-100 text-red-600 text-xs font-bold rounded-full animate-pulse">-60%</span>
+                    </div>
                     <div className="text-5xl font-bold text-surface-900 font-display">
-                      R$ {plan.price.toFixed(2)}
+                      R$ {plan.price.toFixed(2).replace('.', ',')}
                       <span className="text-lg text-surface-500 font-normal">/mês</span>
                     </div>
-                    {plan.price > 0 && (
-                      <div className="mt-2 text-sm text-surface-500">
-                        ou R$ {(plan.price * 12 * 0.6).toFixed(2)}/ano (40% off)
-                      </div>
-                    )}
+                    <div className="mt-1 text-xs text-surface-400">+ taxa de pagamento</div>
                   </>
+                ) : (
+                  <div className="text-5xl font-bold text-surface-900 font-display">
+                    R$ {plan.price.toFixed(2).replace('.', ',')}
+                    <span className="text-lg text-surface-500 font-normal">/mês</span>
+                  </div>
                 )}
               </div>
 
@@ -106,22 +110,20 @@ export default function PlanosPage() {
               {plan.id === 'enterprise' ? (
                 <Link
                   href="/contato"
-                  className={`block text-center py-4 rounded-xl font-bold transition-all ${
-                    plan.highlighted
-                      ? 'bg-primary-600 text-white hover:bg-primary-700 hover:shadow-lg hover:shadow-primary-500/25'
-                      : 'bg-surface-100 text-surface-900 hover:bg-surface-200'
-                  }`}
+                  className={`block text-center py-4 rounded-xl font-bold transition-all ${plan.highlighted
+                    ? 'bg-primary-600 text-white hover:bg-primary-700 hover:shadow-lg hover:shadow-primary-500/25'
+                    : 'bg-surface-100 text-surface-900 hover:bg-surface-200'
+                    }`}
                 >
                   {plan.cta}
                 </Link>
               ) : (
                 <PaymentLink
                   planId={plan.id}
-                  className={`block text-center py-4 rounded-xl font-bold transition-all ${
-                    plan.highlighted
-                      ? 'bg-primary-600 text-white hover:bg-primary-700 hover:shadow-lg hover:shadow-primary-500/25'
-                      : 'bg-surface-100 text-surface-900 hover:bg-surface-200'
-                  }`}
+                  className={`block text-center py-4 rounded-xl font-bold transition-all ${plan.highlighted
+                    ? 'bg-primary-600 text-white hover:bg-primary-700 hover:shadow-lg hover:shadow-primary-500/25'
+                    : 'bg-surface-100 text-surface-900 hover:bg-surface-200'
+                    }`}
                 >
                   {plan.cta}
                 </PaymentLink>
@@ -145,8 +147,8 @@ export default function PlanosPage() {
           </h2>
           <div className="space-y-4">
             {faqItems.map((faq, index) => (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className="bg-white rounded-2xl p-6 border border-surface-200 hover:border-primary-200 hover:shadow-lg hover:shadow-primary-500/5 transition-all duration-300 animate-slide-up"
                 style={{ animationDelay: `${0.7 + index * 0.1}s` }}
               >

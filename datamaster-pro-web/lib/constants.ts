@@ -20,7 +20,7 @@ export const TOOLS = [
     name: 'Orçamentos',
     description: 'Preenche templates de PDF em massa com dados da sua planilha.',
     icon: 'file-text',
-    minPlan: 'pro',
+    minPlan: 'free',
     features: ['Preenchimento em massa', 'Templates customizáveis', 'Baixa automática']
   },
   {
@@ -28,7 +28,7 @@ export const TOOLS = [
     name: 'Minerador',
     description: 'Captura preços de sites concorrentes e monitora tendências do mercado.',
     icon: 'globe',
-    minPlan: 'pro',
+    minPlan: 'free',
     features: ['Web scraping', 'Monitoramento contínuo', 'Relatórios de mercado']
   },
   {
@@ -36,8 +36,80 @@ export const TOOLS = [
     name: 'Conciliador',
     description: 'Cruza extratos bancários com planilhas de vendas para identificar divergências.',
     icon: 'check-circle',
-    minPlan: 'pro',
+    minPlan: 'free',
     features: ['conciliação automática', 'Detecção de divergências', 'Exportação detalhada']
+  },
+  {
+    id: 'ocr',
+    name: 'Conversor OCR',
+    description: 'Extraia dados financeiros de faturas e recibos em PDF/Imagem direto para Excel.',
+    icon: 'scan',
+    minPlan: 'pro',
+    features: ['Extração Automática', 'Reconhecimento de Imagem', 'Exportação Estruturada'],
+    status: 'Atualização 1.5'
+  },
+  {
+    id: 'validador',
+    name: 'Validador de Links',
+    description: 'Verifique links quebrados e status HTTP de URLs em massa na sua planilha.',
+    icon: 'link',
+    minPlan: 'pro',
+    features: ['Verificação em Massa', 'Status HTTP', 'Identificação de Erros'],
+    status: 'Em breve'
+  },
+  {
+    id: 'tendencias',
+    name: 'Analista de Tendências',
+    description: 'Analise padrões históricos de vendas e preveja demandas futuras com IA.',
+    icon: 'line-chart',
+    minPlan: 'enterprise',
+    features: ['Previsão de Demanda', 'Análise Sazonal', 'Relatórios Preditivos'],
+    status: 'Em breve'
+  },
+  {
+    id: 'lucratividade',
+    name: 'Calc. Lucratividade',
+    description: 'Calcule a margem real de produtos incluindo taxas de marketplace e impostos.',
+    icon: 'calculator',
+    minPlan: 'pro',
+    features: ['Taxas de Marketplace', 'Cálculo de Impostos', 'Margem Líquida'],
+    status: 'Atualização 1.5'
+  },
+  {
+    id: 'comissoes',
+    name: 'Gestor de Comissões',
+    description: 'Calcule comissões complexas de vendedores baseado em regras e metas.',
+    icon: 'percent',
+    minPlan: 'pro',
+    features: ['Regras Dinâmicas', 'Metas por Vendedor', 'Extratos Individuais'],
+    status: 'Em breve'
+  },
+  {
+    id: 'sanitizer',
+    name: 'Sanitizador de Dados',
+    description: 'Limpe, padronize e corrija erros de digitação em massa nas suas planilhas.',
+    icon: 'wand2',
+    minPlan: 'free',
+    features: ['Padronização', 'Remoção de Anomalias', 'Limpeza Inteligente'],
+    status: 'Atualização 1.5'
+  },
+  {
+    id: 'reviews',
+    name: 'Extrator de Reviews',
+    description: 'Extraia e analise o sentimento de avaliações de produtos em e-commerces.',
+    icon: 'message-square',
+    minPlan: 'enterprise',
+    features: ['Análise de Sentimento', 'Extração em Massa', 'Nuvem de Palavras'],
+    status: 'Em breve'
+  },
+  {
+    id: 'laudos',
+    name: 'Gerador de Laudos',
+    description: 'Crie documentos técnicos e laudos em lote a partir de dados estruturados.',
+    icon: 'clipboard-list',
+    minPlan: 'pro',
+    features: ['Templates Customizáveis', 'Geração em Lote', 'Exportação PDF'],
+    status: 'Atualização 1.5'
   }
 ] as const
 
@@ -54,7 +126,7 @@ export const PLANS = [
       'Categorizador: Até 200 linhas (3 execs)',
       'Orçamentos: Até 10 documentos',
       'Conciliador: Até 3 conciliações',
-      'Minerador: Até 5 links (2 execs)',
+      'Minerador: Até 10 links (2 execs)',
       'Marca d\'água em todos os relatórios',
       'Suporte via documentação'
     ],
@@ -65,10 +137,10 @@ export const PLANS = [
   {
     id: 'pro',
     name: 'Pro',
-    price: 49.99,
+    price: 64.00,
     description: 'Para profissionais que buscam performance máxima e zero limites.',
     features: [
-      'Todas as 5 ferramentas liberadas',
+      'Todas ferramentas liberadas',
       'Arquivos e linhas ilimitados',
       'Sem marca d\'água',
       'Categorias Customizadas',
@@ -79,7 +151,7 @@ export const PLANS = [
     notIncluded: [],
     cta: 'Assinar Plano Pro',
     highlighted: true,
-    savings: 'Economize 40% no anual'
+    savings: 'Economize 60% no anual'
   },
   {
     id: 'enterprise',
@@ -103,17 +175,17 @@ export const PLANS = [
 export type Plan = typeof PLANS[number]['id']
 
 export const PLAN_LIMITS = {
-  free: { 
+  free: {
     maxLinesMonth: 1200,
     maxExecsMonth: 15,
     tools_limit: {
-        consolidador: { max_per_exec: 600, max_execs: 3 },
-        categorizador: { max_per_exec: 600, max_execs: 3 },
-        orcamentos: { max_per_exec: 15, max_execs: 5 },
-        conciliador: { max_per_exec: null, max_execs: 3 },
-        minerador: { max_per_exec: 10, max_execs: 2 },
+      consolidador: { max_per_exec: 600, max_execs: 3 },
+      categorizador: { max_per_exec: 600, max_execs: 3 },
+      orcamentos: { max_per_exec: 15, max_execs: 5 },
+      conciliador: { max_per_exec: null, max_execs: 3 },
+      minerador: { max_per_exec: 10, max_execs: 2 },
     },
-    tools: ['consolidador', 'categorizador', 'orcamentos', 'minerador', 'conciliador'] 
+    tools: ['consolidador', 'categorizador', 'orcamentos', 'minerador', 'conciliador']
   },
   pro: { maxLinesMonth: null, tools_limit: null, tools: ['all'] },
   enterprise: { maxLinesMonth: null, tools_limit: null, tools: ['all'] }

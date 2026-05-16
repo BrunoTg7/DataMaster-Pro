@@ -3,6 +3,8 @@
 import { motion } from 'framer-motion'
 import { ArrowRight, CheckCircle, Zap, Shield, Clock, Play } from 'lucide-react'
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase/client'
 
 const stats = [
   { value: '50k+', label: 'Planilhas processadas' },
@@ -30,6 +32,14 @@ const benefits = [
 ]
 
 export function HeroSection() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setIsLoggedIn(!!data.session)
+    })
+  }, [])
+
   return (
     <section className="relative overflow-hidden bg-surface-50 pt-24 pb-16 lg:pt-32 lg:pb-24">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary-100/40 via-transparent to-transparent" />
@@ -82,8 +92,8 @@ export function HeroSection() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="text-lg sm:text-xl text-surface-600 mb-10 max-w-2xl mx-auto leading-relaxed"
           >
-            5 ferramentas profissionais para automatizar tarefas repetitivas no Excel.{' '}
-            Consolide, categorize, preencha orçamentos, miner dados e concilie em segundos.
+            13 ferramentas profissionais para automatizar tarefas repetitivas no Excel.{' '}
+            Consolide, categorize, preencha orçamentos, miner dados e concilie em segundos, e muito mais...
           </motion.p>
 
           <motion.div
@@ -92,8 +102,8 @@ export function HeroSection() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8"
           >
-            <Link href="/auth/registro" className="btn-primary group text-base px-8 py-4">
-              Começar Gratuitamente
+            <Link href={isLoggedIn ? "/dashboard" : "/auth/registro"} className="btn-primary group text-base px-8 py-4">
+              {isLoggedIn ? "Acessar Painel" : "Começar Gratuitamente"}
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Link>
 

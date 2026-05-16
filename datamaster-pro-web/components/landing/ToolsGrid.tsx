@@ -1,17 +1,27 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { 
-  GitMerge, 
-  Tags, 
-  FileText, 
-  Globe, 
+import {
+  GitMerge,
+  Tags,
+  FileText,
+  Globe,
   CheckCircle,
   Lock,
-  ArrowUpRight
+  ArrowUpRight,
+  Scan,
+  Link as LinkIcon,
+  LineChart,
+  Calculator,
+  Percent,
+  Wand2,
+  MessageSquare,
+  ClipboardList
 } from 'lucide-react'
 import { TOOLS } from '@/lib/constants'
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase/client'
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   'git-merge': GitMerge,
@@ -19,16 +29,32 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   'file-text': FileText,
   'globe': Globe,
   'check-circle': CheckCircle,
+  'scan': Scan,
+  'link': LinkIcon,
+  'line-chart': LineChart,
+  'calculator': Calculator,
+  'percent': Percent,
+  'wand2': Wand2,
+  'message-square': MessageSquare,
+  'clipboard-list': ClipboardList,
 }
 
 export function ToolsSection() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setIsLoggedIn(!!data.session)
+    })
+  }, [])
+
   return (
     <section id="features" className="py-20 lg:py-32 bg-surface-50 relative overflow-hidden">
       <div className="absolute inset-0">
         <div className="absolute top-0 left-0 w-96 h-96 bg-primary-200/10 rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-primary-200/10 rounded-full blur-3xl" />
       </div>
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -47,7 +73,7 @@ export function ToolsSection() {
             </span>
           </h2>
           <p className="text-lg text-surface-600 max-w-2xl mx-auto leading-relaxed">
-            5 ferramentas poderosas que transformam horas de trabalho manual em minutos de automação.
+            5/13 ferramentas poderosas já disponíveis que transformam horas de trabalho manual em minutos de automação.
           </p>
         </motion.div>
 
@@ -55,7 +81,8 @@ export function ToolsSection() {
           {TOOLS.map((tool, index) => {
             const Icon = iconMap[tool.icon] || FileText
             const isLocked = tool.minPlan !== 'free'
-            
+            const isComingSoon = 'status' in tool
+
             return (
               <motion.div
                 key={tool.id}
@@ -63,13 +90,20 @@ export function ToolsSection() {
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
                 viewport={{ once: true }}
-                className={`relative group bg-white rounded-3xl p-8 transition-all duration-500 ${
-                  isLocked 
-                    ? 'border border-surface-200 hover:border-surface-300 hover:shadow-lg' 
+                className={`relative group bg-white rounded-3xl p-8 transition-all duration-500 ${isComingSoon
+                  ? 'border border-surface-200 opacity-80'
+                  : isLocked
+                    ? 'border border-surface-200 hover:border-surface-300 hover:shadow-lg'
                     : 'border-2 border-primary-200 shadow-xl shadow-primary-500/10 hover:shadow-2xl hover:shadow-primary-500/15 hover:-translate-y-2'
-                }`}
+                  }`}
               >
-                {isLocked && (
+                {isComingSoon ? (
+                  <div className="absolute top-5 right-5">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-100 text-primary-700 rounded-full">
+                      <span className="text-xs font-semibold uppercase">{tool.status}</span>
+                    </div>
+                  </div>
+                ) : isLocked && (
                   <div className="absolute top-5 right-5">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-100 rounded-full">
                       <Lock className="w-3.5 h-3.5 text-surface-500" />
@@ -78,9 +112,8 @@ export function ToolsSection() {
                   </div>
                 )}
 
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 transition-all duration-300 ${
-                  isLocked ? 'bg-surface-100 group-hover:bg-surface-200' : 'bg-gradient-to-br from-primary-100 to-primary-50 group-hover:scale-110'
-                }`}>
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 transition-all duration-300 ${isLocked ? 'bg-surface-100 group-hover:bg-surface-200' : 'bg-gradient-to-br from-primary-100 to-primary-50 group-hover:scale-110'
+                  }`}>
                   <Icon className={`w-7 h-7 ${isLocked ? 'text-surface-400' : 'text-primary-600'}`} />
                 </div>
 
@@ -90,9 +123,8 @@ export function ToolsSection() {
                 <ul className="space-y-3 mb-6">
                   {tool.features.map((feature) => (
                     <li key={feature} className="flex items-center gap-3 text-sm text-surface-600">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        isLocked ? 'bg-surface-100' : 'bg-primary-100'
-                      }`}>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${isLocked ? 'bg-surface-100' : 'bg-primary-100'
+                        }`}>
                         <CheckCircle className={`w-3 h-3 ${isLocked ? 'text-surface-400' : 'text-primary-600'}`} />
                       </div>
                       {feature}
@@ -101,20 +133,24 @@ export function ToolsSection() {
                 </ul>
 
                 <div className="pt-4 border-t border-surface-100">
-                  {isLocked ? (
-                    <Link 
-                      href="/planos" 
+                  {isComingSoon ? (
+                    <span className="inline-flex items-center text-sm font-semibold text-surface-400">
+                      Na próxima atualização do Desktop
+                    </span>
+                  ) : isLocked ? (
+                    <Link
+                      href="/planos"
                       className="inline-flex items-center text-sm font-semibold text-surface-500 hover:text-primary-600 transition-colors"
                     >
                       <span>Fazer upgrade</span>
                       <ArrowUpRight className="w-4 h-4 ml-1" />
                     </Link>
                   ) : (
-                    <Link 
-                      href="/auth/registro" 
+                    <Link
+                      href={isLoggedIn ? "/dashboard" : "/auth/registro"}
                       className="inline-flex items-center text-sm font-semibold text-primary-600 hover:text-primary-700 transition-colors"
                     >
-                      <span>Começar agora</span>
+                      <span>{isLoggedIn ? "Acessar Painel" : "Começar agora"}</span>
                       <ArrowUpRight className="w-4 h-4 ml-1" />
                     </Link>
                   )}

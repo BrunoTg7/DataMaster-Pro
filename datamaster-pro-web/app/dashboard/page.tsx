@@ -259,7 +259,8 @@ export default function DashboardPage() {
               <h2 className="text-xl font-bold text-surface-900 mb-6 font-display">Minhas Ferramentas</h2>
               <div className="grid sm:grid-cols-2 gap-4">
                 {TOOLS.map(tool => {
-                  const isAvailable = planLimits.tools.includes(tool.id) || planLimits.tools.includes('all')
+                  const isAvailable = planLimits.tools.includes(tool.id as any) || planLimits.tools.includes('all' as any)
+                  const isComingSoon = 'status' in tool
                   
                   // Estatísticas reais desta ferramenta
                   const currentUsage = toolStats[tool.id] || { lines: 0, execs: 0 }
@@ -282,14 +283,16 @@ export default function DashboardPage() {
                     <div 
                       key={tool.id}
                       onClick={() => {
-                        if (isOrcamentos && isAvailable) {
+                        if (isOrcamentos && isAvailable && !isComingSoon) {
                           router.push('/orcamentos-demo')
                         }
                       }}
                       className={`group p-6 rounded-[2.5rem] transition-all duration-300 border ${
-                        isAvailable 
-                          ? `bg-white border-surface-100 hover:border-primary-200 hover:shadow-xl ${isOrcamentos ? 'cursor-pointer' : ''}` 
-                          : 'bg-surface-50 border-transparent opacity-60 grayscale'
+                        isComingSoon
+                          ? 'bg-surface-50 border-transparent opacity-60'
+                          : isAvailable 
+                            ? `bg-white border-surface-100 hover:border-primary-200 hover:shadow-xl ${isOrcamentos ? 'cursor-pointer' : ''}` 
+                            : 'bg-surface-50 border-transparent opacity-60 grayscale'
                       }`}
                     >
                       <div className="flex items-center gap-4 mb-4">
@@ -300,7 +303,11 @@ export default function DashboardPage() {
                         </div>
                         <div>
                           <div className="font-bold text-surface-900">{tool.name}</div>
-                          {isAvailable && (
+                          {isComingSoon ? (
+                            <div className="text-[10px] font-bold text-primary-600 uppercase tracking-wider mt-1">
+                              {tool.status}
+                            </div>
+                          ) : isAvailable && (
                             <div className="flex flex-col gap-0.5 mt-1">
                               {maxLines !== null && getUnit() !== null && (
                                 <div className="text-[10px] font-bold text-primary-600 uppercase tracking-wider">
@@ -319,7 +326,13 @@ export default function DashboardPage() {
                       <p className="text-sm text-surface-600 line-clamp-2 mb-4 leading-relaxed">
                         {tool.description}
                       </p>
-                      {isAvailable ? (
+                      {isComingSoon ? (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-surface-500 bg-surface-100 px-3 py-1 rounded-full w-fit">
+                            Em breve
+                          </div>
+                        </div>
+                      ) : isAvailable ? (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full w-fit">
                             <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
