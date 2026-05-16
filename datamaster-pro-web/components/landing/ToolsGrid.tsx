@@ -82,6 +82,8 @@ export function ToolsSection() {
             const Icon = iconMap[tool.icon] || FileText
             const isLocked = tool.minPlan !== 'free'
             const isComingSoon = 'status' in tool
+            const toolMinPlan = tool.minPlan
+            const toolStatus = 'status' in tool ? tool.status : undefined
 
             return (
               <motion.div
@@ -100,14 +102,14 @@ export function ToolsSection() {
                 {isComingSoon ? (
                   <div className="absolute top-5 right-5">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-100 text-primary-700 rounded-full">
-                      <span className="text-xs font-semibold uppercase">{tool.status}</span>
+                      <span className="text-xs font-semibold uppercase">{toolStatus}</span>
                     </div>
                   </div>
                 ) : isLocked && (
                   <div className="absolute top-5 right-5">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-100 rounded-full">
                       <Lock className="w-3.5 h-3.5 text-surface-500" />
-                      <span className="text-xs text-surface-600 font-semibold uppercase">{tool.minPlan}</span>
+                      <span className="text-xs text-surface-600 font-semibold uppercase">{toolMinPlan}</span>
                     </div>
                   </div>
                 )}
