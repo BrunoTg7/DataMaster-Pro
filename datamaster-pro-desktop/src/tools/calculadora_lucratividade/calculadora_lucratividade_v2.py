@@ -70,7 +70,7 @@ class CalculadoraLucratividade:
                         if price:
                             self._log(f"✅ Preço encontrado via JSON-LD: {price}")
                             return self._clean_price(str(price))
-        except: pass
+        except Exception: pass
 
         # Nível 2: Seletores CSS
         self._log(f"🔍 Testando {len(self.PRICE_SELECTORS)} seletores CSS...")
@@ -89,7 +89,7 @@ class CalculadoraLucratividade:
                         
                         price = self._clean_price(text)
                         if price and price > 1: return price
-            except: continue
+            except Exception: continue
 
         # Nível 3: Meta tags
         self._log("🔍 Verificando Meta Tags SEO...")
@@ -100,7 +100,7 @@ class CalculadoraLucratividade:
                 if val: 
                     self._log(f"✅ Preço via Meta Tag: {val}")
                     return self._clean_price(val)
-        except: pass
+        except Exception: pass
 
         # Nível 4: Regex Deep Scan
         self._log("🔍 Iniciando Deep Scan (Regex)...")
@@ -130,7 +130,7 @@ class CalculadoraLucratividade:
                 clean = clean.replace(',', '.')
             val = float(clean)
             return val if val > 0 else None
-        except: return None
+        except Exception: return None
 
     async def _process_single_url(self, context, url: str) -> Dict:
         async with self.semaphore:

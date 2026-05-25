@@ -186,7 +186,7 @@ class ValidadorLinks:
                 btn = await page.query_selector(selector)
                 if btn and await btn.is_visible():
                     return True
-            except: continue
+            except Exception: continue
         return False
 
     async def _run_validation(self, urls: List[str]) -> List[Dict]:
@@ -230,7 +230,7 @@ class ValidadorLinks:
             # Fallback para asyncio.run se estivermos em um ambiente simplificado
             try:
                 results = asyncio.run(self._run_validation(urls))
-            except:
+            except Exception:
                 return {"success": False, "error": f"Erro fatal de concorrência: {str(e)}"}
         
         # Sumarização profissional

@@ -7,20 +7,64 @@ import os
 import sys
 import json
 import pandas as pd
+import threading
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
 from src.gui.pages.tool_page import ToolPage
-from src.tools.orcamentos.orcamentos_v2 import Orcamentos
+from src.tools.orcamentos.orcamentos import Orcamentos
+from src.utils.task_helper import TaskHelper
+from src.gui.helpers.execution_helper import ExecutionHelper
+from src.core.tasks.global_executor import global_executor
 
 
 class OrcamentosPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
         self.orcamentos = Orcamentos()
+        self.task_helper = TaskHelper("orcamentos")
+        self.execution = ExecutionHelper("orcamentos", "Orçamentos Automáticos", user_id)
         self.template_pdf = ""
         self.data_file = ""
         self.config = self._load_config()
         super().__init__(master, "orcamentos", "Orçamentos Automáticos", on_back, execution_tracker, user_id)
+        self._check_task_state()
+
+    def _check_task_state(self):
+        from src.core.storage.storage_manager import StorageManager
+        storage = StorageManager()
+        last_task = storage.get_last_task_by_tool("orcamentos")
+        
+        if not last_task:
+            return
+        
+        status = last_task.get("status")
+        
+        if status == "running":
+            if hasattr(self, 'progress_frame'):
+                self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
+            if hasattr(self, 'progress_bar'):
+                progress = last_task.get("progress_percent", 0)
+                self.progress_bar.set(progress / 100)
+            if hasattr(self, 'progress_label'):
+                message = last_task.get("progress_message", "Processando...")
+                self.progress_label.configure(text=message)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⏳ Tarefa em andamento...")
+            
+        elif status == "completed":
+            rows = last_task.get("rows_processed", 0)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"✅ Última execução concluída ({rows} registros)")
+            
+        elif status == "interrupted":
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⚠️ Tarefa anterior interrompida.")
+            
+        elif status == "failed":
+            error = last_task.get("error_message", "Erro")
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"❌ Última execução falhou")
 
     def _load_config(self):
         config_path = os.path.join(config.APP_DATA_DIR, "orcamentos_config.json")
@@ -40,7 +84,7 @@ class OrcamentosPage(ToolPage):
             try:
                 with open(config_path, "r") as f:
                     return {**default, **json.load(f)}
-            except:
+            except Exception:
                 return default
         return default
 
@@ -179,7 +223,7 @@ class OrcamentosPage(ToolPage):
             text="Padrão",
             width=70,
             height=30,
-            fg_color="transparent",
+            fg_color="#d48214",
             border_width=1,
             border_color=config.Colors.BORDER,
             command=self._reset_color
@@ -220,17 +264,37 @@ class OrcamentosPage(ToolPage):
             var.grid(row=row, column=col, sticky="w", padx=10, pady=2)
             self.campo_vars[key] = var
 
+        def format_phone(value):
+            digits = "".join(c for c in value if c.isdigit())[:11]
+            if len(digits) <= 2:
+                return f"({digits}" if digits else ""
+            elif len(digits) <= 7:
+                return f"({digits[:2]}){digits[2:]}"
+            else:
+                return f"({digits[:2]}){digits[2:7]}-{digits[7:]}"
+
+        def on_phone_keyrelease(event, entry):
+            raw = entry.get()
+            formatted = format_phone(raw)
+            entry.delete(0, "end")
+            entry.insert(0, formatted)
+            entry.icursor("end")
+
         for i, (key, label) in enumerate(emp_fields):
             row = i // 2
             col = (i % 2) * 2
             
             ctk.CTkLabel(emp_fields_frame, text=f"{label}:", width=100).grid(row=row, column=col, sticky="w", padx=5, pady=3)
-            
-            entry = ctk.CTkEntry(emp_fields_frame, width=200)
+
+            width = 150 if key == "empresa_telefone" else 200
+            entry = ctk.CTkEntry(emp_fields_frame, width=width)
             entry.insert(0, self.config.get(key, ""))
             entry.grid(row=row, column=col+1, padx=5, pady=3)
             self.emp_entries[key] = entry
-            
+
+            if key == "empresa_telefone":
+                entry.bind("<KeyRelease>", lambda e, w=entry: on_phone_keyrelease(e, w))
+
             entry.bind("<FocusOut>", lambda e, k=key, w=entry: self._on_config_change("entry", k, widget=w))
             entry.bind("<Return>", lambda e, k=key, w=entry: self._on_config_change("entry", k, widget=w))
 
@@ -358,6 +422,14 @@ class OrcamentosPage(ToolPage):
     def _run_generate(self):
         print("[DEBUG] _run_generate iniciado")
         
+        # Criar task no ExecutionManager (para histórico)
+        task_id, err = self.execution.create_task()
+        print(f"[DEBUG] create_task result: task_id={task_id}, err={err}")
+        if err:
+            print(f"[DEBUG] create_task error: {err}")
+            messagebox.showwarning("Aviso", err)
+            return
+        
         for key, entry in self.emp_entries.items():
             self.config[key] = entry.get()
         self.config["logo_path"] = self.logo_entry.get()
@@ -377,8 +449,7 @@ class OrcamentosPage(ToolPage):
         print(f"[DEBUG] data_file: {self.data_file}")
         
         if not self.data_file:
-            print("[DEBUG] Nenhum arquivo de dados selecionado")
-            self.status_label.configure(text="Selecione um arquivo de dados")
+            messagebox.showwarning("Aviso", "Selecione um arquivo de dados primeiro")
             return
 
         output_dir = filedialog.askdirectory(title="Selecione diretório para salvar os PDFs")
@@ -398,7 +469,11 @@ class OrcamentosPage(ToolPage):
         import time
         start_time = time.time()
         
-        df = pd.read_excel(self.data_file)
+        try:
+            df = pd.read_excel(self.data_file)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não foi possível ler o arquivo:\n{e}")
+            return
         
         print(f"[DEBUG] Linhas lidas: {len(df)}")
         
@@ -434,7 +509,11 @@ class OrcamentosPage(ToolPage):
                 
                 if current_execs >= max_execs:
                     print(f"[DEBUG] Limite execucoes atingido: {current_execs}/{max_execs}")
-                    self.status_label.configure(text=f"Limite de {max_execs} execuções atingido. Upgrade para PRO!")
+                    try:
+                        if hasattr(self, 'status_label') and self.status_label.winfo_exists():
+                            self.status_label.configure(text=f"Limite de {max_execs} execuções atingido. Upgrade para PRO!")
+                    except Exception:
+                        pass
                     self.update()
                     messagebox.showwarning("Limite Atingido", f"Você já usou {current_execs} execuções. O limite é {max_execs} por mês. Upgrade para PRO!")
                     return
@@ -444,7 +523,11 @@ class OrcamentosPage(ToolPage):
                 
                 if remaining_docs <= 0:
                     print(f"[DEBUG] Limite docs atingido: {current_docs}/{max_docs}")
-                    self.status_label.configure(text=f"Limite de {max_docs} documentos atingido. Upgrade para PRO!")
+                    try:
+                        if hasattr(self, 'status_label') and self.status_label.winfo_exists():
+                            self.status_label.configure(text=f"Limite de {max_docs} documentos atingido. Upgrade para PRO!")
+                    except Exception:
+                        pass
                     self.update()
                     messagebox.showwarning("Limite Atingido", f"Você já gerou {current_docs} documentos. O limite é {max_docs}. Upgrade para PRO!")
                     return
@@ -459,34 +542,95 @@ class OrcamentosPage(ToolPage):
                     
                 print(f"[DEBUG] Limit check: {current_execs}/{max_execs} execs, {current_docs}/{max_docs} docs")
             
-        self.status_label.configure(text="Processando...")
+        try:
+            if hasattr(self, 'status_label') and self.status_label.winfo_exists():
+                self.status_label.configure(text="Processando...")
+        except Exception:
+            pass
         self.update()
-        
+
         print(f"[DEBUG] Chamando generate_from_excel com config: {self.config}")
 
-        result = self.orcamentos.generate_from_excel(
-            self.data_file,
-            output_dir,
-            watermark=has_watermark,
-            config=self.config
-        )
-        
-        print(f"[DEBUG] Resultado: {result}")
+        data_file = self.data_file
+        cfg = dict(self.config)
+        self._exec_result = None
+        self._exec_data = {"output_dir": output_dir, "start_time": start_time}
 
+        def execute():
+            print("[DEBUG] execute() started in thread")
+            from src.tools.orcamentos.orcamentos import Orcamentos as Orc
+            o = Orc()
+            result = o.generate_from_excel(data_file, output_dir, watermark=has_watermark, config=cfg)
+            result["rows_processed"] = result.get("generated", 0)
+            result["output_path"] = result.get("output_dir", "")
+            print(f"[DEBUG] execute() done: {result.get('generated')} PDFs")
+            return result
+
+        g_id, g_err = global_executor.submit(
+            tool_name="orcamentos",
+            tool_display_name="Orçamentos",
+            execute_func=execute,
+            on_complete=lambda r: setattr(self, '_exec_result', r),
+            user_id=self.user_id,
+        )
+        if g_err:
+            messagebox.showwarning("Aviso", g_err)
+            return
+
+        self._poll_task_completion()
+
+    def _poll_task_completion(self):
+        if not hasattr(self, '_exec_result') or self._exec_result is None:
+            self.after(500, self._poll_task_completion)
+            return
+        result = self._exec_result
+        self._on_orcamentos_done(result, self._exec_data["output_dir"], self._exec_data["start_time"])
+        self._exec_result = None
+        self._exec_data = None
+
+    def _on_orcamentos_done(self, result, output_dir, start_time):
+        print(f"[DEBUG] _on_orcamentos_done called: success={result.get('success')}, generated={result.get('generated', 0)}")
+
+        import time
         generated = result.get("generated", 0)
         status = "completed" if result.get("success") and generated > 0 else "failed"
-        
-        tempo_ms = int((time.time() - start_time) * 1000)
-        self.config["tempo_execucao_ms"] = tempo_ms
-        self._save_config()
-        
-        if generated > 0 and self.execution_tracker and self.user_id:
-            self.track_execution(output_dir, status, rows_processed=generated, duration_ms=tempo_ms)
 
-        self._show_result(result)
-        self.status_label.configure(text="")
+        tempo_ms = int((time.time() - start_time) * 1000)
+
+        # Persist execution data even if page is gone
+        try:
+            self.config["tempo_execucao_ms"] = tempo_ms
+            self._save_config()
+        except Exception:
+            pass
 
         if result.get("success"):
-            self.data_file = ""
-            self.data_label.configure(text="Nenhum arquivo selecionado")
+            # Backup dos PDFs gerados
+            import glob, shutil
+            from pathlib import Path
+            pdfs = glob.glob(os.path.join(output_dir, "*.pdf"))
+            if pdfs:
+                # Usa o _finalize_execution que já faz backup + histórico
+                # Para múltiplos PDFs, criamos um único output_path apontando para o diretório
+                self._finalize_execution(result, output_dir, generated,
+                                         {"pdfs_gerados": generated})
+            else:
+                self._finalize_execution(result, "", generated)
+        else:
+            self._finalize_execution(result, "", 0)
+
+        # UI updates only if page still exists
+        try:
+            if self.winfo_exists():
+                self.status_label.configure(
+                    text=f"✅ {generated} orçamento(s) gerado(s) com sucesso!" if result.get("success")
+                    else f"❌ Erro: {result.get('error', 'Desconhecido')}"
+                )
+
+                if result.get("success"):
+                    self.data_file = ""
+                    self.data_label.configure(text="Nenhum arquivo selecionado")
+        except Exception:
+            pass
+        print("[DEBUG] _on_orcamentos_done finished")
 

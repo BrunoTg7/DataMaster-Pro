@@ -37,6 +37,14 @@ def load_environment():
 
 load_environment()
 
+# Configurar logging centralizado
+import config
+from src.core.logging_setup import configure_logging
+configure_logging(config.LOGS_DIR)
+
+logger = __import__("logging").getLogger(__name__)
+logger.info("Inicializando %s v%s", config.APP_NAME, config.APP_VERSION)
+
 # Importar a classe principal da aplicação
 from src.gui.app import DataMasterApp
 

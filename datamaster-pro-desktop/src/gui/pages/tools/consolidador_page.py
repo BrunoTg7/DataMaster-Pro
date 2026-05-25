@@ -1,6 +1,3 @@
-"""
-Consolidador Page - Une múltiplas planilhas
-"""
 import customtkinter as ctk
 import os
 import sys
@@ -9,12 +6,55 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.consolidador.consolidador_v2 import Consolidador
+from src.utils.task_helper import TaskHelper
+from src.gui.helpers.execution_helper import ExecutionHelper
+from src.core.tasks.global_executor import global_executor
 
 
 class ConsolidadorPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
         self.consolidador = Consolidador()
+        self.task_helper = TaskHelper("consolidador")
+        self.execution = ExecutionHelper("consolidador", "Consolidador", user_id)
+        self._task_id = None
+        self._cancelled_by_user = False
         super().__init__(master, "consolidador", "Consolidador", on_back, execution_tracker, user_id)
+        self._check_task_state()
+
+    def _check_task_state(self):
+        storage = self.task_helper.storage
+        last_task = storage.get_last_task_by_tool("consolidador")
+
+        if not last_task:
+            return
+
+        status = last_task.get("status")
+
+        if status == "running":
+            if hasattr(self, 'progress_frame'):
+                self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
+            if hasattr(self, 'progress_bar'):
+                progress = last_task.get("progress_percent", 0)
+                self.progress_bar.set(progress / 100)
+            if hasattr(self, 'progress_label'):
+                message = last_task.get("progress_message", "Processando...")
+                self.progress_label.configure(text=message)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⏳ Tarefa em andamento...")
+
+        elif status == "completed":
+            rows = last_task.get("rows_processed", 0)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"✅ Última execução concluída ({rows} registros)")
+
+        elif status == "interrupted":
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⚠️ Tarefa anterior interrompida.")
+
+        elif status == "failed":
+            error = last_task.get("error_message", "Erro")
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"❌ Última execução falhou")
 
     def _create_content(self):
         content = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -23,16 +63,16 @@ class ConsolidadorPage(ToolPage):
 
         info = ctk.CTkLabel(
             content,
-            text="Selecione múltiplos arquivos Excel ou CSV para unificar em uma única planilha.",
+            text="Selecione múltiplos arquivos de dados (Excel, CSV, TXT ou JSON) para consolidar em uma planilha única estruturada com formatação comercial premium.",
             font=ctk.CTkFont(size=12),
             text_color=config.Colors.TEXT_SECONDARY,
-            wraplength=400
+            wraplength=500
         )
         info.pack(pady=(20, 10))
 
         self.drop_frame = self._create_drop_zone(
             content,
-            "Selecione os arquivos para consolidar",
+            "Selecione ou arraste arquivos para consolidar",
             self._select_files
         )
 
@@ -41,23 +81,134 @@ class ConsolidadorPage(ToolPage):
 
         options_frame = ctk.CTkFrame(content, fg_color=config.Colors.CARD, corner_radius=12)
         options_frame.pack(fill="x", padx=20, pady=10)
+        options_frame.grid_columnconfigure(0, weight=1)
+        options_frame.grid_columnconfigure(1, weight=1)
 
-        lbl = ctk.CTkLabel(
-            options_frame,
-            text="Estratégia de merge:",
-            font=ctk.CTkFont(size=12),
-            text_color=config.Colors.TEXT_SECONDARY
+        left_options = ctk.CTkFrame(options_frame, fg_color="transparent")
+        left_options.grid(row=0, column=0, sticky="nsew", padx=15, pady=15)
+
+        lbl_strategy = ctk.CTkLabel(
+            left_options,
+            text="Estratégia de Consolidação:",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=config.Colors.TEXT_PRIMARY
         )
-        lbl.pack(anchor="w", padx=20, pady=(15, 5))
+        lbl_strategy.pack(anchor="w", pady=(0, 5))
 
         self.merge_strategy = ctk.CTkSegmentedButton(
-            options_frame,
-            values=["concat", "merge"],
+            left_options,
+            values=["concat", "merge", "join"],
             selected_color=config.Colors.PRIMARY,
             command=self._on_strategy_change
         )
         self.merge_strategy.set("concat")
-        self.merge_strategy.pack(padx=20, pady=(0, 15))
+        self.merge_strategy.pack(fill="x", pady=(0, 15))
+
+        self.join_options_frame = ctk.CTkFrame(left_options, fg_color="transparent")
+
+        lbl_key = ctk.CTkLabel(
+            self.join_options_frame,
+            text="Coluna Chave (Join Key):",
+            font=ctk.CTkFont(size=11),
+            text_color=config.Colors.TEXT_SECONDARY
+        )
+        lbl_key.pack(anchor="w")
+
+        self.join_key_entry = ctk.CTkEntry(
+            self.join_options_frame,
+            placeholder_text="Ex: SKU, ID, CPF, Codigo"
+        )
+        self.join_key_entry.pack(fill="x", pady=(0, 10))
+
+        lbl_join_type = ctk.CTkLabel(
+            self.join_options_frame,
+            text="Tipo de Cruzamento (Join):",
+            font=ctk.CTkFont(size=11),
+            text_color=config.Colors.TEXT_SECONDARY
+        )
+        lbl_join_type.pack(anchor="w")
+
+        self.join_type_menu = ctk.CTkOptionMenu(
+            self.join_options_frame,
+            values=["left", "inner", "right", "outer"],
+            fg_color=config.Colors.BACKGROUND,
+            button_color=config.Colors.PRIMARY,
+            button_hover_color=config.Colors.PRIMARY_HOVER
+        )
+        self.join_type_menu.set("left")
+        self.join_type_menu.pack(fill="x", pady=(0, 10))
+
+        lbl_sheet = ctk.CTkLabel(
+            left_options,
+            text="Extração de Abas (Excel):",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=config.Colors.TEXT_PRIMARY
+        )
+        lbl_sheet.pack(anchor="w", pady=(5, 5))
+
+        self.sheet_selection_menu = ctk.CTkOptionMenu(
+            left_options,
+            values=["Primeira Aba", "Todas as Abas", "Especificar Nome"],
+            fg_color=config.Colors.BACKGROUND,
+            text_color=config.Colors.TEXT_PRIMARY,
+            button_color=config.Colors.PRIMARY,
+            button_hover_color=config.Colors.PRIMARY_HOVER,
+            command=self._on_sheet_selection_change
+        )
+        self.sheet_selection_menu.set("Primeira Aba")
+        self.sheet_selection_menu.pack(fill="x", pady=(0, 5))
+
+        self.sheet_name_entry = ctk.CTkEntry(
+            left_options,
+            placeholder_text="Nome exato da aba (ex: Vendas)"
+        )
+
+        right_options = ctk.CTkFrame(options_frame, fg_color="transparent")
+        right_options.grid(row=0, column=1, sticky="nsew", padx=15, pady=15)
+
+        lbl_intelligence = ctk.CTkLabel(
+            right_options,
+            text="Inteligência de Dados:",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=config.Colors.TEXT_PRIMARY
+        )
+        lbl_intelligence.pack(anchor="w", pady=(0, 5))
+
+        self.fuzzy_switch = ctk.CTkSwitch(
+            right_options,
+            text="Alinhamento Inteligente de Cabeçalhos (Fuzzy)",
+            progress_color=config.Colors.PRIMARY
+        )
+        self.fuzzy_switch.select()
+        self.fuzzy_switch.pack(anchor="w", pady=(0, 10))
+
+        self.duplicates_checkbox = ctk.CTkCheckBox(
+            right_options,
+            text="Remover registros duplicados da consolidação",
+            border_color=config.Colors.BORDER,
+            hover_color=config.Colors.PRIMARY,
+            fg_color=config.Colors.PRIMARY
+        )
+        self.duplicates_checkbox.pack(anchor="w", pady=(0, 15))
+
+        lbl_theme = ctk.CTkLabel(
+            right_options,
+            text="Tema Visual da Planilha (Excel):",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=config.Colors.TEXT_PRIMARY
+        )
+        lbl_theme.pack(anchor="w", pady=(5, 5))
+
+        self.visual_theme_menu = ctk.CTkOptionMenu(
+            right_options,
+            values=["Azul Corporativo", "Verde Esmeralda", "Laranja Moderno", "Cinza Minimalista"],
+            fg_color=config.Colors.BACKGROUND,
+            text_color=config.Colors.TEXT_PRIMARY,
+            button_color=config.Colors.PRIMARY,
+            button_hover_color=config.Colors.PRIMARY_HOVER
+        )
+        self.visual_theme_menu.set("Azul Corporativo")
+        self.visual_theme_menu.pack(anchor="w", pady=(0, 15))
 
         self.action_btn = self._create_action_button(content, "Consolidar Arquivos", self._run_consolidate)
 
@@ -75,9 +226,12 @@ class ConsolidadorPage(ToolPage):
             self._update_file_list()
         else:
             files = self._browse_files([
-                ("Excel", "*.xlsx *.xls"),
-                ("CSV", "*.csv"),
-                ("Todos", "*.*")
+                ("Arquivos de Planilhas", "*.xlsx *.xls *.csv *.txt *.json"),
+                ("Pastas de Trabalho Excel", "*.xlsx *.xls"),
+                ("Valores Separados por Vírgula (CSV)", "*.csv"),
+                ("Arquivos de Texto Delimitados (TXT)", "*.txt"),
+                ("Arquivos de Estrutura JSON", "*.json"),
+                ("Todos os Arquivos", "*.*")
             ])
             if files:
                 self.uploaded_files = files
@@ -90,27 +244,46 @@ class ConsolidadorPage(ToolPage):
         if self.uploaded_files:
             lbl = ctk.CTkLabel(
                 self.file_list_frame,
-                text=f"Arquivos selecionados: {len(self.uploaded_files)}",
+                text=f"Arquivos Selecionados: {len(self.uploaded_files)}",
                 font=ctk.CTkFont(size=12, weight="bold"),
                 text_color=config.Colors.TEXT_PRIMARY
             )
             lbl.pack(anchor="w")
 
+            scroll = ctk.CTkScrollableFrame(self.file_list_frame, fg_color=config.Colors.CARD, height=100)
+            scroll.pack(fill="x", pady=5)
+
             for f in self.uploaded_files:
                 file_lbl = ctk.CTkLabel(
-                    self.file_list_frame,
-                    text=f"• {os.path.basename(f)}",
+                    scroll,
+                    text=f"📄 {os.path.basename(f)} ({os.path.dirname(f)[:50]}...)",
                     font=ctk.CTkFont(size=11),
                     text_color=config.Colors.TEXT_SECONDARY
                 )
                 file_lbl.pack(anchor="w", padx=10, pady=2)
 
     def _on_strategy_change(self, value):
-        pass
+        if value == "join":
+            self.join_options_frame.pack(fill="x", pady=(0, 10))
+        else:
+            self.join_options_frame.pack_forget()
+
+    def _on_sheet_selection_change(self, value):
+        if value == "Especificar Nome":
+            self.sheet_name_entry.pack(fill="x", pady=(5, 10))
+        else:
+            self.sheet_name_entry.pack_forget()
 
     def _run_consolidate(self):
         if not self.uploaded_files:
-            self.status_label.configure(text="Selecione pelo menos um arquivo")
+            self._safe_status("Erro: Selecione pelo menos um arquivo para consolidar.")
+            return
+
+        strategy = self.merge_strategy.get()
+        join_key = self.join_key_entry.get().strip() if strategy == "join" else None
+
+        if strategy == "join" and not join_key:
+            self._safe_status("Erro: Informe a coluna chave para realizar o cruzamento.")
             return
 
         total_lines = 0
@@ -118,39 +291,118 @@ class ConsolidadorPage(ToolPage):
             import pandas as pd
             for f in self.uploaded_files:
                 try:
-                    if f.endswith('.csv'):
+                    suffix = os.path.splitext(f)[1].lower()
+                    if suffix == '.csv':
                         df = pd.read_csv(f, nrows=1000)
                         total_lines += len(df) * 2
-                    else:
+                    elif suffix in ['.xlsx', '.xls']:
                         df = pd.read_excel(f, nrows=1000)
                         total_lines += len(df) * 2
-                except:
+                except Exception:
                     pass
-        except:
+        except Exception:
             pass
 
         allowed_rows = self.start_execution(rows_to_process=total_lines)
-        if allowed_rows == 0: return
+        if allowed_rows == 0:
+            return
 
         output_path = self._create_output_path("consolidado.xlsx")
-        if not output_path: return
+        if not output_path:
+            return
 
-        self.status_label.configure(text="Processando...")
-        self.update()
+        self._cancelled_by_user = False
 
-        result = self.consolidador.consolidate(
-            self.uploaded_files,
-            output_path,
-            merge_strategy=self.merge_strategy.get(),
-            max_rows=allowed_rows
+        theme_map = {
+            "Azul Corporativo": "classic_blue",
+            "Verde Esmeralda": "emerald_green",
+            "Laranja Moderno": "modern_orange",
+            "Cinza Minimalista": "slate_gray"
+        }
+        visual_theme = theme_map.get(self.visual_theme_menu.get(), "classic_blue")
+
+        sheet_sel = self.sheet_selection_menu.get()
+        if sheet_sel == "Primeira Aba":
+            sheet_selection = "first"
+        elif sheet_sel == "Todas as Abas":
+            sheet_selection = "all"
+        else:
+            sheet_selection = self.sheet_name_entry.get().strip() or "first"
+
+        files = list(self.uploaded_files)
+        fuzzy = self.fuzzy_switch.get()
+        dup = self.duplicates_checkbox.get()
+        join_type = self.join_type_menu.get()
+
+        self._safe_status("⏳ Consolidando e formatando planilhas...")
+
+        task_id, error = self.task_helper.start_task({})
+        if error:
+            from tkinter import messagebox
+            messagebox.showwarning("Aviso", error)
+            return
+        self._task_id = task_id
+
+        extra = dict(
+            output_path=output_path,
+            rows_processed=0,
+            files=len(files),
+            total_rows=0,
         )
 
-        status = "completed" if result.get("success") else "failed"
-        self.track_execution(output_path, status, rows_processed=result.get("total_rows", 0))
+        def execute():
+            cons = Consolidador()
+            return cons.consolidate(
+                files,
+                output_path,
+                merge_strategy=strategy,
+                max_rows=allowed_rows,
+                sheet_selection=sheet_selection,
+                enable_fuzzy_mapping=fuzzy,
+                join_key=join_key,
+                join_type=join_type,
+                visual_theme=visual_theme,
+                remove_duplicates=dup,
+            )
+
+        def on_complete(result):
+            self.after(0, lambda: self._on_consolidate_done(result, extra, output_path, files))
+
+        g_task_id, g_err = global_executor.submit(
+            tool_name="consolidador",
+            tool_display_name="Consolidador",
+            execute_func=execute,
+            on_complete=on_complete,
+            user_id=self.user_id,
+        )
+        if g_err:
+            from tkinter import messagebox
+            messagebox.showwarning("Aviso", g_err)
+
+    def _on_consolidate_done(self, result, extra, output_path, files):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
+
+        rows = result.get("total_rows", 0)
+        extra["total_rows"] = rows
+        self._finalize_execution(result, output_path, rows,
+                                 {"registros": rows, "arquivos": len(files)})
 
         self._show_result(result)
-        self.status_label.configure(text="")
+        self._safe_status("")
 
         if result.get("success"):
             self.uploaded_files = []
             self._update_file_list()
+
+        self._task_id = None
+
+    def _safe_status(self, text):
+        try:
+            if hasattr(self, 'status_label') and self.status_label.winfo_exists():
+                self.status_label.configure(text=text)
+        except Exception:
+            pass

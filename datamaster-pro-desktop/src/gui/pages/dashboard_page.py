@@ -33,13 +33,11 @@ class DashboardPage(ctk.CTkFrame):
 
     def _setup_ui(self):
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2, weight=1) # As ferramentas expandem
-        self.grid_rowconfigure(3, weight=0) # O rodapé fica no fundo
+        self.grid_rowconfigure(2, weight=1)
 
         self._create_header()
         self._create_stats_section()
         self._create_tools_grid()
-        self._create_footer()
 
     def _create_header(self):
         header = ctk.CTkFrame(self, fg_color=config.Colors.CARD, height=70, corner_radius=0)
@@ -384,83 +382,18 @@ class DashboardPage(ctk.CTkFrame):
     def _open_tool(self, tool_key):
         self.on_open_tool(tool_key)
 
-    def _create_footer(self):
-        footer = ctk.CTkFrame(self, fg_color=config.Colors.CARD, height=40, corner_radius=0)
-        footer.grid(row=3, column=0, sticky="ew", padx=0, pady=0)
-        footer.grid_columnconfigure(1, weight=1)
-        footer.grid_columnconfigure(3, weight=1)
-
-        status_label = ctk.CTkLabel(
-            footer,
-            text="Conexão:",
-            font=ctk.CTkFont(size=12),
-            text_color=config.Colors.TEXT_SECONDARY
-        )
-        status_label.grid(row=0, column=0, padx=(20, 5), pady=10)
-
-        self.status_led = ctk.CTkLabel(
-            footer,
-            text="●",
-            font=ctk.CTkFont(size=16),
-            text_color="#10B981" if self.is_online else "#EF4444"
-        )
-        self.status_led.grid(row=0, column=1, padx=5, pady=10, sticky="w")
-
-        self.connection_label = ctk.CTkLabel(
-            footer,
-            text="Online" if self.is_online else "Offline",
-            font=ctk.CTkFont(size=11),
-            text_color=config.Colors.TEXT_SECONDARY
-        )
-        self.connection_label.grid(row=0, column=2, padx=5, pady=10, sticky="w")
-
-        if self.sync_manager:
-            stats = self.sync_manager.get_queue_stats()
-            pending = stats.get("pending", 0)
-            sync_text = f"Sync: {pending} pendentes" if pending > 0 else "✓ Sincronizado"
-            sync_color = config.Colors.ALERT if pending > 0 else "#10B981"
-        else:
-            sync_text = ""
-            sync_color = config.Colors.TEXT_SECONDARY
-
-        self.sync_label = ctk.CTkLabel(
-            footer,
-            text=sync_text,
-            font=ctk.CTkFont(size=11),
-            text_color=sync_color
-        )
-        self.sync_label.grid(row=0, column=3, padx=10, pady=10)
-
-        self.version_footer_label = ctk.CTkLabel(
-            footer,
-            text=f"v{config.APP_VERSION}",
-            font=ctk.CTkFont(size=12),
-            text_color=config.Colors.TEXT_SECONDARY
-        )
-        self.version_footer_label.grid(row=0, column=4, padx=20, pady=10)
-
     def update_connection_status(self, is_online: bool):
-        """Atualiza o status de conexão"""
         self.is_online = is_online
-        self.status_led.configure(text_color="#10B981" if is_online else "#EF4444")
-        self.connection_label.configure(text="Online" if is_online else "Offline")
-
-        stats = self.sync_manager.get_queue_stats() if self.sync_manager else {}
-        pending = stats.get("pending", 0)
-
-        if pending > 0:
-            self.sync_label.configure(text=f"Sync: {pending} pendentes", text_color=config.Colors.ALERT)
-        else:
-            self.sync_label.configure(text="✓ Sincronizado", text_color="#10B981")
-
-        if self.sync_manager and is_online and pending > 0:
-            def async_sync():
-                result = self.sync_manager.sync_now()
-                if result.get("success"):
-                    self.after(0, lambda: self.sync_label.configure(text="✓ Sincronizado", text_color="#10B981"))
-                elif result.get("offline"):
-                    self.after(0, lambda: self.sync_label.configure(text=f"Sync: {pending} pendentes", text_color=config.Colors.ALERT))
-            threading.Thread(target=async_sync, daemon=True).start()
+        if self.sync_manager:
+            stats = self.sync_manager.get_queue_stats() if self.sync_manager else {}
+            pending = stats.get("pending", 0)
+            if self.sync_manager and is_online and pending > 0:
+                def async_sync():
+                    try:
+                        self.sync_manager.sync_now()
+                    except Exception as e:
+                        print(f"Erro na sincronização automática: {e}")
+                threading.Thread(target=async_sync, daemon=True).start()
 
     # ==================== SISTEMA DE ATUALIZAÇÃO ====================
     def _check_update_on_entry(self):
@@ -474,7 +407,7 @@ class DashboardPage(ctk.CTkFrame):
             # Se o resultado já chegou no cache e há update disponível
             if config.LAST_UPDATE_DATA and config.LAST_UPDATE_DATA.get("available"):
                 config.SESSION_BANNER_SHOWN = True
-                self.after(0, lambda: self._show_update_banner(config.LAST_UPDATE_DATA))
+                self.after(0, lambda: self._show_update_banner(config.LAST_UPDATE_DATA) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
                 return
             
             # Se ainda não chegou, tenta de novo por alguns segundos
@@ -485,10 +418,14 @@ class DashboardPage(ctk.CTkFrame):
         poll_cache()
 
     def _show_update_banner(self, update_info):
-        """Mostra um banner elegante de atualização em tons de laranja/âmbar"""
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         if self._update_banner:
             try: self._update_banner.destroy()
-            except: pass
+            except Exception: pass
 
         # Cores Premium Orange
         bg_color = "#2a1b0a"      # Fundo âmbar escuro
@@ -559,16 +496,22 @@ class DashboardPage(ctk.CTkFrame):
         self.after(30000, self._dismiss_banner)
 
     def _dismiss_banner(self):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         if self._update_banner:
             try:
                 self._update_banner.destroy()
-            except:
+            except Exception:
                 pass
             self._update_banner = None
 
     def _start_silent_update(self, update_info):
         """Baixa e instala a atualização silenciosamente"""
         download_url = update_info.get("download_url", "")
+        sha256 = update_info.get("sha256", "")
         if not download_url:
             return
 
@@ -576,10 +519,18 @@ class DashboardPage(ctk.CTkFrame):
         if self._update_banner:
             try:
                 self._update_banner.destroy()
-            except:
+            except Exception:
                 pass
 
         # POSICIONAMENTO FLUTUANTE (MODAL)
+        progress_banner = ctk.CTkFrame(
+            self,
+            fg_color=config.Colors.CARD,
+            corner_radius=16,
+            border_width=1,
+            border_color=config.Colors.BORDER,
+            height=60
+        )
         progress_banner.place(relx=0.5, y=100, anchor="n", relwidth=0.9)
         
         progress_banner.grid_columnconfigure(1, weight=1)
@@ -614,31 +565,34 @@ class DashboardPage(ctk.CTkFrame):
 
         def on_progress(percent):
             self.after(0, lambda p=percent: [
-                progress_bar.set(p / 100),
-                percent_label.configure(text=f"{p}%")
+                progress_bar.set(p / 100) if progress_bar.winfo_exists() else None,
+                percent_label.configure(text=f"{p}%") if percent_label.winfo_exists() else None
             ])
 
         def on_complete(file_path, error):
             if error:
-                self.after(0, lambda: status_label.configure(text=f"❌ Erro: {error[:50]}", text_color="#EF4444"))
+                self.after(0, lambda: status_label.configure(text=f"❌ Erro: {error[:50]}", text_color="#EF4444") if status_label.winfo_exists() else None)
                 self.after(5000, self._dismiss_banner)
                 return
 
-            self.after(0, lambda: self._prompt_install(file_path, status_label))
+            self.after(0, lambda: self._prompt_install(file_path, status_label) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
 
         from src.core.update.update_checker import UpdateChecker
         checker = UpdateChecker(config.APP_VERSION)
-        checker.download_and_install(download_url, on_progress=on_progress, on_complete=on_complete)
+        checker.download_and_install(download_url, expected_sha256=sha256, on_progress=on_progress, on_complete=on_complete)
 
     def _prompt_install(self, file_path, status_label):
-        """Pergunta ao usuário se deseja instalar agora"""
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         import subprocess
         status_label.configure(text="✅ Download concluído! Instalando...", text_color="#22c55e")
 
         try:
-            # Executa o instalador silenciosamente e fecha o app
             subprocess.Popen([file_path], shell=True)
-            self.after(2000, lambda: self.master.destroy())
+            self.after(2000, lambda: self.master.destroy() if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
         except Exception as e:
             status_label.configure(text=f"❌ Erro ao iniciar instalador: {str(e)[:40]}", text_color="#EF4444")
             self.after(5000, self._dismiss_banner)

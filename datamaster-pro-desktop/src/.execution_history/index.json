@@ -1,0 +1,20 @@
+{
+  "by_tool": {
+    "orcamentos": [
+      {
+        "task_id": "5c87f69a-e1cf-4f5f-8f5e-dcf1dc212b73",
+        "completed_at": "2026-05-22T14:27:25.063856",
+        "status": "completed"
+      }
+    ]
+  },
+  "all_tasks": [
+    {
+      "task_id": "5c87f69a-e1cf-4f5f-8f5e-dcf1dc212b73",
+      "tool_name": "orcamentos",
+      "tool_display_name": "Orçamentos Automáticos",
+      "completed_at": "2026-05-22T14:27:25.063856",
+      "status": "completed"
+    }
+  ]
+}

@@ -12,6 +12,9 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.validador_links.validador_links_v2 import ValidadorLinks
 from src.gui.components.result_viewer_modal import ResultViewerButton
+from src.utils.task_helper import TaskHelper
+from src.gui.helpers.execution_helper import ExecutionHelper
+from src.core.tasks.global_executor import global_executor
 
 
 class ValidadorLinksPage(ToolPage):
@@ -19,9 +22,48 @@ class ValidadorLinksPage(ToolPage):
         self.validador = ValidadorLinks(
             progress_callback=self._update_progress
         )
+        self.execution = ExecutionHelper("validador_links", "Validador de Links", user_id)
         super().__init__(master, "validador_links", "Validador de Links", on_back, execution_tracker, user_id)
+        self._check_task_state()
+        self.task_helper = TaskHelper("validador_links")
         self.urls = []
         self._last_result_text = ""
+
+    def _check_task_state(self):
+        from src.core.storage.storage_manager import StorageManager
+        storage = StorageManager()
+        last_task = storage.get_last_task_by_tool("validador_links")
+        
+        if not last_task:
+            return
+        
+        status = last_task.get("status")
+        
+        if status == "running":
+            if hasattr(self, 'progress_frame'):
+                self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
+            if hasattr(self, 'progress_bar'):
+                progress = last_task.get("progress_percent", 0)
+                self.progress_bar.set(progress / 100)
+            if hasattr(self, 'progress_label'):
+                message = last_task.get("progress_message", "Processando...")
+                self.progress_label.configure(text=message)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⏳ Tarefa em andamento...")
+            
+        elif status == "completed":
+            rows = last_task.get("rows_processed", 0)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"✅ Última execução concluída ({rows} registros)")
+            
+        elif status == "interrupted":
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⚠️ Tarefa anterior interrompida.")
+            
+        elif status == "failed":
+            error = last_task.get("error_message", "Erro")
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"❌ Última execução falhou")
 
     def _create_content(self):
         content = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -138,15 +180,34 @@ class ValidadorLinksPage(ToolPage):
                 messagebox.showerror("Erro", f"Erro ao ler arquivo: {e}")
 
     def _run_validation(self):
+        task_id, error = self.task_helper.start_task({})
+        if error:
+            messagebox.showwarning("Aviso", error)
+            return
+
         text = self.text_area.get("1.0", "end").strip()
         if not text:
             messagebox.showwarning("Aviso", "Por favor, insira pelo menos uma URL")
+            self.task_helper.cancel()
             return
 
         self.urls = [line.strip() for line in text.split('\n') if line.strip()]
-        
+
         if not self.urls:
             messagebox.showwarning("Aviso", "Nenhuma URL válida encontrada")
+            self.task_helper.cancel()
+            return
+
+        from src.tools.minerador.minerador_v2 import validate_url
+        invalid = [u for u in self.urls if not validate_url(u)]
+        if invalid:
+            msg = "URLs inválidas ignoradas:\n" + "\n".join(invalid[:5])
+            if len(invalid) > 5:
+                msg += f"\n...e mais {len(invalid) - 5}"
+            messagebox.showwarning("URLs Inválidas", msg)
+        self.urls = [u for u in self.urls if validate_url(u)]
+        if not self.urls:
+            self.task_helper.cancel()
             return
 
         self.action_btn.configure(state="disabled")
@@ -156,18 +217,34 @@ class ValidadorLinksPage(ToolPage):
         self.results_text.insert("1.0", f"Iniciando validação de {len(self.urls)} URLs...\n\n")
         self.results_text.configure(state="disabled")
 
-        thread = threading.Thread(target=self._validation_worker, daemon=True)
-        thread.start()
+        urls = self.urls
+        validador = self.validador
+        def execute_func():
+            result = validador.validate_links(urls)
+            return result
+        def on_complete(result):
+            self.after(0, lambda: self._show_results(result))
+        global_executor.submit(
+            execute_func=execute_func,
+            on_complete=on_complete,
+            tool_name="validador_links",
+            tool_display_name="Validador de Links",
+            user_id=self.user_id
+        )
 
     def _validation_worker(self):
         try:
             result = self.validador.validate_links(self.urls)
-            
-            self.after(0, lambda: self._show_results(result))
+            self.after(0, lambda: self._show_results(result) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
         except Exception as e:
-            self.after(0, lambda: self._show_error(str(e)))
+            self.after(0, lambda: self._show_error(str(e)) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
 
     def _show_results(self, result):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_frame.pack_forget()
         self.action_btn.configure(state="normal")
 
@@ -216,12 +293,25 @@ Total Processado: {summary_data.get('total', 0)}
 
         msg = f"Validação concluída!\n{summary_data.get('active', 0)} links ativos de {summary_data.get('total', 0)}"
         messagebox.showinfo("Concluído", msg)
+        total = summary_data.get('total', 0)
+        self._finalize_execution({"success": True}, "", total, {"urls_validadas": total, "ativas": summary_data.get('active', 0)})
 
     def _show_error(self, error):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_frame.pack_forget()
         self.action_btn.configure(state="normal")
         messagebox.showerror("Erro", f"Erro na validação: {error}")
+        self._finalize_execution({"success": False, "error": error}, "")
 
     def _update_progress(self, value):
-        self.progress_bar.set(value / 100)
-        self.progress_label.configure(text=f"Validando... {value}%")
+        try:
+            if hasattr(self, 'progress_bar') and self.progress_bar.winfo_exists():
+                self.progress_bar.set(value / 100)
+            if hasattr(self, 'progress_label') and self.progress_label.winfo_exists():
+                self.progress_label.configure(text=f"Validando... {value}%")
+        except Exception:
+            pass

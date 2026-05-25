@@ -5,7 +5,6 @@ import customtkinter as ctk
 from tkinter import messagebox, filedialog
 import os
 import sys
-import threading
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -13,6 +12,10 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.data_sanitizer.data_sanitizer_v2 import DataSanitizer
 from src.gui.components.result_viewer_modal import ResultViewerButton
+from src.utils.task_helper import TaskHelper
+from src.gui.helpers.execution_helper import ExecutionHelper
+from src.core.tasks.global_executor import global_executor
+
 
 
 class DataSanitizerPage(ToolPage):
@@ -21,13 +24,62 @@ class DataSanitizerPage(ToolPage):
             progress_callback=self._update_progress,
             log_callback=self._log_from_thread
         )
+        self.execution = ExecutionHelper("data_sanitizer", "Data Sanitizer", user_id)
         super().__init__(master, "data_sanitizer", "Data Sanitizer", on_back, execution_tracker, user_id)
+        self._check_task_state()
+        self.task_helper = TaskHelper("data_sanitizer")
         self.input_file = None
         self.df = None
         self.detected_fields = {}
 
+    def _check_task_state(self):
+        from src.core.storage.storage_manager import StorageManager
+        storage = StorageManager()
+        last_task = storage.get_last_task_by_tool("data_sanitizer")
+        
+        if not last_task:
+            return
+        
+        status = last_task.get("status")
+        
+        if status == "running":
+            if hasattr(self, 'progress_frame'):
+                self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
+            if hasattr(self, 'progress_bar'):
+                progress = last_task.get("progress_percent", 0)
+                self.progress_bar.set(progress / 100)
+            if hasattr(self, 'progress_label'):
+                message = last_task.get("progress_message", "Processando...")
+                self.progress_label.configure(text=message)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⏳ Tarefa em andamento...")
+            
+        elif status == "completed":
+            rows = last_task.get("rows_processed", 0)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"✅ Última execução concluída ({rows} registros)")
+            
+        elif status == "interrupted":
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⚠️ Tarefa anterior interrompida.")
+            
+        elif status == "failed":
+            error = last_task.get("error_message", "Erro")
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"❌ Última execução falhou")
+
     def _log_from_thread(self, message: str):
-        self.after(0, lambda: self._add_log(message))
+        self.after(0, lambda: self._add_log_safe(message))
+
+    def _add_log_safe(self, message: str):
+        try:
+            if hasattr(self, 'results_text') and self.results_text.winfo_exists():
+                self.results_text.configure(state="normal")
+                self.results_text.insert("end", f"• {message}\n")
+                self.results_text.see("end")
+                self.results_text.configure(state="disabled")
+        except Exception:
+            pass
 
     def _create_content(self):
         content = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -115,6 +167,28 @@ class DataSanitizerPage(ToolPage):
             width=120
         )
         select_all_btn.pack(anchor="w", padx=20, pady=(10, 15))
+
+        # Tema Visual da Planilha
+        theme_frame = ctk.CTkFrame(content, fg_color="transparent")
+        theme_frame.pack(fill="x", padx=20, pady=(5, 5))
+
+        ctk.CTkLabel(
+            theme_frame,
+            text="Tema Visual da Planilha (Excel):",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=config.Colors.TEXT_PRIMARY
+        ).pack(anchor="w", pady=(5, 5))
+
+        self.visual_theme_menu = ctk.CTkOptionMenu(
+            theme_frame,
+            values=["Azul Corporativo", "Verde Esmeralda", "Laranja Moderno", "Cinza Minimalista"],
+            fg_color=config.Colors.BACKGROUND,
+            text_color=config.Colors.TEXT_PRIMARY,
+            button_color=config.Colors.PRIMARY,
+            button_hover_color=config.Colors.PRIMARY_HOVER
+        )
+        self.visual_theme_menu.set("Azul Corporativo")
+        self.visual_theme_menu.pack(anchor="w", pady=(0, 10))
 
         self.action_btn = self._create_action_button(content, "Limpar e Normalizar", self._run_sanitization)
 
@@ -204,6 +278,11 @@ class DataSanitizerPage(ToolPage):
             var.set(True)
 
     def _run_sanitization(self):
+        task_id, error = self.task_helper.start_task({})
+        if error:
+            messagebox.showwarning("Aviso", error)
+            return
+
         if not self.input_file:
             messagebox.showwarning("Aviso", "Por favor, selecione um arquivo primeiro")
             return
@@ -229,17 +308,25 @@ class DataSanitizerPage(ToolPage):
         self.action_btn.configure(state="disabled")
         self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
 
-        thread = threading.Thread(target=self._sanitization_worker, args=(save_path, options), daemon=True)
-        thread.start()
+        theme_map = {"Azul Corporativo": "classic_blue", "Verde Esmeralda": "emerald_green", "Laranja Moderno": "modern_orange", "Cinza Minimalista": "slate_gray"}
+        visual_theme = theme_map.get(self.visual_theme_menu.get(), "classic_blue")
 
-    def _sanitization_worker(self, output_path, options):
-        try:
-            result = self.sanitizer.process_file(self.input_file, output_path, options)
-            self.after(0, lambda: self._show_results(result))
-        except Exception as e:
-            self.after(0, lambda: self._show_error(str(e)))
+        input_file = self.input_file
+        sanitizer = self.sanitizer
+        global_executor.submit(
+            execute_func=lambda: sanitizer.process_file(input_file, save_path, options, visual_theme=visual_theme),
+            on_complete=lambda result: self.after(0, lambda: self._show_results(result)),
+            tool_name="data_sanitizer",
+            tool_display_name="Data Sanitizer",
+            user_id=self.user_id
+        )
 
     def _show_results(self, result):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_frame.pack_forget()
         self.action_btn.configure(state="normal")
         
@@ -263,15 +350,31 @@ Alterações por campo:
             self.results_text.insert("1.0", summary)
             self.results_text.configure(state="disabled")
             
-            messagebox.showinfo("Sucesso", f"Arquivo limpo e salvo com sucesso!\n{result.get('total_rows', 0)} linhas processadas.")
+            rows = result.get('total_rows', 0)
+            save_path = result.get('output_path', '')
+            self._finalize_execution(result, save_path, rows, {"registros": rows})
+            messagebox.showinfo("Sucesso", f"Arquivo limpo e salvo com sucesso!\n{rows} linhas processadas.")
         else:
             messagebox.showerror("Erro", result.get("error", "Erro desconhecido"))
 
     def _show_error(self, error):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_frame.pack_forget()
         self.action_btn.configure(state="normal")
         messagebox.showerror("Erro", f"Erro na limpeza: {error}")
+        self._finalize_execution({"success": False, "error": error}, "")
 
     def _update_progress(self, value):
-        self.progress_bar.set(value / 100)
-        self.progress_label.configure(text=f"Normalizando... {value}%")
+        try:
+            if hasattr(self, 'progress_bar') and self.progress_bar.winfo_exists():
+                self.progress_bar.set(value / 100)
+            if hasattr(self, 'progress_label') and self.progress_label.winfo_exists():
+                self.progress_label.configure(text=f"Normalizando... {value}%")
+        except Exception:
+            pass
+        self.task_helper.update_progress(value, 100, value)
+        self.task_helper.add_log(f"Normalizando... {value}%")

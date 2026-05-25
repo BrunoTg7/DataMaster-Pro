@@ -207,7 +207,7 @@ class SettingsPage(ctk.CTkFrame):
                 try:
                     day = datetime.fromisoformat(created_at.replace('Z', '+00:00')).day
                     next_reset = next_reset.replace(day=day)
-                except: pass
+                except Exception: pass
 
                 info_text = f"Próxima Renovação: {next_reset.strftime('%d/%m/%Y')}"
                 if plan_name != "GRATIS":
@@ -328,6 +328,7 @@ class SettingsPage(ctk.CTkFrame):
         import threading
         
         download_url = update_info.get("download_url", "")
+        sha256 = update_info.get("sha256", "")
         if not download_url:
             return
         
@@ -378,7 +379,7 @@ class SettingsPage(ctk.CTkFrame):
 
         from src.core.update.update_checker import UpdateChecker
         checker = UpdateChecker(config.APP_VERSION)
-        checker.download_and_install(download_url, on_progress=on_progress, on_complete=on_complete)
+        checker.download_and_install(download_url, expected_sha256=sha256, on_progress=on_progress, on_complete=on_complete)
 
     def _run_installer(self, file_path):
         """Executa o instalador e fecha o app"""
@@ -386,6 +387,6 @@ class SettingsPage(ctk.CTkFrame):
         self._update_status.configure(text="✅ Instalando... O app será reiniciado.", text_color="#22c55e")
         try:
             subprocess.Popen([file_path], shell=True)
-            self.after(2000, lambda: self.master.destroy())
+            self.after(2000, lambda: self.master.destroy() if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
         except Exception as e:
             self._update_status.configure(text=f"❌ Erro: {str(e)[:40]}", text_color="#EF4444")

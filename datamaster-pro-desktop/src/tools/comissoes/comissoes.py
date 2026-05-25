@@ -8,6 +8,7 @@ import re
 from typing import Dict, List, Optional
 from datetime import datetime
 from pathlib import Path
+from src.utils.excel_styler import save_premium_excel
 
 
 class Comissoes:
@@ -35,7 +36,7 @@ class Comissoes:
                 for enc in ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']:
                     try:
                         return pd.read_csv(path, encoding=enc, sep=None, engine='python')
-                    except:
+                    except Exception:
                         continue
             elif path.suffix.lower() in {".xlsx", ".xls"}:
                 return pd.read_excel(path)
@@ -498,7 +499,7 @@ class Comissoes:
 
     # ==================== EXPORTAÇÃO ====================
 
-    def export_summary(self, df: pd.DataFrame, output_path: str) -> Dict:
+    def export_summary(self, df: pd.DataFrame, output_path: str, visual_theme: str = "classic_blue") -> Dict:
         """Exporta resumo consolidado de comissões para Excel/CSV"""
         try:
             if 'vendedor' not in df.columns:
@@ -532,7 +533,20 @@ class Comissoes:
             if ext == ".csv":
                 summary.to_csv(output_path, index=False, encoding='utf-8-sig')
             else:
-                summary.to_excel(output_path, index=False, engine='openpyxl')
+                total_receita = summary.loc[summary['Vendedor'] == 'TOTAL', 'Receita Total'].values[0]
+                total_comissao = summary.loc[summary['Vendedor'] == 'TOTAL', 'Comissão'].values[0]
+                save_premium_excel(
+                    summary, output_path,
+                    theme_name=visual_theme,
+                    title="RELATÓRIO DE COMISSÕES",
+                    sheet_name="Comissões",
+                    stats=[
+                        ("Data da Execução", datetime.now().strftime("%d/%m/%Y %H:%M")),
+                        ("Total de Vendedores", str(len(summary) - 1)),
+                        ("Receita Total", f"R$ {total_receita:,.2f}"),
+                        ("Comissão Total", f"R$ {total_comissao:,.2f}"),
+                    ]
+                )
 
             return {"success": True, "output_path": output_path, "total_vendedores": len(summary) - 1}
         except Exception as e:

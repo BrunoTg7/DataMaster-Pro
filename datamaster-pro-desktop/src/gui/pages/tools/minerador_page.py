@@ -1,32 +1,73 @@
-"""
-Minerador Page - Captura preços de sites concorrentes
-"""
 import customtkinter as ctk
 from tkinter import messagebox
 import os
 import sys
+import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.minerador.minerador_v2 import Minerador
 from src.gui.components.result_viewer_modal import ResultViewerButton
+from src.utils.task_helper import TaskHelper
+from src.gui.helpers.execution_helper import ExecutionHelper
+from src.core.tasks.global_executor import global_executor
 
 
 class MineradorPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
         self.minerador = Minerador(
             progress_callback=self._update_progress,
-            log_callback=self._log_from_thread
+            log_callback=self._log_from_thread,
+            scraperapi_key=config.SCRAPERAPI_KEY,
         )
+        self.task_helper = TaskHelper("minerador")
+        self.execution = ExecutionHelper("minerador", "Minerador de Preços", user_id)
         super().__init__(master, "minerador", "Minerador de Preços", on_back, execution_tracker, user_id)
         self.links = []
         self.current_progress = 0
         self.total_progress = 0
         self._last_result_text = ""
-    
+        self._check_task_state()
+
+    def _check_task_state(self):
+        from src.core.storage.storage_manager import StorageManager
+        storage = StorageManager()
+        last_task = storage.get_last_task_by_tool("minerador")
+
+        if not last_task:
+            return
+
+        from datetime import datetime, timedelta
+        created = last_task.get("created_at", "")
+        if created:
+            try:
+                created_dt = datetime.fromisoformat(created)
+                if datetime.now() - created_dt >= timedelta(hours=2):
+                    return
+            except Exception:
+                return
+
+        status = last_task.get("status")
+
+        if status == "running":
+            self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
+            self.log_text.pack(padx=20, pady=10)
+            progress = last_task.get("progress_percent", 0)
+            message = last_task.get("progress_message", "Processando...")
+            self.progress_bar.set(progress / 100)
+            self.progress_label.configure(text=message)
+            log_text = last_task.get("log_text", "")
+            if log_text:
+                self.log_text.insert("end", log_text)
+                self.log_text.see("end")
+            self.status_label.configure(text="⏳ Tarefa em andamento...")
+
+        elif status == "completed":
+            rows = last_task.get("rows_processed", 0)
+            self.status_label.configure(text=f"✅ Última execução concluída ({rows} registros)")
+
     def _log_from_thread(self, message: str):
-        """Chamado de outra thread - Agenda atualização na thread principal"""
         self.after(0, lambda: self._add_log(message))
 
     def _create_content(self):
@@ -75,6 +116,28 @@ class MineradorPage(ToolPage):
             text_color=config.Colors.TEXT_SECONDARY
         )
         self.file_label.pack(pady=5)
+
+        # Tema Visual da Planilha
+        theme_frame = ctk.CTkFrame(content, fg_color="transparent")
+        theme_frame.pack(fill="x", padx=20, pady=(5, 5))
+
+        ctk.CTkLabel(
+            theme_frame,
+            text="Tema Visual da Planilha (Excel):",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=config.Colors.TEXT_PRIMARY
+        ).pack(anchor="w", pady=(5, 5))
+
+        self.visual_theme_menu = ctk.CTkOptionMenu(
+            theme_frame,
+            values=["Azul Corporativo", "Verde Esmeralda", "Laranja Moderno", "Cinza Minimalista"],
+            fg_color=config.Colors.BACKGROUND,
+            text_color=config.Colors.TEXT_PRIMARY,
+            button_color=config.Colors.PRIMARY,
+            button_hover_color=config.Colors.PRIMARY_HOVER
+        )
+        self.visual_theme_menu.set("Azul Corporativo")
+        self.visual_theme_menu.pack(anchor="w", pady=(0, 10))
 
         self.action_btn = self._create_action_button(content, "Iniciar Captura", self._run_mine)
 
@@ -130,8 +193,10 @@ class MineradorPage(ToolPage):
             self.file_label.configure(text=f"✓ {os.path.basename(self.input_file)}")
         else:
             files = self._browse_files([
+                ("Todos os arquivos", "*.*"),
                 ("Excel", "*.xlsx *.xls"),
-                ("CSV", "*.csv")
+                ("CSV", "*.csv"),
+                ("TXT", "*.txt"),
             ])
             if files:
                 self.input_file = files[0]
@@ -140,18 +205,30 @@ class MineradorPage(ToolPage):
     def _update_progress(self, current: int, total: int, percentage: int):
         self.current_progress = current
         self.total_progress = total
-        self.after(0, self._update_progress_ui, current, total, percentage)
+        try:
+            if hasattr(self, 'progress_bar') and self.progress_bar.winfo_exists():
+                self.after(0, self._update_progress_ui, current, total, percentage)
+        except Exception:
+            pass
 
     def _update_progress_ui(self, current: int, total: int, percentage: int):
+        try:
+            if not hasattr(self, 'progress_bar') or not self.progress_bar.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_bar.set(percentage / 100)
         self.progress_label.configure(text=f"🔍 Processando {current} de {total} ({percentage}%)")
-        
-        log_msg = f"[{current}/{total}] Processando... ({percentage}%)"
-        self.log_text.insert("end", log_msg + "\n")
-        self.log_text.see("end")
-    
+
+        try:
+            if hasattr(self, 'log_text') and self.log_text.winfo_exists():
+                log_msg = f"[{current}/{total}] Processando... ({percentage}%)"
+                self.log_text.insert("end", log_msg + "\n")
+                self.log_text.see("end")
+        except Exception:
+            pass
+
     def _add_log(self, message: str):
-        """Adiciona mensagem de log à área de texto"""
         if hasattr(self, 'log_text') and self.log_text.winfo_exists():
             self.log_text.insert("end", f"{message}\n")
             self.log_text.see("end")
@@ -159,116 +236,127 @@ class MineradorPage(ToolPage):
     def _run_mine(self):
         self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
         self.log_text.pack(padx=20, pady=10)
-        
+
         self.log_text.insert("end", "🔄 Iniciando...\n")
         self.log_text.see("end")
-        
+
         self.progress_bar.set(0)
         self.progress_label.configure(text="🔄 Preparando...")
         self.update()
 
-        def run_in_thread():
-            # Capturar URLs dentro da thread
-            text = self.text_area.get("1.0", "end").strip()
-            urls = [line.strip() for line in text.split("\n") if line.strip()] if text else []
-            
-            try:
-                # Verificar limite
-                plan = self.user_data.get("plan", "gratis")
-                max_links = 10
-                if plan.lower() != "gratis":
-                    max_links = None
-                else:
-                    from config import PLAN_LIMITS, PlanType
-                    plan_type = PlanType.GRATIS
-                    plan_info = PLAN_LIMITS.get(plan_type, {})
-                    tool_limits = plan_info.get("tools_limit", {})
-                    minerador_limit = tool_limits.get("minerador", {})
-                    max_links = minerador_limit.get("max_per_exec", 10)
-                
-                if hasattr(self, "input_file") and self.input_file:
-                    if not self.start_execution():
-                        return
-                    
-                    self.after(0, lambda: self.log_text.insert("end", f"📂 Arquivo: {os.path.basename(self.input_file)}\n"))
-                    self.after(0, lambda: self.log_text.see("end"))
-                    self.after(0, lambda: self.progress_label.configure(text=f"📂 Processando arquivo: {os.path.basename(self.input_file)}"))
-                    result = self.minerador.mine_from_file(self.input_file, max_links=max_links)
-                    self.after(0, lambda: self._show_mine_result(result))
-                    return
+        text = self.text_area.get("1.0", "end").strip()
+        urls = [line.strip() for line in text.split("\n") if line.strip()] if text else []
 
-                if not urls:
-                    self.after(0, lambda: self.status_label.configure(text="Insira URLs ou selecione um arquivo"))
-                    self.after(0, lambda: self.progress_frame.pack_forget())
-                    self.after(0, lambda: self.log_text.pack_forget())
-                    return
+        has_file = hasattr(self, "input_file") and self.input_file
+        input_file = self.input_file if has_file else None
 
-                if max_links and len(urls) > max_links:
-                    self.after(0, lambda: self.log_text.insert("end", f"⚠️ Limite de {max_links} links por execução. Processando {max_links} de {len(urls)}\n"))
-                    self.after(0, lambda: self.log_text.see("end"))
-                    urls = urls[:max_links]
+        if not has_file and not urls:
+            messagebox.showwarning("Aviso", "Insira URLs ou selecione um arquivo")
+            self.progress_frame.pack_forget()
+            self.log_text.pack_forget()
+            return
 
-                if not self.start_execution():
-                    return
-                self.after(0, lambda: self.log_text.insert("end", f"🚀 Iniciando {len(urls)} URLs...\n"))
-                self.after(0, lambda: self.log_text.see("end"))
-                self.after(0, lambda: self.progress_label.configure(text=f"🚀 Iniciando mineração de {len(urls)} URLs..."))
+        plan = self.user_data.get("plan", "gratis")
+        from config import PLAN_LIMITS, PlanType
+        plan_type = PlanType.GRATIS if plan.lower() == "gratis" else PlanType.PRO
+        plan_info = PLAN_LIMITS.get(plan_type, {})
+        tool_limits = plan_info.get("tools_limit", {})
+        minerador_limit = tool_limits.get("minerador", {})
+        max_links = minerador_limit.get("max_per_exec", 15) if plan.lower() == "gratis" else None
 
-                result = self.minerador.mine_from_links(urls)
-                self.after(0, lambda: self._show_mine_result(result))
-            except Exception as e:
-                error_msg = str(e)
-                self.after(0, lambda msg=error_msg: self.log_text.insert("end", f"❌ ERRO: {msg}\n"))
-                self.after(0, lambda: self.log_text.see("end"))
-                self.after(0, lambda: self.progress_label.configure(text="❌ Erro"))
-                self.after(0, lambda msg=error_msg: messagebox.showerror("Erro", msg))
+        submitted_urls = list(urls)
 
-        import threading
-        thread = threading.Thread(target=run_in_thread, daemon=True)
-        thread.start()
+        def execute():
+            miner = Minerador(
+                progress_callback=lambda c, t, p: (
+                    global_executor.update_progress(g_id, p, f"Processando {c}/{t}"),
+                    self.after(0, self._update_progress_ui, c, t, p),
+                ),
+                log_callback=lambda m: (
+                    global_executor.add_log(g_id, m),
+                ),
+                scraperapi_key=config.SCRAPERAPI_KEY,
+            )
+
+            if has_file and input_file:
+                return miner.mine_from_file(input_file, max_links=max_links)
+
+            if not submitted_urls:
+                return {"success": False, "error": "Nenhuma URL informada"}
+
+            if max_links and len(submitted_urls) > max_links:
+                submitted_urls[:] = submitted_urls[:max_links]
+
+            return miner.mine_from_links(submitted_urls)
+
+        def on_complete(result):
+            self.after(0, lambda: self._show_mine_result(result))
+
+        g_id, g_err = global_executor.submit(
+            tool_name="minerador",
+            tool_display_name="Minerador de Preços",
+            execute_func=execute,
+            on_complete=on_complete,
+            user_id=self.user_id,
+        )
+        if not g_id:
+            self.progress_frame.pack_forget()
+            return
+
+        if not self.start_execution():
+            return
 
     def _show_mine_result(self, result):
+        try:
+            if not hasattr(self, 'log_text') or not self.log_text.winfo_exists():
+                return
+        except Exception:
+            return
+
         self.log_text.insert("end", f"📊 Resultado: {result.get('success', False)}\n")
         self.log_text.see("end")
-        
+
         output_path = ""
         if result.get("success"):
             if result.get("results"):
                 output_path = self._create_output_path("precos_coletados.xlsx")
                 if output_path:
-                    self.minerador.export_results(result["results"], output_path)
-
-            status = "completed"
-            self.track_execution(output_path, status, rows_processed=0, links_processed=result.get("total", 0))
+                    theme_map = {"Azul Corporativo": "classic_blue", "Verde Esmeralda": "emerald_green", "Laranja Moderno": "modern_orange", "Cinza Minimalista": "slate_gray"}
+                    visual_theme = theme_map.get(self.visual_theme_menu.get(), "classic_blue")
+                    self.minerador.export_results(result["results"], output_path, visual_theme=visual_theme)
 
             collected = result.get("collected", 0)
+            self._finalize_execution(result, output_path, collected,
+                                     {"links": collected, "total": result.get("total", 0)})
+
             total = result.get("total", 0)
             errors = result.get("errors", [])
             error_count = len(errors) if errors else 0
-            
+
             report = f"📊 RELATÓRIO DE MINERAÇÃO\n{'='*40}\n"
             report += f"Total: {total}\nColetados: {collected}\nErros: {error_count}\n\n"
-            
+
             for res in result.get("results", []):
-                report += f"✅ {res['title']}\n   R$ {res['price']} - {res['url']}\n\n"
-            
+                report += f"✅ {res.get('titulo', res.get('title', '?'))}\n   R$ {res.get('preco', res.get('price', 0))} - {res['url']}\n\n"
+
             if errors:
                 report += f"\n❌ ERROS:\n"
                 for err in errors:
                     report += f"- {err['url']}: {err['error']}\n"
-            
+
             self._last_result_text = report
 
             msg = f"✅ Coleta concluída!\n\n📊 Resultados: {collected}/{total} preços coletados"
             if error_count > 0:
                 msg += f"\n⚠️ {error_count} erros durante a mineração"
-            
+
             messagebox.showinfo("Sucesso", msg)
         else:
+            self._finalize_execution(result, "")
             messagebox.showerror("Erro", result.get("error", "Erro desconhecido"))
 
         self.status_label.configure(text="")
-        
+
         self.progress_frame.pack_forget()
         self.log_text.pack_forget()
 

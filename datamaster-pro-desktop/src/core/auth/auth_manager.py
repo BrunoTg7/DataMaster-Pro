@@ -6,10 +6,13 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict
 import sys
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
-from src.utils.encryption import encrypt_data, decrypt_data
+# Removed encryption import as StorageManager handles encryption
 
 
 class AuthManager:
@@ -24,10 +27,7 @@ class AuthManager:
         """
         try:
             from supabase import create_client, Client
-            supabase: Client = create_client(
-                config.SUPABASE_URL,
-                config.SUPABASE_ANON_KEY
-            )
+            supabase: Client = create_client(config.SUPABASE_URL, config.SUPABASE_ANON_KEY)
 
             response = supabase.auth.sign_in_with_password({
                 "email": email,
@@ -35,21 +35,20 @@ class AuthManager:
             })
 
             if response.user:
-                encrypted_password = encrypt_data(password)
-                
                 # Garantir que o usuário existe na tabela pública 'usuarios'
                 profile = self._ensure_user_profile(response.user, response.session.access_token)
                 
                 user_data = {
                     "id": response.user.id,
                     "email": response.user.email,
+                    "nome": profile.get("nome", (response.user.email or "usuario").split("@")[0]),
                     "plan": profile.get("plano_tipo", "gratis"),
                     "created_at": profile.get("created_at"),
                     "notificacoes_email": profile.get("notificacoes_email", True),
                     "notificacoes_desktop": profile.get("notificacoes_desktop", True),
                     "expires_at": (datetime.now() + timedelta(days=90)).isoformat(),
                     "session_token": response.session.access_token,
-                    "password_encrypted": encrypted_password
+                    "password": password
                 }
                 self.current_user = user_data
                 self._session_token = response.session.access_token
@@ -74,7 +73,7 @@ class AuthManager:
             response = supabase.table("usuarios").select("plano_tipo").eq("id", user_id).execute()
             if response.data:
                 return response.data[0].get("plano_tipo", "gratis")
-        except:
+        except Exception:
             pass
         return "gratis"
 
@@ -121,7 +120,7 @@ class AuthManager:
         except ValueError as ve:
             raise ve
         except Exception as e:
-            print(f"[AUTH] Erro ao garantir perfil: {e}")
+            logger.error(f"Erro ao garantir perfil do usuário: {e}")
             return {"plano_tipo": "gratis", "created_at": datetime.now().isoformat()}
 
     def get_current_user(self) -> Optional[Dict]:
@@ -143,10 +142,7 @@ class AuthManager:
 
         try:
             from supabase import create_client, Client
-            supabase: Client = create_client(
-                config.SUPABASE_URL,
-                config.SUPABASE_ANON_KEY
-            )
+            supabase: Client = create_client(config.SUPABASE_URL, config.SUPABASE_ANON_KEY)
 
             response = supabase.auth.refresh_session(session_token)
 
@@ -188,7 +184,7 @@ class AuthManager:
             try:
                 exp_date = datetime.fromisoformat(expires_at)
                 return exp_date > datetime.now()
-            except:
+            except Exception:
                 return False
         return True
 
@@ -201,15 +197,12 @@ class AuthManager:
 
         try:
             from supabase import create_client
-            supabase = create_client(
-                config.SUPABASE_URL,
-                config.SUPABASE_ANON_KEY
-            )
+            supabase = create_client(config.SUPABASE_URL, config.SUPABASE_ANON_KEY)
             response = supabase.auth.refresh_session(self._session_token)
             if response.session:
                 self._session_token = response.session.access_token
                 self.current_user["session_token"] = response.session.access_token
                 return True
-        except:
+        except Exception:
             pass
         return False

@@ -1,21 +1,27 @@
 {
   "logo_path": "C:/Users/bruno/Downloads/ChatGPT Image 11 de mai. de 2026, 14_36_03.png",
-  "empresa_nome": "",
-  "empresa_endereco": "",
-  "empresa_telefone": "",
-  "empresa_email": "",
+  "empresa_nome": "WHITE & BROWN VENTURES",
+  "empresa_endereco": "Av. Dr. Gileno Almeida Costa",
+  "empresa_telefone": "(79)99545-2335",
+  "empresa_email": " bruno2004antoniotg@gmail.com",
   "campos_ativos": [
-    "empresa",
-    "cliente",
-    "data",
-    "itens",
-    "total",
-    "validade",
-    "pagamento",
-    "rodape"
+    "mostrar_logo",
+    "mostrar_empresa",
+    "mostrar_cliente",
+    "mostrar_data",
+    "mostrar_itens",
+    "mostrar_total",
+    "mostrar_validade",
+    "mostrar_pagamento",
+    "mostrar_obs",
+    "mostrar_rodape"
   ],
   "observacoes_default": "Or\u00e7amento v\u00e1lido por 30 dias.",
   "pdf_cor": "#d48214",
   "pdf_titulo": "OR\u00c7AMENTO",
-  "tempo_execucao_ms": 0
+  "tempo_execucao_ms": 6829,
+  "pix_chave": "12345678909",
+  "agencia": " 0001",
+  "banco": "237\n",
+  "conta": "1234567"
 }

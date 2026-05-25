@@ -115,9 +115,16 @@ export function AuthForm({ mode }: AuthFormProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-surface-700 mb-1">
-                Senha
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-surface-700">
+                  Senha
+                </label>
+                {isLogin && (
+                  <Link href="/auth/reset-password" className="text-xs font-medium text-primary-600 hover:text-primary-700 hover:underline">
+                    Esqueceu a senha?
+                  </Link>
+                )}
+              </div>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}

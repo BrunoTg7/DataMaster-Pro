@@ -1,13 +1,144 @@
-Para implementar o Relatório de Comissões como uma funcionalidade de alta produção no seu ecossistema, o foco deve ser a transição da "planilha manual" para um processo automatizado de PDF individual. Como você já possui o Consolidador e o Orçamentos, esta ferramenta atuará como o fechamento financeiro do ciclo de vendas.Aqui está o plano de implementação técnica e funcional para o DataMaster Pro:1. Arquitetura da Ferramenta (Backend em Python)A ferramenta deve ser estruturada em três camadas lógicas dentro do seu sistema:Módulo de Configuração de Regras:Interface para o usuário definir:% Geral: Comissão fixa sobre o total.Faixas de Desempenho: Ex: Até $R$ 10.000$ (3%), acima de $R$ 10.000$ (5%).Exceções por Produto: Produtos específicos que pagam comissão diferenciada.Motor de Cálculo (Pandas):O sistema lê a planilha de vendas e utiliza o seu Categorizador para agrupar os dados por vendedor.Aplica as fórmulas matemáticas de forma vetorizada, garantindo velocidade mesmo com milhares de linhas.Gerador de PDF (ReportLab/FPDF):Cria um arquivo para cada vendedor com layout profissional, incluindo logo da empresa, resumo de vendas e o valor líquido a receber.2. Fluxo de Funcionamento (User Experience)Para ser um produto real de produção e fácil de usar, o fluxo deve ser:Upload: O usuário sobe a planilha de vendas (CSV/XLSX).Mapeamento: O sistema identifica automaticamente as colunas "Vendedor", "Valor da Venda" e "Data" usando a lógica do seu Conciliador.Regras: O usuário preenche um formulário simples com as porcentagens de comissão.Processamento: O motor calcula os valores e exibe um resumo na tela.Exportação em Massa: Um botão "Gerar Relatórios" que salva uma pasta com todos os PDFs individuais prontos para envio.3. Implementação no Código (Exemplo de Lógica)Você pode adicionar esta função ao seu arquivo de orçamentos ou criar um novo módulo chamado comissoes.py:Pythondef calcular_comissoes(df_vendas, regras):
-    """
-    df_vendas: DataFrame com as vendas
-    regras: Dicionário com as % por vendedor ou produto
-    """
-    # Agrupar por vendedor
-    resumo = df_vendas.groupby('vendedor')['valor_venda'].sum().reset_index()
-    
-    # Aplicar a regra de comissão (Exemplo simples)
-    resumo['comissao_valor'] = resumo['valor_venda'] * (regras['percentual_padrao'] / 100)
-    
-    return resumo
-4. Diferenciais para o seu SaaS (DataMaster Pro)Para tornar essa ferramenta indispensável e urgente para gestores:Ranking de Vendedores: Além da comissão, gerar um relatório de performance (quem vendeu mais, ticket médio).Integração com Supabase: Salvar o histórico de comissões pagas para que o gestor possa ver a evolução anual da equipe.Envio Automático: Utilizar uma biblioteca de e-mail para enviar o PDF diretamente para o vendedor após a geração.
+Aqui esta a analise completa da infraestrutura de testes do DataMaster Pro Desktop.
+1. LISTA COMPLETA DE ARQUIVOS DE TESTE EXISTENTES
+Arquivo	Tipo	O que testa
+C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\test.py	Script avulso (nao pytest)	Gera 5 planilhas de exemplo na pasta Testes_DataMaster/
+C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\test_error.py	Script avulso (nao pytest)	Testa manualmente o Consolidador (consolidacao de 2 DataFrames)
+C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\tests\test_tools.py	Pytest (580 linhas)	7 classes de teste: Consolidador (4), Categorizador (7), Conciliador (4), Integracao (1), Conciliador Avancado (4), Minerador (5), Orcamentos (7)
+C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\tests\test_auth.py	Pytest (80 linhas)	AuthManager: estado inicial, login/logout, validacao de sessao, expiracao
+Classes de Teste em test_tools.py:
+1. TestConsolidador (4 testes) - consolidate_concat, consolidate_single_csv, consolidate_empty_list, get_preview
+2. TestCategorizador (7 testes) - categorize, classify_row, classify_empty, get_categories, priority_ordering, suggest_others, categorize_missing_column
+3. TestConciliador (4 testes) - reconcile, quick_check, reconcile_missing_file, normalize_columns
+4. TestIntegration (1 teste) - full_workflow (consolidador + categorizador)
+5. TestConciliadorAdvanced (4 testes) - date_tolerance_matches, date_tolerance_no_match, fuzzy_description_matching, premium_excel_output
+6. TestMineradorPro (5 testes) - registry_keys, get_selectors, generic_fallback, parse_price_brazilian, mine_from_file_missing_column, export_results
+7. TestOrcamentosPro (7 testes) - generate_single_pdf, generate_bulk_from_excel, all_themes, empty_items, parse_items_json, parse_items_csv, brl_formatting
+2. CONFIGURACAO DO TEST RUNNER
+Arquivo: C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\pytest.ini
+[pytest]
+testpaths = tests
+python_files = test_*.py
+python_classes = Test*
+python_functions = test_*
+addopts = -v --strict-markers --tb=short
+markers =
+    slow: testes lentos
+    integration: testes de integracao
+[coverage:run]
+source = src
+omit = tests/*,.venv/*
+[coverage:report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+Configuracao presente: SIM - pytest com suporte a coverage.
+Problema: As configuracoes de coverage apontam source = src e omitem tests/*, mas nenhuma dependencia de teste esta instalada no .venv ativo. O pytest nao esta disponivel no ambiente.
+Arquivos de dependencias de teste:
+- C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\tests\requirements.txt contem:
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+Mas estas dependencias NAO estao no requirements.txt principal, e aparentemente nunca foram instaladas.
+3. MENCAO A TESTES NO README
+O README.md menciona testes APENAS no "Next Steps" ao final:
+- [ ] Testes de sincronização
+Nao ha documentacao de como executar os testes, cobertura esperada, ou instrucoes para desenvolvedores. O README nao reflete a existencia dos arquivos de teste.
+4. CI/CD CONFIG
+NENHUM arquivo de CI/CD encontrado:
+- Nenhum .github/workflows/ --- ausente
+- Nenhum .gitlab-ci.yml --- ausente
+- Nenhum Jenkinsfile --- ausente
+- Nenhum .coveragerc ou setup.cfg --- ausente
+- Nenhum Makefile --- ausente
+CI/CD: Inexistente. Nao ha pipeline automatizada para execucao de testes.
+5. DEPENDENCIAS DE TESTE
+requirements.txt (raiz) - 48 linhas de dependencias de producao, zero dependecias de teste.
+tests/requirements.txt - 3 dependencias de teste:
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+Status: Dependencias de teste nao instaladas no .venv. O comando pytest falha com No module named pytest.
+6. ESTRUTURA DO DIRETORIO DE TESTES
+tests/
+├── __pycache__/
+├── fixtures/              ← VAZIO (0 arquivos)
+├── requirements.txt       ← dependecias de teste
+├── test_auth.py           ← 80 linhas, 2 classes
+└── test_tools.py          ← 580 linhas, 7 classes
+conftest.py: NENHUM encontrado em qualquer lugar do projeto. Nao ha fixtures compartilhadas.
+fixtures/: Diretorio existe mas esta vazio.
+7. AREAS CRITICAS SEM TESTES (ZERO COBERTURA)
+Core Logic (src/core/) - ZERO testes:
+Modulo	Arquivo
+Storage	src/core/storage/storage_manager.py
+Sync	src/core/sync/sync_manager.py
+Security	src/core/security/security_manager.py
+Tasks	src/core/tasks/execution_manager.py
+Tasks	src/core/tasks/global_executor.py
+Tasks	src/core/tasks/execution_history_manager.py
+Tasks	src/core/tasks/task_manager.py
+Update	src/core/update/update_checker.py
+Logging	src/core/logging_setup.py
+Tools (src/tools/) - 8 ferramentas SEM testes:
+Ferramenta	Arquivo
+Analista Tendencias	src/tools/analista_tendencias/analista_tendencias_v2.py
+Calculadora Lucratividade	src/tools/calculadora_lucratividade/calculadora_lucratividade_v2.py
+Comissoes	src/tools/comissoes/comissoes.py
+Conversor OCR	src/tools/conversor_ocr/conversor_ocr_v2.py
+Data Sanitizer	src/tools/data_sanitizer/data_sanitizer_v2.py
+Extrator Reviews	src/tools/extrator_reviews/extrator_reviews_v2.py
+Gerador Laudos	src/tools/gerador_laudos/gerador_laudos_v2.py
+Validador Links	src/tools/validador_links/validador_links_v2.py
+Tool Registry	src/tools/tool_registry.py
+Utils (src/utils/) - ZERO testes:
+Utilitario	Arquivo
+Encryption	src/utils/encryption.py
+Excel Styler	src/utils/excel_styler.py
+Network	src/utils/network.py
+Notifications	src/utils/notifications.py
+Task Helper	src/utils/task_helper.py
+User Agents	src/utils/user_agents.py
+GUI (src/gui/) - ZERO testes (esperado para GUI/Tkinter):
+Componente
+app.py, pages/*.py (10 paginas), components/*.py (6 componentes), helpers/*.py
+8. PROBLEMA CRITICO: IMPORTS QUEBRADOS
+Os testes existentes em test_tools.py importam de modulos que NAO EXISTEM:
+from src.tools.consolidador.consolidador import Consolidador  # FAIL - só existe consolidador_v2.py
+from src.tools.categorizador.categorizador import Categorizador  # FAIL - só existe categorizador_v2.py
+from src.tools.conciliador.conciliador import Conciliador  # FAIL - só existe conciliador_v2.py
+Impacto: Todas as classes TestConsolidador, TestCategorizador, TestConciliador (inclusive os avancados) falhariam na importacao. Apenas TestMineradorPro (importa minerador_v2 corretamente) e TestAuthManager (importa auth_manager corretamente) funcionariam.
+9. RECOMENDACAO: O QUE TESTAR PRIMEIRO
+Prioridade CRITICA (corrigir antes de escrever novos testes):
+1. Corrigir os imports nos testes existentes - Renomear as importacoes de consolidador -> consolidador_v2, categorizador -> categorizador_v2, conciliador -> conciliador_v2. Sem isso, 80% dos testes existentes nunca rodarao.
+2. Instalar pytest no ambiente - Executar pip install -r tests/requirements.txt para que pytest esteja disponivel.
+Prioridade ALTA (mais critico, mais facil de testar):
+Ordem	Modulo	Por que
+1	src/utils/encryption.py	28 linhas, funcoes puras (encrypt_data, decrypt_data, _derive_key), sem dependencias externas alem da cryptography. Testes unitarios faceis e de alto valor.
+2	src/tools/tool_registry.py	Centraliza registro de todas as ferramentas. Se quebrar, nada funciona. Provavelmente tem interface simples.
+3	src/core/storage/storage_manager.py	Banco SQLite local - coracao dos dados. Testar com tmp_path e SQLite in-memory.
+4	src/core/tasks/task_manager.py e execution_manager.py	Orquestram execucao - testar logica de estado e fluxo.
+5	src/core/auth/auth_manager.py	Ja tem teste basico, mas precisa de mais cobertura (login offline, refresh token, criptografia de credenciais).
+6	src/core/sync/sync_manager.py	Logica de sincronizacao offline/online - testar com mocks de Supabase.
+Prioridade MEDIA (ferramentas sem testes):
+Ferramenta
+calculadora_lucratividade_v2.py
+comissoes.py
+analista_tendencias_v2.py
+data_sanitizer_v2.py
+validador_links_v2.py
+conversor_ocr_v2.py
+extrator_reviews_v2.py
+gerador_laudos_v2.py
+RESUMO EXECUTIVO
+Status geral:        🟡 PARCIAL (esqueleto existe, mas quebrado)
+Arquivos de teste:   4 (2 sao scripts avulso, 2 sao pytest)
+Testes viaveis:      2 de 7 classes de teste (28%)
+Cobertura real:      ~5% do codigo fonte (so auth_manager tem testes funcionais)
+Config de runner:    SIM (pytest.ini com coverage)
+Dependencias:        NAO INSTALADAS
+CI/CD:               INEXISTENTE
+conftest.py:         INEXISTENTE
+Fixtures:            DIRETORIO VAZIO
+Imports quebrados:   SIM (consolidador, categorizador, conciliador)
+Conclusao: O projeto tem um esqueleto de teste bem intencionado mas quebrado. Os testes foram escritos para nomes de modulo antigos (consolidador.py) que foram renomeados para consolidador_v2.py sem atualizar os imports. O maior valor imediato e corrigir esses imports e rodar os testes existentes - varios deles (Minerador, Orcamentos) parecem bem escritos e testariam funcionalidade real. Depois disso, priorizar encryption.py, tool_registry.py, e storage_manager.py como os modulos mais criticos e faceis de testar.

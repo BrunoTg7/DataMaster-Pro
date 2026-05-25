@@ -12,6 +12,10 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.extrator_reviews.extrator_reviews_v2 import ExtratorReviews
 from src.gui.components.result_viewer_modal import ResultViewerButton
+from src.utils.task_helper import TaskHelper
+from src.gui.helpers.execution_helper import ExecutionHelper
+from src.core.tasks.global_executor import global_executor
+
 
 
 class ExtratorReviewsPage(ToolPage):
@@ -21,20 +25,62 @@ class ExtratorReviewsPage(ToolPage):
             progress_callback=self._update_progress,
             log_callback=self._log_from_thread
         )
+        self.execution = ExecutionHelper("extrator_reviews", "Extrator de Reviews", user_id)
         super().__init__(master, "extrator_reviews", "Extrator de Reviews", on_back, execution_tracker, user_id)
+        self._check_task_state()
+        self.task_helper = TaskHelper("extrator_reviews")
         self.urls = []
         self._last_result_text = ""
+
+    def _check_task_state(self):
+        from src.core.storage.storage_manager import StorageManager
+        storage = StorageManager()
+        last_task = storage.get_last_task_by_tool("extrator_reviews")
+        
+        if not last_task:
+            return
+        
+        status = last_task.get("status")
+        
+        if status == "running":
+            if hasattr(self, 'progress_frame'):
+                self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
+            if hasattr(self, 'progress_bar'):
+                progress = last_task.get("progress_percent", 0)
+                self.progress_bar.set(progress / 100)
+            if hasattr(self, 'progress_label'):
+                message = last_task.get("progress_message", "Processando...")
+                self.progress_label.configure(text=message)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⏳ Tarefa em andamento...")
+            
+        elif status == "completed":
+            rows = last_task.get("rows_processed", 0)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"✅ Última execução concluída ({rows} registros)")
+            
+        elif status == "interrupted":
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⚠️ Tarefa anterior interrompida.")
+            
+        elif status == "failed":
+            error = last_task.get("error_message", "Erro")
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"❌ Última execução falhou")
 
     def _log_from_thread(self, message: str):
         if "Erro" not in message:
             self.after(0, lambda: self._update_log_display(message))
     
     def _update_log_display(self, message: str):
-        if hasattr(self, 'log_text') and self.log_text:
-            self.log_text.configure(state="normal")
-            self.log_text.insert("end", f"• {message}\n")
-            self.log_text.see("end")
-            self.log_text.configure(state="disabled")
+        try:
+            if hasattr(self, 'log_text') and self.log_text and self.log_text.winfo_exists():
+                self.log_text.configure(state="normal")
+                self.log_text.insert("end", f"• {message}\n")
+                self.log_text.see("end")
+                self.log_text.configure(state="disabled")
+        except Exception:
+            pass
 
     def _create_content(self):
         content = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -121,15 +167,34 @@ class ExtratorReviewsPage(ToolPage):
         self.viewer_btn.pack(pady=(0, 15))
 
     def _run_analysis(self):
+        task_id, error = self.task_helper.start_task({})
+        if error:
+            messagebox.showwarning("Aviso", error)
+            return
+
         text = self.text_area.get("1.0", "end").strip()
         if not text:
             messagebox.showwarning("Aviso", "Por favor, insira pelo menos uma URL de produto")
+            self.task_helper.cancel()
             return
 
         self.urls = [line.strip() for line in text.split('\n') if line.strip()]
-        
+
         if not self.urls:
             messagebox.showwarning("Aviso", "Nenhuma URL válida encontrada")
+            self.task_helper.cancel()
+            return
+
+        from src.tools.minerador.minerador_v2 import validate_url
+        invalid = [u for u in self.urls if not validate_url(u)]
+        if invalid:
+            msg = "URLs inválidas ignoradas:\n" + "\n".join(invalid[:5])
+            if len(invalid) > 5:
+                msg += f"\n...e mais {len(invalid) - 5}"
+            messagebox.showwarning("URLs Inválidas", msg)
+        self.urls = [u for u in self.urls if validate_url(u)]
+        if not self.urls:
+            self.task_helper.cancel()
             return
 
         self.action_btn.configure(state="disabled")
@@ -139,20 +204,37 @@ class ExtratorReviewsPage(ToolPage):
         self.results_text.insert("1.0", f"Iniciando análise de {len(self.urls)} produtos...\n\n")
         self.results_text.configure(state="disabled")
 
-        thread = threading.Thread(target=self._analysis_worker, daemon=True)
-        thread.start()
+        urls = self.urls
+        extrator = self.extrator
+        def execute_func():
+            result = extrator.analyze_multiple(urls)
+            return result
+        def on_complete(result):
+            self.after(0, lambda: self._show_results(result))
+        global_executor.submit(
+            execute_func=execute_func,
+            on_complete=on_complete,
+            tool_name="extrator_reviews",
+            tool_display_name="Extrator de Reviews",
+            user_id=self.user_id
+        )
 
     def _analysis_worker(self):
         try:
             result = self.extrator.analyze_multiple(self.urls)
-            self.after(0, lambda r=result: self._show_results(r))
+            self.after(0, lambda r=result: self._show_results(r) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
         except Exception as e:
             err = str(e)
             if self.log_callback:
                 self.log_callback(f"Erro: {err}")
-            self.after(0, lambda err=err: self._show_error(err))
+            self.after(0, lambda err=err: self._show_error(err) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
 
     def _show_results(self, result):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_frame.pack_forget()
         self.action_btn.configure(state="normal")
 
@@ -189,13 +271,28 @@ Analisados com sucesso: {result.get('analyzed', 0)}
         self.results_text.configure(state="disabled")
 
         positive_count = sum(1 for r in result.get("results", []) if r.get("sentiment") == "positive")
+        analyzed = result.get("analyzed", 0)
+        self._finalize_execution(result, "", analyzed, {"reviews": analyzed})
         messagebox.showinfo("Concluído", f"Análise concluída!\n{positive_count} produtos com sentimento positivo")
 
     def _show_error(self, error):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_frame.pack_forget()
         self.action_btn.configure(state="normal")
         messagebox.showerror("Erro", f"Erro na análise: {error}")
+        self._finalize_execution({"success": False, "error": error}, "")
 
     def _update_progress(self, value):
-        self.progress_bar.set(value / 100)
-        self.progress_label.configure(text=f"Analisando... {value}%")
+        try:
+            if hasattr(self, 'progress_bar') and self.progress_bar.winfo_exists():
+                self.progress_bar.set(value / 100)
+            if hasattr(self, 'progress_label') and self.progress_label.winfo_exists():
+                self.progress_label.configure(text=f"Analisando... {value}%")
+        except Exception:
+            pass
+        self.task_helper.update_progress(value, 100, value)
+        self.task_helper.add_log(f"Analisando... {value}%")

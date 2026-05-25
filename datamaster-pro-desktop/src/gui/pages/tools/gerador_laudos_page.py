@@ -13,15 +13,57 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.gerador_laudos.gerador_laudos_v2 import GeradorLaudos
 from src.gui.components.result_viewer_modal import ResultViewerButton
+from src.utils.task_helper import TaskHelper
+from src.gui.helpers.execution_helper import ExecutionHelper
+from src.core.tasks.global_executor import global_executor
 
 
 class GeradorLaudosPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
         self.laudos = GeradorLaudos()
+        self.execution = ExecutionHelper("gerador_laudos", "Gerador de Laudos", user_id)
         super().__init__(master, "gerador_laudos", "Gerador de Laudos", on_back, execution_tracker, user_id)
+        self._check_task_state()
+        self.task_helper = TaskHelper("gerador_laudos")
         self.extrato_file = None
         self.notas_file = None
         self._last_result_text = ""
+
+    def _check_task_state(self):
+        from src.core.storage.storage_manager import StorageManager
+        storage = StorageManager()
+        last_task = storage.get_last_task_by_tool("gerador_laudos")
+        
+        if not last_task:
+            return
+        
+        status = last_task.get("status")
+        
+        if status == "running":
+            if hasattr(self, 'progress_frame'):
+                self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
+            if hasattr(self, 'progress_bar'):
+                progress = last_task.get("progress_percent", 0)
+                self.progress_bar.set(progress / 100)
+            if hasattr(self, 'progress_label'):
+                message = last_task.get("progress_message", "Processando...")
+                self.progress_label.configure(text=message)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⏳ Tarefa em andamento...")
+            
+        elif status == "completed":
+            rows = last_task.get("rows_processed", 0)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"✅ Última execução concluída ({rows} registros)")
+            
+        elif status == "interrupted":
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⚠️ Tarefa anterior interrompida.")
+            
+        elif status == "failed":
+            error = last_task.get("error_message", "Erro")
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"❌ Última execução falhou")
 
     def _create_content(self):
         content = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -232,14 +274,23 @@ class GeradorLaudosPage(ToolPage):
             status_text += f"Extrato: {os.path.basename(self.extrato_file)}\n"
         if self.notas_file:
             status_text += f"Notas: {os.path.basename(self.notas_file)}\n"
-        
+
         if status_text:
-            self.results_text.configure(state="normal")
-            self.results_text.delete("1.0", "end")
-            self.results_text.insert("1.0", status_text + "\nPronto para gerar!")
-            self.results_text.configure(state="disabled")
+            try:
+                if hasattr(self, 'results_text') and self.results_text.winfo_exists():
+                    self.results_text.configure(state="normal")
+                    self.results_text.delete("1.0", "end")
+                    self.results_text.insert("1.0", status_text + "\nPronto para gerar!")
+                    self.results_text.configure(state="disabled")
+            except Exception:
+                pass
 
     def _run_generation(self):
+        task_id, error = self.task_helper.start_task({})
+        if error:
+            messagebox.showwarning("Aviso", error)
+            return
+
         if not self.extrato_file:
             messagebox.showwarning("Aviso", "Selecione o extrato bancário")
             return
@@ -268,21 +319,45 @@ class GeradorLaudosPage(ToolPage):
 
         self.action_btn.configure(state="disabled")
         
-        thread = threading.Thread(target=self._generation_worker, args=(output_path, config), daemon=True)
-        thread.start()
+        _extrato_file = self.extrato_file
+        _notas_file = self.notas_file
+        _output_path = output_path
+        _config = config
+
+        def _execute_func():
+            return self.laudos.generate(_extrato_file, _notas_file, _output_path, _config)
+
+        def _on_complete(result):
+            self.after(0, lambda: self._show_results(result))
+
+        global_executor.submit(
+            execute_func=_execute_func,
+            on_complete=_on_complete,
+            tool_name="gerador_laudos",
+            tool_display_name="Gerador de Laudos"
+        )
 
     def _generation_worker(self, output_path, config):
         try:
             result = self.laudos.generate(self.extrato_file, self.notas_file, output_path, config)
-            self.after(0, lambda: self._show_results(result))
+            self.after(0, lambda: self._show_results(result) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
         except Exception as e:
-            self.after(0, lambda: self._show_error(str(e)))
+            self.after(0, lambda: self._show_error(str(e)) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
 
     def _show_results(self, result):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.action_btn.configure(state="normal")
 
-        self.results_text.configure(state="normal")
-        self.results_text.delete("1.0", "end")
+        try:
+            if hasattr(self, 'results_text') and self.results_text.winfo_exists():
+                self.results_text.configure(state="normal")
+                self.results_text.delete("1.0", "end")
+        except Exception:
+            pass
 
         full_result = ""
         if result.get("success"):
@@ -300,20 +375,43 @@ RESUMO:
 
   STATUS: {summary.get('status', 'N/A')}
 """
-            self.results_text.insert("1.0", output)
+            try:
+                if hasattr(self, 'results_text') and self.results_text.winfo_exists():
+                    self.results_text.insert("1.0", output)
+            except Exception:
+                pass
             full_result = output
 
             messagebox.showinfo("Sucesso", "Laudo de conformidade gerado com sucesso!")
+            rows = summary.get('total_items', 0)
+            self._finalize_execution(result, result.get('output_path', ''), rows,
+                                     {"laudos": 1, "items": rows})
         else:
             output = f"Erro: {result.get('error', 'Erro desconhecido')}"
-            self.results_text.insert("1.0", output)
+            try:
+                if hasattr(self, 'results_text') and self.results_text.winfo_exists():
+                    self.results_text.insert("1.0", output)
+            except Exception:
+                pass
             full_result = output
+            self._finalize_execution(result, "")
             messagebox.showerror("Erro", result.get("error", "Erro desconhecido"))
 
         self._last_result_text = full_result
-        
-        self.results_text.configure(state="disabled")
+
+        try:
+            if hasattr(self, 'results_text') and self.results_text.winfo_exists():
+                self.results_text.configure(state="disabled")
+        except Exception:
+            pass
 
     def _show_error(self, error):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.action_btn.configure(state="normal")
         messagebox.showerror("Erro", f"Erro ao gerar laudo: {error}")
+        self.execution.fail(error)
+        self.task_helper.fail(error)

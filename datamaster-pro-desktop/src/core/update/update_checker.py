@@ -5,8 +5,11 @@ Correção de sincronização entre Core e GUI (has_update -> available).
 import os
 import sys
 import threading
+import logging
 from typing import Optional, Dict
 from supabase import create_client
+
+logger = logging.getLogger(__name__)
 
 class UpdateChecker:
     """Sistema de atualização nativo via Supabase"""
@@ -18,15 +21,15 @@ class UpdateChecker:
         self.supabase_key = config.SUPABASE_ANON_KEY
 
     def check_for_updates(self) -> Dict:
-        print(f"\n[UPDATE] 🔍 Verificando... (Local: {self.current_version})", flush=True)
-        
+        logger.info(f"Verificando atualizações... (Local: {self.current_version})")
+
         if not self.supabase_url or not self.supabase_key:
             return {"has_update": False}
 
         try:
             supabase = create_client(self.supabase_url, self.supabase_key)
             response = supabase.table("check_updates").select("*").order("id", desc=True).limit(1).execute()
-            
+
             if not response.data:
                 return {"has_update": False}
 
@@ -34,12 +37,22 @@ class UpdateChecker:
             latest_version = latest_data.get("versao_disponivel", "")
             download_url = latest_data.get("url_download", "")
 
+            sha256 = (
+                latest_data.get("sha256")
+                or latest_data.get("sha256_checksum")
+                or latest_data.get("checksum_sha256")
+                or latest_data.get("hash_sha256")
+                or latest_data.get("hash")
+                or ""
+            )
+
             if self._is_newer_version(latest_version, self.current_version):
-                print(f"[UPDATE] 🔥 UPDATE DETECTADO: {latest_version}", flush=True)
+                logger.info(f"UPDATE DETECTADO: {latest_version}")
                 return {
                     "has_update": True,
                     "version": latest_version,
                     "download_url": download_url,
+                    "sha256": sha256,
                     "changelog": latest_data.get("changelog", "Melhorias de estabilidade."),
                     "mandatory": latest_data.get("mandatory", False)
                 }
@@ -47,7 +60,7 @@ class UpdateChecker:
             return {"has_update": False}
 
         except Exception as e:
-            print(f"[UPDATE] 🛑 Erro: {str(e)}", flush=True)
+            logger.error(f"Erro ao verificar atualizações: {e}")
             return {"has_update": False}
 
     def _is_newer_version(self, new: str, current: str) -> bool:
@@ -60,23 +73,32 @@ class UpdateChecker:
                 if n > c: return True
                 elif n < c: return False
             return False
-        except: return False
+        except Exception: return False
 
-    def download_and_install(self, download_url: str, on_progress=None, on_complete=None):
+    def download_and_install(self, download_url: str, expected_sha256: str = None, on_progress=None, on_complete=None):
         def worker():
+            import hashlib
             import requests, tempfile
             try:
                 response = requests.get(download_url, stream=True, timeout=60)
                 total_size = int(response.headers.get('content-length', 0))
+                sha256_hash = hashlib.sha256()
                 with tempfile.NamedTemporaryFile(suffix='.exe', delete=False) as f:
                     temp_file = f.name
                     downloaded = 0
                     for chunk in response.iter_content(chunk_size=65536):
                         if chunk:
                             f.write(chunk)
+                            sha256_hash.update(chunk)
                             downloaded += len(chunk)
                             if on_progress and total_size:
                                 on_progress(int((downloaded / total_size) * 100))
+                if expected_sha256:
+                    actual = sha256_hash.hexdigest().lower()
+                    if actual != expected_sha256.lower():
+                        os.unlink(temp_file)
+                        if on_complete: on_complete(None, f"SHA-256 mismatch: esperado {expected_sha256}, obtido {actual}")
+                        return
                 if on_complete: on_complete(temp_file, None)
             except Exception as e:
                 if on_complete: on_complete(None, str(e))
@@ -91,5 +113,5 @@ def check_update_on_start():
         # Sincroniza o nome do campo para a GUI
         result["available"] = result.get("has_update", False)
         return result
-    except:
+    except Exception:
         return {"available": False}

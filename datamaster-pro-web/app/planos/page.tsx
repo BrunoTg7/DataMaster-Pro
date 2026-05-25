@@ -170,7 +170,7 @@ const faqItems = [
   },
   {
     question: 'O plano grátis tem limitações?',
-    answer: 'O plano grátis inclui as ferramentas Consolidador e Categorizador, com limite de 10 linhas por arquivo e marca d\'água nos relatórios.'
+    answer: 'Sim, o plano grátis possui limites por ferramenta (ex: Consolidador até 600 linhas, Minerador até 15 links), total de 1.200 linhas e 15 execuções por mês, além de 1 tarefa por vez e marca d\'água nos relatórios. Para uso ilimitado e 2 tarefas simultâneas, assine o Pro.'
   },
   {
     question: 'Quais formas de pagamento aceitam?',

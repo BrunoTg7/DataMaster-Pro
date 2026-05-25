@@ -14,11 +14,11 @@ def check_internet_connection(timeout: int = 3) -> bool:
     try:
         response = requests.get("https://www.google.com", timeout=timeout)
         return response.status_code == 200
-    except:
+    except Exception:
         try:
             response = requests.get("https://google.com.br", timeout=timeout)
             return response.status_code == 200
-        except:
+        except Exception:
             return False
 
 
@@ -31,5 +31,5 @@ def check_supabase_connection(timeout: int = 5) -> bool:
             timeout=timeout
         )
         return response.status_code in [200, 401]
-    except:
+    except Exception:
         return False

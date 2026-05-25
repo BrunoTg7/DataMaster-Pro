@@ -63,7 +63,7 @@ class ExtratorReviews:
                 if elements:
                     found_elements.extend(elements)
                     self._log(f"Encontrados {len(elements)} elementos em '{selector}'")
-            except: continue
+            except Exception: continue
 
         for el in found_elements:
             try:
@@ -76,7 +76,7 @@ class ExtratorReviews:
                         "sentiment": sentiment_res["label"],
                         "date": datetime.now().strftime("%d/%m/%Y")
                     })
-            except: continue
+            except Exception: continue
             if len(reviews) >= max_reviews: break
         
         return reviews

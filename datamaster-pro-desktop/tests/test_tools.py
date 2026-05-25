@@ -6,9 +6,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.tools.consolidador.consolidador import Consolidador
-from src.tools.categorizador.categorizador import Categorizador
-from src.tools.conciliador.conciliador import Conciliador
+from src.tools.consolidador.consolidador_v2 import Consolidador
+from src.tools.categorizador.categorizador_v2 import Categorizador
+from src.tools.conciliador.conciliador_v2 import Conciliador
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -145,6 +145,7 @@ class TestCategorizador:
         assert len(suggestions) > 0
         suggestion_cats = [s["category"] for s in suggestions]
         assert "pix" in suggestion_cats or "assinatura" in suggestion_cats
+        categories = categorizador.get_categories()
         assert "transporte" in categories
 
     def test_categorize_missing_column(self, categorizador, tmp_path):
@@ -250,8 +251,8 @@ class TestIntegration:
         input_file = tmp_path / "input.xlsx"
         df1.to_excel(input_file, index=False)
 
-        from src.tools.consolidador.consolidador import Consolidador
-        from src.tools.categorizador.categorizador import Categorizador
+        from src.tools.consolidador.consolidador_v2 import Consolidador
+        from src.tools.categorizador.categorizador_v2 import Categorizador
 
         consolidador = Consolidador()
         consolidated_path = tmp_path / "consolidated.xlsx"
@@ -273,3 +274,239 @@ class TestIntegration:
         )
 
         assert result["success"] is True
+
+
+# =========================================================================
+# NOVOS TESTES: Conciliador Pro v3.0 - Tolerância de datas e Fuzzy Matching
+# =========================================================================
+class TestConciliadorAdvanced:
+    """Testes avançados do Conciliador Pro v3.0 (sem IA)"""
+
+    @pytest.fixture
+    def conciliador(self):
+        return Conciliador()
+
+    def test_date_tolerance_matches(self, conciliador, tmp_path):
+        """Transações com datas diferentes (+1 dia) devem casar com tolerância ativada"""
+        extract_df = pd.DataFrame({
+            "date": ["2024-03-10", "2024-03-15"],
+            "description": ["Pagamento X", "Pagamento Y"],
+            "amount": [500.00, 300.00]
+        })
+        sales_df = pd.DataFrame({
+            "date": ["2024-03-11", "2024-03-15"],
+            "description": ["Venda X", "Venda Y"],
+            "amount": [500.00, 300.00]
+        })
+
+        ext_file = tmp_path / "ext.csv"
+        sal_file = tmp_path / "sal.csv"
+        out_file = tmp_path / "out.xlsx"
+
+        extract_df.to_csv(ext_file, index=False)
+        sales_df.to_csv(sal_file, index=False)
+
+        result = conciliador.reconcile_classic(
+            str(ext_file), str(sal_file), str(out_file),
+            date_tolerance_days=2, fuzzy_threshold=0
+        )
+
+        assert result["success"] is True
+        assert result["matched"] == 2
+        assert result["unmatched_extract"] == 0
+
+    def test_date_tolerance_no_match_beyond_window(self, conciliador, tmp_path):
+        """Transações com datas além da janela NÃO devem casar"""
+        extract_df = pd.DataFrame({
+            "date": ["2024-03-10"],
+            "description": ["Pagamento Z"],
+            "amount": [100.00]
+        })
+        sales_df = pd.DataFrame({
+            "date": ["2024-03-20"],
+            "description": ["Venda Z"],
+            "amount": [100.00]
+        })
+
+        ext_file = tmp_path / "ext2.csv"
+        sal_file = tmp_path / "sal2.csv"
+        out_file = tmp_path / "out2.xlsx"
+
+        extract_df.to_csv(ext_file, index=False)
+        sales_df.to_csv(sal_file, index=False)
+
+        result = conciliador.reconcile_classic(
+            str(ext_file), str(sal_file), str(out_file),
+            date_tolerance_days=3, fuzzy_threshold=0
+        )
+
+        assert result["success"] is True
+        assert result["matched"] == 0
+
+    def test_fuzzy_description_matching(self, conciliador, tmp_path):
+        """Descrições similares devem casar via fuzzy matching"""
+        extract_df = pd.DataFrame({
+            "date": ["2024-06-01", "2024-06-02"],
+            "description": ["PIX MARIA SOUZA", "TED JOAO SILVA LTDA"],
+            "amount": [250.00, 780.00]
+        })
+        sales_df = pd.DataFrame({
+            "date": ["2024-06-01", "2024-06-02"],
+            "description": ["Maria de Souza - PIX", "João Silva Comércio LTDA"],
+            "amount": [250.00, 780.00]
+        })
+
+        ext_file = tmp_path / "ext_fz.csv"
+        sal_file = tmp_path / "sal_fz.csv"
+        out_file = tmp_path / "out_fz.xlsx"
+
+        extract_df.to_csv(ext_file, index=False)
+        sales_df.to_csv(sal_file, index=False)
+
+        result = conciliador.reconcile_classic(
+            str(ext_file), str(sal_file), str(out_file),
+            date_tolerance_days=0, fuzzy_threshold=50
+        )
+
+        assert result["success"] is True
+        assert result["matched"] >= 1
+
+    def test_premium_excel_output_has_two_sheets(self, conciliador, tmp_path):
+        """O output deve conter 2 abas: Resumo e Planilha Conciliada"""
+        extract_df = pd.DataFrame({
+            "date": ["2024-01-01"],
+            "description": ["Pagamento A"],
+            "amount": [100.00]
+        })
+        sales_df = pd.DataFrame({
+            "date": ["2024-01-01"],
+            "description": ["Venda A"],
+            "amount": [100.00]
+        })
+
+        ext_file = tmp_path / "ext_sh.csv"
+        sal_file = tmp_path / "sal_sh.csv"
+        out_file = tmp_path / "out_sh.xlsx"
+
+        extract_df.to_csv(ext_file, index=False)
+        sales_df.to_csv(sal_file, index=False)
+
+        result = conciliador.reconcile_classic(
+            str(ext_file), str(sal_file), str(out_file),
+            fuzzy_threshold=0
+        )
+
+        assert result["success"] is True
+        xl = pd.ExcelFile(str(out_file))
+        assert len(xl.sheet_names) == 2
+        assert "Planilha Conciliada" in xl.sheet_names
+
+
+# =========================================================================
+# NOVOS TESTES: Minerador Pro v4.0 - Selector Registry e Price Parser
+# =========================================================================
+class TestMineradorPro:
+    """Testes do Minerador Pro v4.0 (sem IA, sem rede)"""
+
+    @pytest.fixture
+    def minerador(self):
+        from src.tools.minerador.minerador_v2 import Minerador
+        return Minerador()
+
+    def test_registry_keys(self, minerador):
+        """Selector Registry deve ter os marketplaces padrão"""
+        keys = minerador.get_registry_keys()
+        assert "mercadolivre" in keys
+        assert "amazon" in keys
+        assert "shopee" in keys
+        assert "magalu" in keys
+        assert "generico" in keys
+
+    def test_get_selectors_for_marketplace(self, minerador):
+        """Cada marketplace deve ter seletores de title e price"""
+        for mp in ["mercadolivre", "amazon", "shopee", "magalu"]:
+            selectors = minerador.get_selectors_for(mp)
+            assert "title" in selectors
+            assert "price" in selectors
+            assert len(selectors["title"]) > 0
+            assert len(selectors["price"]) > 0
+
+    def test_generic_fallback(self, minerador):
+        """Marketplace desconhecido deve retornar seletores genéricos"""
+        selectors = minerador.get_selectors_for("site_inexistente")
+        assert "title" in selectors
+        assert "price" in selectors
+
+    def test_parse_price_brazilian(self, minerador):
+        """Parser deve lidar com formatos de preço brasileiros"""
+        from src.tools.minerador.minerador_v2 import Minerador as M
+        assert M._parse_price("R$ 1.234,56") == 1234.56
+        assert M._parse_price("R$ 49,90") == 49.90
+        assert M._parse_price("199.99") == 199.99
+        assert M._parse_price("") == 0.0
+        assert M._parse_price("R$ 0,01") == 0.01
+
+    def test_mine_from_file_missing_column(self, minerador, tmp_path):
+        """Planilha sem coluna de links deve retornar erro"""
+        df = pd.DataFrame({"nome": ["Produto A"], "preco": [100]})
+        file_path = tmp_path / "sem_links.xlsx"
+        df.to_excel(file_path, index=False)
+
+        result = minerador.mine_from_file(str(file_path))
+        assert result["success"] is False
+        assert "URLs" in result["error"]
+
+    def test_export_results_creates_file(self, minerador, tmp_path):
+        """Exportação de resultados deve criar arquivo Excel"""
+        results = [
+            {"titulo": "Produto A", "preco": 99.90, "preco_raw": "R$ 99,90",
+             "disponibilidade": "Em estoque", "avaliacao": "4.5",
+             "vendedor": "Loja X", "marketplace": "generico",
+             "url": "http://example.com", "coletado_em": "2024-01-01"},
+            {"titulo": "Produto B", "preco": 149.00, "preco_raw": "R$ 149,00",
+             "disponibilidade": "Últimas unidades", "avaliacao": "4.8",
+             "vendedor": "Loja Y", "marketplace": "generico",
+             "url": "http://example.com/2", "coletado_em": "2024-01-01"},
+        ]
+        out = tmp_path / "export.xlsx"
+        ok = minerador.export_results(results, str(out))
+        assert ok is True
+        assert out.exists()
+
+        xl = pd.ExcelFile(str(out))
+        assert len(xl.sheet_names) == 2
+
+
+# =========================================================================
+# NOVOS TESTES: Orçamentos Pro v3.0 - Geração de PDFs Profissionais
+# =========================================================================
+class TestOrcamentosPro:
+    """Testes do Orçamentos Pro (nova API)"""
+
+    @pytest.fixture
+    def orcamentos(self):
+        from src.tools.orcamentos.orcamentos import Orcamentos
+        return Orcamentos()
+
+    def test_generate_from_excel(self, orcamentos, tmp_path):
+        """Deve gerar PDFs em lote a partir de planilha"""
+        df = pd.DataFrame({
+            "numero": ["001", "002"],
+            "cliente": ["Maria Silva", "João Santos"],
+            "data": ["21/05/2026", "22/05/2026"],
+            "item": ["Serviço A", "Consultoria"],
+            "qtd": [1, 3],
+            "preco": [500.00, 800.00]
+        })
+        data_file = tmp_path / "dados.xlsx"
+        df.to_excel(data_file, index=False)
+
+        out_dir = tmp_path / "pdfs"
+        result = orcamentos.generate_from_excel(str(data_file), str(out_dir))
+
+        assert result["success"] is True
+        assert result["generated"] == 2
+        assert result["total_rows"] == 2
+
+        pdf_files = list(out_dir.glob("*.pdf"))
+        assert len(pdf_files) == 2

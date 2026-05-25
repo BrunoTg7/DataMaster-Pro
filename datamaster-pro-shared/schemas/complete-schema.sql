@@ -44,7 +44,8 @@ CREATE TABLE execucoes (
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     
-    CONSTRAINT ferramenta_valida CHECK (ferramenta IN ('consolidador', 'categorizador', 'orcamentos', 'minerador', 'conciliador'))
+    CONSTRAINT ferramenta_valida CHECK (ferramenta IN ('consolidador', 'categorizador', 'orcamentos', 'minerador', 'conciliador')),
+    UNIQUE(usuario_id, created_at)
 );
 
 CREATE INDEX idx_execucoes_usuario ON execucoes(usuario_id);

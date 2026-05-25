@@ -12,26 +12,15 @@ def _derive_key(key_str: str) -> bytes:
     digest = hashlib.sha256(key_str.encode()).digest()
     return base64.urlsafe_b64encode(digest)
 
-def encrypt_data(data: str, key: str = None) -> str:
-    """Criptografa dados usando a chave global ou uma chave personalizada"""
+def encrypt_data(data: str, key: str) -> str:
     if not data:
         return ""
-    
-    # Se não houver chave, usa uma padrão do sistema
-    if not key:
-        key = "datamaster-pro-default-key-2026"
-    
     cipher = Fernet(_derive_key(key))
     return cipher.encrypt(data.encode()).decode()
 
-def decrypt_data(encrypted_data: str, key: str = None) -> str:
-    """Descriptografa dados usando a chave global ou uma chave personalizada"""
+def decrypt_data(encrypted_data: str, key: str) -> str:
     if not encrypted_data:
         return ""
-    
-    if not key:
-        key = "datamaster-pro-default-key-2026"
-        
     try:
         cipher = Fernet(_derive_key(key))
         return cipher.decrypt(encrypted_data.encode()).decode()

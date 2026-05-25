@@ -8,8 +8,10 @@ import sys
 import requests
 import pandas as pd
 import re
+from datetime import datetime
 from typing import List, Dict, Optional
 from pathlib import Path
+from src.utils.excel_styler import save_premium_excel
 
 
 class ConversorOCR:
@@ -140,7 +142,7 @@ class ConversorOCR:
         try:
             import fitz
             return True
-        except:
+        except Exception:
             return False
     
     def _check_tesseract(self) -> bool:
@@ -153,7 +155,7 @@ class ConversorOCR:
             import subprocess
             subprocess.run(["tesseract", "--version"], capture_output=True, check=True)
             return True
-        except:
+        except Exception:
             return False
     
     def get_status(self) -> Dict:
@@ -167,14 +169,14 @@ class ConversorOCR:
             "version": "3.1"
         }
     
-    def process_multiple(self, files: List[str], output_dir: str, extract_tables: bool = True) -> Dict:
+    def process_multiple(self, files: List[str], output_dir: str, extract_tables: bool = True, visual_theme: str = "classic_blue") -> Dict:
         """Processa múltiplos arquivos"""
         results = []
         processed = 0
         
         for file_path in files:
             try:
-                result = self.process_file(file_path, output_dir, extract_tables)
+                result = self.process_file(file_path, output_dir, extract_tables, visual_theme=visual_theme)
                 results.append({"file": file_path, "result": result})
                 if result.get("success"):
                     processed += 1
@@ -187,16 +189,18 @@ class ConversorOCR:
             "results": results
         }
     
-    def process_file(self, file_path: str, output_dir: str, extract_tables: bool = True) -> Dict:
-        """Processa um arquivo individual"""
-        ext = Path(file_path).suffix.lower()
-        
-        if ext == ".pdf":
-            return self._process_pdf(file_path, output_dir, extract_tables)
-        elif ext in [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"]:
-            return self._process_image(file_path, output_dir)
-        else:
-            return {"success": False, "error": "Tipo de arquivo não suportado"}
+    def process_file(self, file_path: str, output_dir: str, extract_tables: bool = True, visual_theme: str = "classic_blue") -> Dict:
+        try:
+            ext = Path(file_path).suffix.lower()
+
+            if ext == ".pdf":
+                return self._process_pdf(file_path, output_dir, extract_tables, visual_theme)
+            elif ext in [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"]:
+                return self._process_image(file_path, output_dir, visual_theme)
+            else:
+                return {"success": False, "error": "Tipo de arquivo não suportado"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
     
     def _parse_financeiro(self, texto: str) -> Dict:
         """Extrai dados financeiros básicos do texto usando Regex"""
@@ -230,7 +234,7 @@ class ConversorOCR:
                 nums = [float(v.replace('.', '').replace(',', '.')) for v in valores_encontrados]
                 max_idx = nums.index(max(nums))
                 dados["valor_total"] = valores_encontrados[max_idx]
-            except: pass
+            except Exception: pass
             
         # Data (DD/MM/AAAA)
         data_match = re.search(r'(\d{2}/\d{2}/\d{4})', texto)
@@ -244,7 +248,7 @@ class ConversorOCR:
             
         return dados
 
-    def _process_pdf(self, pdf_path: str, output_dir: str, extract_tables: bool = True) -> Dict:
+    def _process_pdf(self, pdf_path: str, output_dir: str, extract_tables: bool = True, visual_theme: str = "classic_blue") -> Dict:
         """Extrai texto de PDF, com fallback para OCR se necessário"""
         if not self.pymupdf_available:
             return {"success": False, "error": "PyMuPDF não instalado"}
@@ -346,16 +350,27 @@ class ConversorOCR:
             doc.close()
             
             if all_data:
-                # Salvar em Excel
                 output_file = os.path.join(output_dir, f"{Path(pdf_path).stem}_resultado.xlsx")
                 df = pd.DataFrame(all_data)
-                df.to_excel(output_file, index=False)
+                method = "OCR" if not has_text else "Nativo"
+                save_premium_excel(
+                    df, output_file,
+                    theme_name=visual_theme,
+                    title="CONVERSOR OCR - EXTRAÇÃO DE TEXTO",
+                    sheet_name="Texto Extraído",
+                    stats=[
+                        ("Data da Execução", datetime.now().strftime("%d/%m/%Y %H:%M")),
+                        ("Páginas Processadas", str(total_pages)),
+                        ("Método", method),
+                        ("Total de Caracteres", str(sum(len(d["conteudo"]) for d in all_data))),
+                    ]
+                )
                 
                 return {
                     "success": True,
                     "output_file": output_file,
                     "pages": total_pages,
-                    "method": "OCR" if not has_text else "Nativo",
+                    "method": method,
                     "text_length": sum(len(d["conteudo"]) for d in all_data)
                 }
             else:
@@ -364,7 +379,7 @@ class ConversorOCR:
         except Exception as e:
             return {"success": False, "error": f"Erro no processamento de PDF: {str(e)}"}
     
-    def _process_image(self, image_path: str, output_dir: str) -> Dict:
+    def _process_image(self, image_path: str, output_dir: str, visual_theme: str = "classic_blue") -> Dict:
         """Processa imagem - requer Tesseract"""
         if not self.tesseract_available:
             return {
@@ -385,17 +400,21 @@ class ConversorOCR:
             financeiro = self._parse_financeiro(text)
             clean_text = " ".join(text.split())
             
-            # Salvar em Excel (para consistência)
             output_file = os.path.join(output_dir, f"{Path(image_path).stem}_resultado.xlsx")
             df = pd.DataFrame([{
-                "pagina": 1, 
-                "tipo": "ocr", 
+                "pagina": 1,
+                "tipo": "ocr",
                 "valor": financeiro["valor_total"],
                 "data": financeiro["data"],
                 "cnpj": financeiro["cnpj_cpf"],
                 "conteudo": clean_text[:500] + "..." if len(clean_text) > 500 else clean_text
             }])
-            df.to_excel(output_file, index=False)
+            save_premium_excel(
+                df, output_file,
+                theme_name=visual_theme,
+                title="CONVERSOR OCR - IMAGEM",
+                sheet_name="Texto Extraído",
+            )
             
             if financeiro["valor_total"]:
                 self._log(f"   [Dados Encontrados] Valor: {financeiro['valor_total']} | Data: {financeiro['data']}")

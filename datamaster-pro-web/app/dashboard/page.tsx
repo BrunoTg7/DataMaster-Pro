@@ -4,10 +4,10 @@ import { useEffect, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { 
-  Download, 
-  CreditCard, 
-  Shield, 
+import {
+  Download,
+  CreditCard,
+  Shield,
   Zap,
   User,
   Settings,
@@ -51,11 +51,11 @@ export default function DashboardPage() {
   const [toolStats, setToolStats] = useState<Record<string, { lines: number, execs: number }>>({})
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
- 
+
   const fetchData = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      
+
       if (!session) {
         router.push('/auth/login')
         return
@@ -89,21 +89,21 @@ export default function DashboardPage() {
         const statsMap: Record<string, { lines: number, execs: number }> = {}
         let totalLinhasFerramentas = 0
         let totalExecs = 0
-        
+
         toolRes.data.forEach((exec: { ferramenta: string; linhas_processadas: number }) => {
           if (!statsMap[exec.ferramenta]) {
             statsMap[exec.ferramenta] = { lines: 0, execs: 0 }
           }
           statsMap[exec.ferramenta].execs += 1
           statsMap[exec.ferramenta].lines += (exec.linhas_processadas || 0)
-          
+
           if (exec.ferramenta === 'consolidador' || exec.ferramenta === 'categorizador') {
             totalLinhasFerramentas += (exec.linhas_processadas || 0)
           }
           totalExecs += 1
         })
         setToolStats(statsMap)
-        
+
         setStats(prev => prev ? ({
           ...prev,
           total_linhas: totalLinhasFerramentas,
@@ -130,9 +130,9 @@ export default function DashboardPage() {
     if (!createdAt) return null
     const created = new Date(createdAt)
     const now = new Date()
-    
+
     let renewal = new Date(now.getFullYear(), now.getMonth(), created.getDate())
-    
+
     // Se o dia não existe no mês atual (ex: 31 em Fev), pega o último dia
     const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
     if (created.getDate() > lastDayOfMonth) {
@@ -147,7 +147,7 @@ export default function DashboardPage() {
         renewal.setDate(nextMonthLastDay)
       }
     }
-    
+
     return renewal
   }
 
@@ -169,7 +169,7 @@ export default function DashboardPage() {
 
   const currentPlan = user?.plano_tipo || 'gratis'
   const planLimits = PLAN_LIMITS[currentPlan === 'gratis' ? 'free' : currentPlan as 'pro' | 'enterprise']
-  
+
   return (
     <div className="min-h-screen bg-surface-50 pt-24 pb-16 relative overflow-hidden">
       <div className="absolute inset-0">
@@ -185,7 +185,7 @@ export default function DashboardPage() {
             <h1 className="text-4xl font-bold text-surface-900 font-display">Dashboard</h1>
             <p className="text-surface-600 mt-2 text-lg">Bem-vindo de volta, {user?.nome}</p>
           </motion.div>
-          
+
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
               <div className="text-sm font-bold text-surface-900">{user?.nome}</div>
@@ -206,15 +206,14 @@ export default function DashboardPage() {
                   <TrendingUp className="w-5 h-5 text-primary-500" />
                   Impacto e Uso (30 dias)
                 </h2>
-                <span className={`px-4 py-1.5 rounded-full text-xs font-bold ${
-                  currentPlan === 'pro' ? 'bg-primary-500 text-white' : 'bg-surface-200 text-surface-700'
-                }`}>
+                <span className={`px-4 py-1.5 rounded-full text-xs font-bold ${currentPlan === 'pro' ? 'bg-primary-500 text-white' : 'bg-primary-100 text-primary-900'
+                  }`}>
                   {currentPlan.toUpperCase()}
                 </span>
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <motion.div 
+                <motion.div
                   whileHover={{ y: -5 }}
                   className="p-6 bg-white rounded-[2rem] border border-surface-100 shadow-xl shadow-surface-200/40 transition-all"
                 >
@@ -225,7 +224,7 @@ export default function DashboardPage() {
                   <div className="text-xs text-surface-500 font-bold mt-1">Linhas Processadas</div>
                 </motion.div>
 
-                <motion.div 
+                <motion.div
                   whileHover={{ y: -5 }}
                   className="p-6 bg-white rounded-[2rem] border border-surface-100 shadow-xl shadow-surface-200/40 transition-all"
                 >
@@ -236,7 +235,7 @@ export default function DashboardPage() {
                   <div className="text-xs text-surface-500 font-bold mt-1">Tarefas Realizadas</div>
                 </motion.div>
 
-                <motion.div 
+                <motion.div
                   whileHover={{ y: -5 }}
                   className="p-6 bg-primary-600 rounded-[2rem] shadow-xl shadow-primary-500/20 transition-all text-white"
                 >
@@ -261,66 +260,68 @@ export default function DashboardPage() {
                 {TOOLS.map(tool => {
                   const isAvailable = planLimits.tools.includes(tool.id as any) || planLimits.tools.includes('all' as any)
                   const isComingSoon = 'status' in tool
-                  
+
                   // Estatísticas reais desta ferramenta
                   const currentUsage = toolStats[tool.id] || { lines: 0, execs: 0 }
                   const toolLimit = planLimits.tools_limit?.[tool.id as keyof typeof planLimits.tools_limit]
-                  
+
                   const getUnit = () => {
-                    if (tool.id === 'orcamentos') return 'Documentos'
+                    if (tool.id === 'orcamentos' || tool.id === 'ocr') return 'Documentos'
                     if (tool.id === 'conciliador') return null  // Não mostra linhas
                     if (tool.id === 'minerador') return 'Links'
                     return 'Linhas'
                   }
 
                   const maxLines = toolLimit?.max_per_exec || null
-                  
+
                   const maxExecs = toolLimit?.max_execs || null
 
                   const isOrcamentos = tool.id === 'orcamentos'
 
                   return (
-                    <div 
+                    <div
                       key={tool.id}
                       onClick={() => {
                         if (isOrcamentos && isAvailable && !isComingSoon) {
                           router.push('/orcamentos-demo')
                         }
                       }}
-                      className={`group p-6 rounded-[2.5rem] transition-all duration-300 border ${
-                        isComingSoon
-                          ? 'bg-surface-50 border-transparent opacity-60'
-                          : isAvailable 
-                            ? `bg-white border-surface-100 hover:border-primary-200 hover:shadow-xl ${isOrcamentos ? 'cursor-pointer' : ''}` 
-                            : 'bg-surface-50 border-transparent opacity-60 grayscale'
-                      }`}
+                      className={`group p-6 rounded-[2.5rem] transition-all duration-300 border ${isComingSoon
+                        ? 'bg-surface-50 border-transparent opacity-60'
+                        : isAvailable
+                          ? `bg-white border-surface-100 hover:border-primary-200 hover:shadow-xl ${isOrcamentos ? 'cursor-pointer' : ''}`
+                          : 'bg-surface-50 border-transparent opacity-60 grayscale'
+                        }`}
                     >
                       <div className="flex items-center gap-4 mb-4">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${
-                          isAvailable ? 'bg-primary-50 text-primary-600' : 'bg-surface-200 text-surface-400'
-                        }`}>
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${isAvailable ? 'bg-primary-50 text-primary-600' : 'bg-surface-200 text-surface-400'
+                          }`}>
                           <Package className="w-6 h-6" />
                         </div>
                         <div>
                           <div className="font-bold text-surface-900">{tool.name}</div>
-                          {isComingSoon ? (
-                            <div className="text-[10px] font-bold text-primary-600 uppercase tracking-wider mt-1">
-                              {tool.status}
-                            </div>
-                          ) : isAvailable && (
-                            <div className="flex flex-col gap-0.5 mt-1">
-                              {maxLines !== null && getUnit() !== null && (
-                                <div className="text-[10px] font-bold text-primary-600 uppercase tracking-wider">
-                                  {currentPlan === 'gratis' ? `${currentUsage.lines} / ${maxLines} ${getUnit()}` : 'Ilimitado'}
-                                </div>
-                              )}
-                              {maxExecs !== null && (
-                                <div className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">
-                                  {currentPlan === 'gratis' ? `${currentUsage.execs} / ${maxExecs} Execuções` : 'Ilimitado'}
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          <div className="flex flex-col gap-0.5 mt-1">
+                            {'status' in tool && (
+                              <div className="text-[10px] font-bold text-primary-600 uppercase tracking-wider">
+                                {tool.status}
+                              </div>
+                            )}
+                            {toolLimit?.plano && (
+                              <div className="text-[10px] font-bold text-primary-600 uppercase tracking-wider">
+                                {toolLimit.plano}
+                              </div>
+                            )}
+                            {maxLines !== null && getUnit() !== null && (
+                              <div className="text-[10px] font-bold text-primary-600 uppercase tracking-wider">
+                                {currentPlan === 'gratis' ? `${currentUsage.lines} / ${maxLines} ${getUnit()}` : 'Ilimitado'}
+                              </div>
+                            )}
+                            {maxExecs !== null && (
+                              <div className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">
+                                {currentPlan === 'gratis' ? `${currentUsage.execs} / ${maxExecs} Execuções` : 'Ilimitado'}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <p className="text-sm text-surface-600 line-clamp-2 mb-4 leading-relaxed">
@@ -332,6 +333,13 @@ export default function DashboardPage() {
                             Em breve
                           </div>
                         </div>
+                      ) : toolLimit?.plano ? (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-primary-600 bg-primary-50 px-3 py-1 rounded-full w-fit">
+                            {toolLimit.plano}
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-surface-300" />
+                        </div>
                       ) : isAvailable ? (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full w-fit">
@@ -339,8 +347,8 @@ export default function DashboardPage() {
                             Ativo
                           </div>
                           {tool.id === 'orcamentos' && (
-                            <Link 
-                              href="/orcamentos-demo" 
+                            <Link
+                              href="/orcamentos-demo"
                               className="text-xs font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1"
                             >
                               Ver Demo
@@ -368,7 +376,7 @@ export default function DashboardPage() {
               className="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-surface-200/50 border border-surface-100 overflow-hidden relative"
             >
               <div className="absolute top-0 right-0 w-24 h-24 bg-primary-50 rounded-full -mr-8 -mt-8" />
-              
+
               <div className="relative z-10">
                 <h3 className="font-bold text-surface-900 text-lg mb-6">Conta</h3>
                 <div className="space-y-2">
@@ -388,7 +396,7 @@ export default function DashboardPage() {
                   </Link>
 
                   {user?.created_at && (
-                    <div className="p-4 rounded-2xl bg-primary-50/50 border border-primary-100/50 mt-2">
+                    <div className="p-4 rounded-2xl bg-primary-100/100 border border-primary-100/50 mt-2">
                       <div className="text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-1 flex items-center gap-2">
                         <Clock className="w-3 h-3" />
                         {currentPlan === 'gratis' ? 'Renovação do Limite' : 'Vencimento do Plano'}
@@ -398,7 +406,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   )}
-                  <button 
+                  <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-3 p-4 rounded-2xl hover:bg-red-50 text-red-600 font-bold transition-all group mt-2"
                   >
@@ -417,13 +425,13 @@ export default function DashboardPage() {
               className="bg-surface-900 rounded-[2.5rem] p-8 text-white shadow-xl shadow-surface-900/20 relative overflow-hidden group"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-primary-500/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-primary-500/20 transition-all" />
-              
+
               <h3 className="font-bold text-2xl mb-3 font-display">DataMaster Desktop</h3>
               <p className="text-surface-400 text-sm mb-8 leading-relaxed">
                 Baixe a versão mais recente para processar seus arquivos localmente com máxima velocidade.
               </p>
-              <Link 
-                href="/downloads" 
+              <Link
+                href="/downloads"
                 className="w-full bg-primary-500 hover:bg-primary-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary-500/25 active:scale-95"
               >
                 <Download className="w-5 h-5" />

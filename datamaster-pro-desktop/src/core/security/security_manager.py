@@ -6,14 +6,23 @@ import subprocess
 import hashlib
 import os
 import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 class SecurityManager:
+    _hwid_cache: str | None = None
+
     @staticmethod
     def get_hwid() -> str:
         """
         Gera um ID único baseado no Serial da Placa-Mãe e ID do Processador.
         Usa PowerShell (Get-CimInstance) para compatibilidade com Windows 11 moderno.
+        Resultado é cacheado em classe para evitar múltiplas chamadas ao PowerShell.
         """
+        if SecurityManager._hwid_cache is not None:
+            return SecurityManager._hwid_cache
+
         try:
             # Captura Serial da Placa Mãe via PowerShell
             cmd_board = 'powershell "Get-CimInstance Win32_BaseBoard | Select-Object -ExpandProperty SerialNumber"'
@@ -25,12 +34,14 @@ class SecurityManager:
             
             # Combina e gera um Hash SHA-256
             raw_id = f"DATAMASTER-PRO-{serial}-{cpu_id}"
-            return hashlib.sha256(raw_id.encode()).hexdigest()
+            SecurityManager._hwid_cache = hashlib.sha256(raw_id.encode()).hexdigest()
         except Exception as e:
             # Fallback seguro caso o PowerShell falhe
             import uuid
             node = str(uuid.getnode())
-            return hashlib.sha256(f"FALLBACK-{node}".encode()).hexdigest()
+            SecurityManager._hwid_cache = hashlib.sha256(f"FALLBACK-{node}".encode()).hexdigest()
+
+        return SecurityManager._hwid_cache
 
     @staticmethod
     def check_instance_lock():
@@ -47,5 +58,5 @@ class SecurityManager:
             # Mantemos o socket aberto durante toda a vida do processo
             return lock_socket
         except socket.error:
-            print("⚠️ Erro: Uma instância do DataMaster Pro já está em execução.")
+            logger.warning("Uma instância do DataMaster Pro já está em execução.")
             return None

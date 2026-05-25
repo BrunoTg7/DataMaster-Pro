@@ -5,13 +5,14 @@ import customtkinter as ctk
 from tkinter import messagebox
 import os
 import sys
-import threading
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.comissoes.comissoes import Comissoes
 from src.gui.components.result_viewer_modal import ResultViewerButton
+from src.utils.task_helper import TaskHelper
+from src.gui.helpers.execution_helper import ExecutionHelper
+from src.core.tasks.global_executor import global_executor
 
 
 class ComissoesPage(ToolPage):
@@ -20,28 +21,72 @@ class ComissoesPage(ToolPage):
             log_callback=self._log_msg,
             progress_callback=self._update_progress_safe
         )
+        self.task_helper = TaskHelper("comissoes")
+        self.execution = ExecutionHelper("comissoes", "Comissões", user_id)
         self.sales_file = ""
         self.result_df = None
         self.ranking = []
         self._last_result_text = ""
         super().__init__(master, "comissoes", "Comissões", on_back, execution_tracker, user_id)
+        self._check_task_state()
+
+    def _check_task_state(self):
+        from src.core.storage.storage_manager import StorageManager
+        storage = StorageManager()
+        last_task = storage.get_last_task_by_tool("comissoes")
+        
+        if not last_task:
+            return
+        
+        status = last_task.get("status")
+        
+        if status == "running":
+            self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
+            progress = last_task.get("progress_percent", 0)
+            message = last_task.get("progress_message", "Processando...")
+            self.progress_bar.set(progress / 100)
+            if hasattr(self, 'progress_label'):
+                self.progress_label.configure(text=message)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⏳ Tarefa em andamento...")
+            
+        elif status == "completed":
+            rows = last_task.get("rows_processed", 0)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"✅ Última execução concluída ({rows} registros)")
+            
+        elif status == "interrupted":
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⚠️ Tarefa anterior interrompida.")
+            
+        elif status == "failed":
+            error = last_task.get("error_message", "Erro")
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"❌ Última execução falhou")
 
     def _log_msg(self, msg: str):
         self.after(0, lambda: self._update_log(msg))
 
     def _update_log(self, msg: str):
-        if hasattr(self, 'log_text') and self.log_text.winfo_exists():
-            self.log_text.configure(state="normal")
-            self.log_text.insert("end", f"{msg}\n")
-            self.log_text.see("end")
-            self.log_text.configure(state="disabled")
+        try:
+            if hasattr(self, 'log_text') and self.log_text.winfo_exists():
+                self.log_text.configure(state="normal")
+                self.log_text.insert("end", f"{msg}\n")
+                self.log_text.see("end")
+                self.log_text.configure(state="disabled")
+        except Exception:
+            pass
 
     def _update_progress_safe(self, value: int):
+        self.task_helper.update_progress(value, 100, value)
         self.after(0, lambda: self._set_progress(value))
 
     def _set_progress(self, value: int):
-        if hasattr(self, 'progress_bar'):
-            self.progress_bar.set(value / 100)
+        try:
+            if hasattr(self, 'progress_bar') and self.progress_bar.winfo_exists():
+                self.progress_bar.set(value / 100)
+        except Exception:
+            pass
 
     def _create_content(self):
         content = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -149,6 +194,28 @@ class ComissoesPage(ToolPage):
         self.tier2_entry = ctk.CTkEntry(self.tiers_frame, width=100, placeholder_text="5")
         self.tier2_entry.pack(anchor="w")
 
+        # Tema Visual da Planilha
+        theme_frame = ctk.CTkFrame(content, fg_color="transparent")
+        theme_frame.pack(fill="x", padx=20, pady=(5, 5))
+
+        ctk.CTkLabel(
+            theme_frame,
+            text="Tema Visual da Planilha (Excel):",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=config.Colors.TEXT_PRIMARY
+        ).pack(anchor="w", pady=(5, 5))
+
+        self.visual_theme_menu = ctk.CTkOptionMenu(
+            theme_frame,
+            values=["Azul Corporativo", "Verde Esmeralda", "Laranja Moderno", "Cinza Minimalista"],
+            fg_color=config.Colors.BACKGROUND,
+            text_color=config.Colors.TEXT_PRIMARY,
+            button_color=config.Colors.PRIMARY,
+            button_hover_color=config.Colors.PRIMARY_HOVER
+        )
+        self.visual_theme_menu.set("Azul Corporativo")
+        self.visual_theme_menu.pack(anchor="w", pady=(0, 10))
+
         # Botão de Ação
         self.action_btn = self._create_action_button(content, "Calcular Comissões", self._run_calculation)
 
@@ -206,10 +273,17 @@ class ComissoesPage(ToolPage):
             messagebox.showwarning("Aviso", "Selecione a planilha de vendas")
             return
 
+        task_id, error = self.task_helper.start_task({"file": self.sales_file})
+        if error:
+            messagebox.showwarning("Aviso", error)
+            return
+
         try:
             rate = float(self.percentage_entry.get().strip())
         except ValueError:
-            rate = 5
+            messagebox.showwarning("Aviso", "Percentual inválido. Use um número (ex: 5)")
+            self.task_helper.cancel()
+            return
 
         rules = {
             "type": self.rule_type_var.get(),
@@ -230,25 +304,32 @@ class ComissoesPage(ToolPage):
                 ]
             except ValueError:
                 messagebox.showerror("Erro", "Valores de taxa inválidos")
+                self.task_helper.cancel()
                 return
 
         if not self.start_execution():
+            self.task_helper.cancel()
             return
 
         self.action_btn.configure(state="disabled")
         self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
 
-        thread = threading.Thread(target=self._calculation_worker, args=(rules,), daemon=True)
-        thread.start()
-
-    def _calculation_worker(self, rules):
-        try:
-            result = self.comissoes.calculate_commissions(self.sales_file, rules)
-            self.after(0, lambda: self._on_calculation_done(result))
-        except Exception as e:
-            self.after(0, lambda: self._show_error(str(e)))
+        sales_file = self.sales_file
+        comissoes = self.comissoes
+        global_executor.submit(
+            execute_func=lambda: comissoes.calculate_commissions(sales_file, rules),
+            on_complete=lambda result: self.after(0, lambda: self._on_calculation_done(result)),
+            tool_name="comissoes",
+            tool_display_name="Comissões",
+            user_id=self.user_id
+        )
 
     def _on_calculation_done(self, result):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_frame.pack_forget()
         self.action_btn.configure(state="normal")
 
@@ -257,10 +338,11 @@ class ComissoesPage(ToolPage):
             self.ranking = result.get("ranking", [])
             self._show_results(result)
 
-            status = "completed"
             rows = result.get("total_vendas", 0)
-            self.track_execution("", status, rows_processed=rows)
+            self._finalize_execution(result, "", rows,
+                                     {"vendas": rows, "comissoes": result.get('total_comissao', 0)})
         else:
+            self._finalize_execution(result, "")
             messagebox.showerror("Erro", result.get("error", "Erro desconhecido"))
 
     def _show_results(self, result):
@@ -356,15 +438,22 @@ class ComissoesPage(ToolPage):
 
         self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
 
-        def worker():
-            result = self.comissoes.generate_pdf_reports(
-                self.result_df, output_dir, company_name="Empresa"
-            )
-            self.after(0, lambda: self._on_pdfs_done(result, output_dir))
-
-        threading.Thread(target=worker, daemon=True).start()
+        result_df = self.result_df
+        comissoes = self.comissoes
+        global_executor.submit(
+            execute_func=lambda: comissoes.generate_pdf_reports(result_df, output_dir, company_name="Empresa"),
+            on_complete=lambda result: self.after(0, lambda: self._on_pdfs_done(result, output_dir)),
+            tool_name="comissoes",
+            tool_display_name="Comissões",
+            user_id=self.user_id
+        )
 
     def _on_pdfs_done(self, result, output_dir):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_frame.pack_forget()
         if result.get("success"):
             messagebox.showinfo("Sucesso", f"✅ {result.get('total')} PDFs gerados em:\n{output_dir}")
@@ -375,9 +464,12 @@ class ComissoesPage(ToolPage):
         if self.result_df is None:
             return
 
+        theme_map = {"Azul Corporativo": "classic_blue", "Verde Esmeralda": "emerald_green", "Laranja Moderno": "modern_orange", "Cinza Minimalista": "slate_gray"}
+        visual_theme = theme_map.get(self.visual_theme_menu.get(), "classic_blue")
+
         output_path = self._create_output_path("resumo_comissoes.xlsx")
         if output_path:
-            result = self.comissoes.export_summary(self.result_df, output_path)
+            result = self.comissoes.export_summary(self.result_df, output_path, visual_theme=visual_theme)
             if result.get("success"):
                 messagebox.showinfo("Sucesso", f"Resumo exportado para:\n{output_path}")
             else:
@@ -387,6 +479,8 @@ class ComissoesPage(ToolPage):
         self.progress_frame.pack_forget()
         self.action_btn.configure(state="normal")
         messagebox.showerror("Erro", f"Falha no cálculo: {error}")
+        self.execution.fail(error)
+        self.task_helper.fail(error)
 
     def _create_output_path(self, default_name: str) -> str:
         from tkinter import filedialog

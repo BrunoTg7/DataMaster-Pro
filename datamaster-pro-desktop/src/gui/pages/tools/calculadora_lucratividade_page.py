@@ -12,6 +12,10 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.calculadora_lucratividade.calculadora_lucratividade_v2 import CalculadoraLucratividade
 from src.gui.components.result_viewer_modal import ResultViewerButton
+from src.utils.task_helper import TaskHelper
+from src.gui.helpers.execution_helper import ExecutionHelper
+from src.core.tasks.global_executor import global_executor
+
 
 
 class CalculadoraLucratividadePage(ToolPage):
@@ -20,19 +24,61 @@ class CalculadoraLucratividadePage(ToolPage):
             progress_callback=self._update_progress,
             log_callback=self._log_from_thread
         )
+        self.execution = ExecutionHelper("calculadora_lucratividade", "Calculadora de Lucratividade", user_id)
         super().__init__(master, "calculadora_lucratividade", "Calculadora de Lucratividade", on_back, execution_tracker, user_id)
+        self._check_task_state()
+        self.task_helper = TaskHelper("calculadora_lucratividade")
         self._last_result_text = ""
+
+    def _check_task_state(self):
+        from src.core.storage.storage_manager import StorageManager
+        storage = StorageManager()
+        last_task = storage.get_last_task_by_tool("calculadora_lucratividade")
+        
+        if not last_task:
+            return
+        
+        status = last_task.get("status")
+        
+        if status == "running":
+            if hasattr(self, 'progress_frame'):
+                self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
+            if hasattr(self, 'progress_bar'):
+                progress = last_task.get("progress_percent", 0)
+                self.progress_bar.set(progress / 100)
+            if hasattr(self, 'progress_label'):
+                message = last_task.get("progress_message", "Processando...")
+                self.progress_label.configure(text=message)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⏳ Tarefa em andamento...")
+            
+        elif status == "completed":
+            rows = last_task.get("rows_processed", 0)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"✅ Última execução concluída ({rows} registros)")
+            
+        elif status == "interrupted":
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⚠️ Tarefa anterior interrompida.")
+            
+        elif status == "failed":
+            error = last_task.get("error_message", "Erro")
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"❌ Última execução falhou")
 
     def _log_from_thread(self, message: str):
         self.after(0, lambda: self._add_log(message))
 
     def _add_log(self, message: str):
         """Adiciona mensagem de log à área de resultados ou log"""
-        if hasattr(self, 'results_text') and self.results_text.winfo_exists():
-            self.results_text.configure(state="normal")
-            self.results_text.insert("end", f"• {message}\n")
-            self.results_text.see("end")
-            self.results_text.configure(state="disabled")
+        try:
+            if hasattr(self, 'results_text') and self.results_text.winfo_exists():
+                self.results_text.configure(state="normal")
+                self.results_text.insert("end", f"• {message}\n")
+                self.results_text.see("end")
+                self.results_text.configure(state="disabled")
+        except Exception:
+            pass
 
     def _create_content(self):
         content = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -135,6 +181,11 @@ class CalculadoraLucratividadePage(ToolPage):
         self.viewer_btn.pack(pady=(0, 15))
 
     def _run_calculation(self):
+        task_id, error = self.task_helper.start_task({})
+        if error:
+            messagebox.showwarning("Aviso", error)
+            return
+
         cost_text = self.cost_entry.get().strip()
         if not cost_text:
             messagebox.showwarning("Aviso", "Por favor, insira o preço de custo")
@@ -164,17 +215,33 @@ class CalculadoraLucratividadePage(ToolPage):
         self.results_text.insert("1.0", f"Calculando lucratividade para custo de R$ {cost_price:.2f}...\n\n")
         self.results_text.configure(state="disabled")
 
-        thread = threading.Thread(target=self._calculation_worker, args=(cost_price, urls), daemon=True)
-        thread.start()
+        calculadora = self.calculadora
+        def execute_func():
+            result = calculadora.calculate(cost_price, urls)
+            return result
+        def on_complete(result):
+            self.after(0, lambda: self._show_results(result))
+        global_executor.submit(
+            execute_func=execute_func,
+            on_complete=on_complete,
+            tool_name="calculadora_lucratividade",
+            tool_display_name="Calculadora de Lucratividade",
+            user_id=self.user_id
+        )
 
     def _calculation_worker(self, cost_price, urls):
         try:
             result = self.calculadora.calculate(cost_price, urls)
-            self.after(0, lambda: self._show_results(result))
+            self.after(0, lambda: self._show_results(result) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
         except Exception as e:
-            self.after(0, lambda: self._show_error(str(e)))
+            self.after(0, lambda: self._show_error(str(e)) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
 
     def _show_results(self, result):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_frame.pack_forget()
         self.action_btn.configure(state="normal")
         
@@ -221,16 +288,32 @@ Status: {len(results)} concorrentes analisados com sucesso.
         self._last_result_text = full_report
         self.results_text.configure(state="disabled")
         
+        result = {"success": True}
+        rows = len(results)
         if best and best['net_profit'] > 0:
             messagebox.showinfo("Sucesso", f"Oportunidade encontrada!\nROI de {best['roi']}% em {best['site'].upper()}")
         else:
             messagebox.showwarning("Aviso", "Margens baixas detectadas para este produto.")
+        self._finalize_execution(result, "", rows, {"oportunidades": rows})
 
     def _show_error(self, error):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_frame.pack_forget()
         self.action_btn.configure(state="normal")
         messagebox.showerror("Erro", f"Erro no cálculo: {error}")
+        self._finalize_execution({"success": False, "error": error}, "")
 
     def _update_progress(self, value):
-        self.progress_bar.set(value / 100)
-        self.progress_label.configure(text=f"Buscando preços... {value}%")
+        try:
+            if hasattr(self, 'progress_bar') and self.progress_bar.winfo_exists():
+                self.progress_bar.set(value / 100)
+            if hasattr(self, 'progress_label') and self.progress_label.winfo_exists():
+                self.progress_label.configure(text=f"Buscando preços... {value}%")
+        except Exception:
+            pass
+        self.task_helper.update_progress(value, 100, value)
+        self.task_helper.add_log(f"Buscando preços... {value}%")

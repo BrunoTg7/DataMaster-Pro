@@ -13,6 +13,9 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.analista_tendencias.analista_tendencias_v2 import AnalistaTendencias
 from src.gui.components.result_viewer_modal import ResultViewerButton
+from src.utils.task_helper import TaskHelper
+from src.gui.helpers.execution_helper import ExecutionHelper
+from src.core.tasks.global_executor import global_executor
 
 class AnalistaTendenciasPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
@@ -25,19 +28,61 @@ class AnalistaTendenciasPage(ToolPage):
             progress_callback=self._update_progress,
             log_callback=self._log_from_thread
         )
+        self.execution = ExecutionHelper("analista_tendencias", "Analista de Tendências", user_id)
         super().__init__(master, "analista_tendencias", "Analista de Tendências", on_back, execution_tracker, user_id)
+        self._check_task_state()
+        self.task_helper = TaskHelper("analista_tendencias")
         self.results_for_copy = ""
+
+    def _check_task_state(self):
+        from src.core.storage.storage_manager import StorageManager
+        storage = StorageManager()
+        last_task = storage.get_last_task_by_tool("analista_tendencias")
+        
+        if not last_task:
+            return
+        
+        status = last_task.get("status")
+        
+        if status == "running":
+            if hasattr(self, 'progress_frame'):
+                self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
+            if hasattr(self, 'progress_bar'):
+                progress = last_task.get("progress_percent", 0)
+                self.progress_bar.set(progress / 100)
+            if hasattr(self, 'progress_label'):
+                message = last_task.get("progress_message", "Processando...")
+                self.progress_label.configure(text=message)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⏳ Tarefa em andamento...")
+            
+        elif status == "completed":
+            rows = last_task.get("rows_processed", 0)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"✅ Última execução concluída ({rows} registros)")
+            
+        elif status == "interrupted":
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⚠️ Tarefa anterior interrompida.")
+            
+        elif status == "failed":
+            error = last_task.get("error_message", "Erro")
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"❌ Última execução falhou")
 
     def _log_from_thread(self, message: str):
         if "Erro" not in message:
             self.after(0, lambda: self._update_log_display(message))
     
     def _update_log_display(self, message: str):
-        if hasattr(self, 'log_text') and self.log_text:
-            self.log_text.configure(state="normal")
-            self.log_text.insert("end", f"• {message}\n")
-            self.log_text.see("end")
-            self.log_text.configure(state="disabled")
+        try:
+            if hasattr(self, 'log_text') and self.log_text and self.log_text.winfo_exists():
+                self.log_text.configure(state="normal")
+                self.log_text.insert("end", f"• {message}\n")
+                self.log_text.see("end")
+                self.log_text.configure(state="disabled")
+        except Exception:
+            pass
 
     def _create_content(self):
         content = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -104,6 +149,11 @@ class AnalistaTendenciasPage(ToolPage):
         self.viewer_btn.pack(pady=(0, 15))
 
     def _run_analysis(self):
+        task_id, error = self.task_helper.start_task({})
+        if error:
+            messagebox.showwarning("Aviso", error)
+            return
+
         selected_name = self.niche_combo.get()
         niche_key = None
         for n in self.niches_disponiveis:
@@ -124,18 +174,33 @@ class AnalistaTendenciasPage(ToolPage):
         self.results_text.insert("1.0", f"🚀 Iniciando Trend Intelligence em {selected_name}...\n\n")
         self.results_text.configure(state="disabled")
 
-        # Inicia o worker em uma thread separada
-        thread = threading.Thread(target=self._analysis_worker, args=(niche_key, search_term), daemon=True)
-        thread.start()
+        analista = self.analista
+        def execute_func():
+            result = analista.analyze(niche_key, search_term)
+            return result
+        def on_complete(result):
+            self.after(0, lambda: self._show_results(result))
+        global_executor.submit(
+            execute_func=execute_func,
+            on_complete=on_complete,
+            tool_name="analista_tendencias",
+            tool_display_name="Analista de Tendências",
+            user_id=self.user_id
+        )
 
     def _analysis_worker(self, niche_key, search_term):
         try:
             result = self.analista.analyze(niche_key, search_term)
-            self.after(0, lambda: self._show_results(result))
+            self.after(0, lambda: self._show_results(result) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
         except Exception as e:
-            self.after(0, lambda: self._show_error(str(e)))
+            self.after(0, lambda: self._show_error(str(e)) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
 
     def _show_results(self, result):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_frame.pack_forget()
         self.action_btn.configure(state="normal")
         self.results_text.configure(state="normal")
@@ -159,12 +224,25 @@ class AnalistaTendenciasPage(ToolPage):
             
         self.results_for_copy = copy_text
         self.results_text.configure(state="disabled")
+        self._finalize_execution({"success": True}, "", len(trends), {"tendencias": len(trends)})
         messagebox.showinfo("Sucesso", "Análise de tendências concluída!")
 
     def _show_error(self, error):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
         self.progress_frame.pack_forget()
         self.action_btn.configure(state="normal")
         messagebox.showerror("Erro", f"Falha na análise: {error}")
+        self._finalize_execution({"success": False, "error": error}, "")
 
     def _update_progress(self, value):
-        self.progress_bar.set(value / 100)
+        try:
+            if hasattr(self, 'progress_bar') and self.progress_bar.winfo_exists():
+                self.progress_bar.set(value / 100)
+        except Exception:
+            pass
+        self.task_helper.update_progress(value, 100, value)
+        self.task_helper.add_log(f"Analisando... {value}%")

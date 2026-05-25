@@ -1,46 +1,59 @@
-import type { Metadata, Viewport } from 'next'
-import './globals.css'
-import { Header } from '@/components/shared/Header'
-import { Footer } from '@/components/shared/Footer'
-import { ThemeInitializer } from '@/hooks/ThemeInitializer'
+import { Footer } from "@/components/shared/Footer";
+import { Header } from "@/components/shared/Header";
+import { ThemeInitializer } from "@/hooks/ThemeInitializer";
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
 
 export const viewport: Viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
-}
+};
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://datamasterpro.com.br'),
+  metadataBase: new URL("https://datamasterpro.com.br"),
   title: {
-    default: 'DataMaster Pro - Ferramentas Profissionais para Excel',
-    template: '%s | DataMaster Pro',
+    default: "DataMaster Pro - Ferramentas Profissionais para Excel",
+    template: "%s | DataMaster Pro",
   },
-  description: 'Automatize tarefas repetitivas no Excel com 5 ferramentas poderosas: Consolidador, Categorizador, Orçamentos, Minerador e Conciliador. Economize 20h/mês.',
-  keywords: ['excel', 'planilhas', 'automação', 'produtividade', 'consolidador', 'categorizador', 'orcamentos', 'minerador', 'conciliador'],
-  authors: [{ name: 'DataMaster Team' }],
-  creator: 'DataMaster',
-  publisher: 'DataMaster',
+  description:
+    "Automatize tarefas repetitivas no Excel com 5 ferramentas poderosas: Consolidador, Categorizador, Orçamentos, Minerador e Conciliador. Economize 20h/mês.",
+  keywords: [
+    "excel",
+    "planilhas",
+    "automação",
+    "produtividade",
+    "consolidador",
+    "categorizador",
+    "orcamentos",
+    "minerador",
+    "conciliador",
+  ],
+  authors: [{ name: "DataMaster Team" }],
+  creator: "DataMaster",
+  publisher: "DataMaster",
   openGraph: {
-    type: 'website',
-    locale: 'pt_BR',
-    url: 'https://datamasterpro.com.br',
-    siteName: 'DataMaster Pro',
-    title: 'DataMaster Pro - Ferramentas Profissionais para Excel',
-    description: 'Automatize tarefas repetitivas no Excel com 5 ferramentas poderosas. Consolidador, Categorizador, Orçamentos, Minerador e Conciliador.',
+    type: "website",
+    locale: "pt_BR",
+    url: "https://datamasterpro.com.br",
+    siteName: "DataMaster Pro",
+    title: "DataMaster Pro - Ferramentas Profissionais para Excel",
+    description:
+      "Automatize tarefas repetitivas no Excel com 5 ferramentas poderosas. Consolidador, Categorizador, Orçamentos, Minerador e Conciliador.",
     images: [
       {
-        url: '/og-image.png',
+        url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: 'DataMaster Pro',
+        alt: "DataMaster Pro",
       },
     ],
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'DataMaster Pro - Ferramentas Profissionais para Excel',
-    description: 'Automatize tarefas repetitivas no Excel. 5 ferramentas poderosas.',
-    images: ['/og-image.png'],
+    card: "summary_large_image",
+    title: "DataMaster Pro - Ferramentas Profissionais para Excel",
+    description:
+      "Automatize tarefas repetitivas no Excel. 5 ferramentas poderosas.",
+    images: ["/og-image.png"],
   },
   robots: {
     index: true,
@@ -48,39 +61,37 @@ export const metadata: Metadata = {
     googleBot: {
       index: true,
       follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
     },
   },
   icons: {
     icon: [
-      { url: '/favicon.ico', type: 'image/x-icon' },
-      { url: '/favicon.ico', sizes: '16x16' },
-      { url: '/favicon.ico', sizes: '32x32' },
+      { url: "/favicon.ico", type: "image/x-icon" },
+      { url: "/favicon.ico", sizes: "16x16" },
+      { url: "/favicon.ico", sizes: "32x32" },
     ],
     apple: {
-      url: '/favicon.ico',
+      url: "/favicon.ico",
     },
   },
-  manifest: '/manifest.json',
-}
+  manifest: "/manifest.json",
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="pt-BR">
       <body className="min-h-screen flex flex-col">
         <ThemeInitializer />
         <Header />
-        <main className="flex-1">
-          {children}
-        </main>
+        <main className="flex-1">{children}</main>
         <Footer />
       </body>
     </html>
-  )
+  );
 }

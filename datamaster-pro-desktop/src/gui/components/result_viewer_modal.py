@@ -113,7 +113,7 @@ class ResultViewerOverlay(ctk.CTkFrame):
             self.clipboard_clear()
             self.clipboard_append(self.result_data)
             self._log_temp("Copiado!")
-        except:
+        except Exception:
             pass
 
     def _log_temp(self, msg):

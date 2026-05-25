@@ -12,12 +12,19 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.conversor_ocr.conversor_ocr_v2 import ConversorOCR
 from src.gui.components.result_viewer_modal import ResultViewerButton
+from src.utils.task_helper import TaskHelper
+from src.gui.helpers.execution_helper import ExecutionHelper
+from src.core.tasks.global_executor import global_executor
+
 
 
 class ConversorOCRPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
         self.ocr = None # Inicializa como None para evitar erro no _create_content
+        self.execution = ExecutionHelper("conversor_ocr", "Conversor OCR Premium", user_id)
         super().__init__(master, "conversor_ocr", "Conversor OCR Premium", on_back, execution_tracker, user_id)
+        self._check_task_state()
+        self.task_helper = TaskHelper("conversor_ocr")
         self.ocr = ConversorOCR(log_callback=self._log_msg)
         self.input_files = []
         self._last_result_text = ""
@@ -25,14 +32,54 @@ class ConversorOCRPage(ToolPage):
         # Inicia a verificação e instalação automática sem botão
         self._auto_setup_tesseract()
 
+    def _check_task_state(self):
+        from src.core.storage.storage_manager import StorageManager
+        storage = StorageManager()
+        last_task = storage.get_last_task_by_tool("conversor_ocr")
+        
+        if not last_task:
+            return
+        
+        status = last_task.get("status")
+        
+        if status == "running":
+            if hasattr(self, 'progress_frame'):
+                self.progress_frame.pack(fill="x", padx=20, pady=(0, 10))
+            if hasattr(self, 'progress_bar'):
+                progress = last_task.get("progress_percent", 0)
+                self.progress_bar.set(progress / 100)
+            if hasattr(self, 'progress_label'):
+                message = last_task.get("progress_message", "Processando...")
+                self.progress_label.configure(text=message)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⏳ Tarefa em andamento...")
+            
+        elif status == "completed":
+            rows = last_task.get("rows_processed", 0)
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"✅ Última execução concluída ({rows} registros)")
+            
+        elif status == "interrupted":
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text="⚠️ Tarefa anterior interrompida.")
+            
+        elif status == "failed":
+            error = last_task.get("error_message", "Erro")
+            if hasattr(self, 'status_label'):
+                self.status_label.configure(text=f"❌ Última execução falhou")
+
     def _log_msg(self, msg: str):
         self.after(0, lambda: self._update_results_text(f"> {msg}\n"))
 
     def _update_results_text(self, text: str):
-        self.results_text.configure(state="normal")
-        self.results_text.insert("end", text)
-        self.results_text.see("end")
-        self.results_text.configure(state="disabled")
+        try:
+            if hasattr(self, 'results_text') and self.results_text.winfo_exists():
+                self.results_text.configure(state="normal")
+                self.results_text.insert("end", text)
+                self.results_text.see("end")
+                self.results_text.configure(state="disabled")
+        except Exception:
+            pass
 
     def _create_content(self):
         content = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -49,6 +96,28 @@ class ConversorOCRPage(ToolPage):
             "Arraste seus PDFs ou Imagens aqui", 
             self._on_files_selected
         )
+
+        # Tema Visual da Planilha
+        theme_frame = ctk.CTkFrame(content, fg_color="transparent")
+        theme_frame.pack(fill="x", padx=20, pady=(5, 5))
+
+        ctk.CTkLabel(
+            theme_frame,
+            text="Tema Visual da Planilha (Excel):",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=config.Colors.TEXT_PRIMARY
+        ).pack(anchor="w", pady=(5, 5))
+
+        self.visual_theme_menu = ctk.CTkOptionMenu(
+            theme_frame,
+            values=["Azul Corporativo", "Verde Esmeralda", "Laranja Moderno", "Cinza Minimalista"],
+            fg_color=config.Colors.BACKGROUND,
+            text_color=config.Colors.TEXT_PRIMARY,
+            button_color=config.Colors.PRIMARY,
+            button_hover_color=config.Colors.PRIMARY_HOVER
+        )
+        self.visual_theme_menu.set("Azul Corporativo")
+        self.visual_theme_menu.pack(anchor="w", pady=(0, 10))
 
         # Botão de Ação (Abaixo do drop zone, mas integrado)
         self.action_btn = self._create_action_button(content, "Iniciar Conversão para Excel", self._run_conversion)
@@ -138,7 +207,13 @@ class ConversorOCRPage(ToolPage):
             self.results_text.configure(state="disabled")
 
     def _run_conversion(self):
+        task_id, error = self.task_helper.start_task({})
+        if error:
+            messagebox.showwarning("Aviso", error)
+            return
+
         if not self.input_files:
+            messagebox.showwarning("Aviso", "Selecione os arquivos PDF ou imagem primeiro")
             return
 
         # Verifica se o OCR está pronto antes de começar
@@ -153,23 +228,42 @@ class ConversorOCRPage(ToolPage):
 
         self.action_btn.configure(state="disabled")
         self.progress_frame.pack(fill="x", padx=40, pady=(0, 10))
-        self.progress_bar.set(0)
-
-        # Usar o callback do ConversorOCR para atualizar progresso
-        self.ocr.progress_callback = lambda p: self.after(0, lambda: self.progress_bar.set(p/100))
-
-        thread = threading.Thread(target=self._worker, args=(output_dir,), daemon=True)
-        thread.start()
-
-    def _worker(self, output_dir):
         try:
-            self.after(0, lambda: self._update_results_text("\n--- Iniciando Processamento ---\n"))
-            result = self.ocr.process_multiple(self.input_files, output_dir, True)
-            self.after(0, lambda: self._show_result_details(result))
-        except Exception as e:
-            self.after(0, lambda: messagebox.showerror("Erro", str(e)))
-        finally:
-            self.after(0, lambda: self.action_btn.configure(state="normal"))
+            if hasattr(self, 'progress_bar') and self.progress_bar.winfo_exists():
+                self.progress_bar.set(0)
+        except Exception:
+            pass
+
+        def _update_progress_safe(p):
+            try:
+                if hasattr(self, 'progress_bar') and self.progress_bar.winfo_exists():
+                    self.after(0, lambda: self.progress_bar.set(p/100))
+            except Exception:
+                pass
+            self.task_helper.update_progress(p, 100, p)
+            self.task_helper.add_log(f"Processando... {p}%")
+
+        self.ocr.progress_callback = _update_progress_safe
+
+        _input_files = list(self.input_files)
+        _output_dir = output_dir
+
+        theme_map = {"Azul Corporativo": "classic_blue", "Verde Esmeralda": "emerald_green", "Laranja Moderno": "modern_orange", "Cinza Minimalista": "slate_gray"}
+        visual_theme = theme_map.get(self.visual_theme_menu.get(), "classic_blue")
+
+        def _execute_func():
+            return self.ocr.process_multiple(_input_files, _output_dir, True, visual_theme=visual_theme)
+
+        def _on_complete(result):
+            self.after(0, lambda: self._show_result_details(result) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
+            self.after(0, lambda: self.action_btn.configure(state="normal") if hasattr(self, 'action_btn') and self.action_btn.winfo_exists() else None)
+
+        global_executor.submit(
+            execute_func=_execute_func,
+            on_complete=_on_complete,
+            tool_name="conversor_ocr",
+            tool_display_name="Conversor OCR Premium"
+        )
 
     def _show_result_details(self, result):
         self.progress_frame.pack_forget()
@@ -199,4 +293,6 @@ class ConversorOCRPage(ToolPage):
         
         self._last_result_text = report
         
-        messagebox.showinfo("Sucesso", f"Processamento concluído: {result.get('processed')} de {result.get('total')} arquivos.")
+        processed = result.get('processed', 0)
+        self._finalize_execution(result, "", processed, {"arquivos": processed})
+        messagebox.showinfo("Sucesso", f"Processamento concluído: {processed} de {result.get('total')} arquivos.")

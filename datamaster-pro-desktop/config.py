@@ -13,7 +13,7 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 
 # ==================== APP ====================
 APP_NAME = os.getenv("APP_NAME", "DataMaster Pro")
-APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
+APP_VERSION = os.getenv("APP_VERSION", "1.4.9")
 THEME = os.getenv("THEME", "dark")
 WINDOW_WIDTH = 1200
 WINDOW_HEIGHT = 800
@@ -22,30 +22,36 @@ SYNC_INTERVAL_MS = 30000
 # ==================== DIRETÓRIOS ====================
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
+    USER_DATA = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'DataMaster Pro')
+    os.makedirs(USER_DATA, exist_ok=True)
+    LOGS_DIR = os.path.join(USER_DATA, "logs")
+    DB_PATH = os.path.join(USER_DATA, "datamaster.db")
+    CACHE_DIR = os.path.join(USER_DATA, "cache")
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    LOGS_DIR = os.path.join(BASE_DIR, "logs")
+    CACHE_DIR = os.path.join(BASE_DIR, "cache")
+    DB_PATH = os.path.join(BASE_DIR, "datamaster.db")
 
-LOGS_DIR = os.path.join(BASE_DIR, "logs")
-CACHE_DIR = os.path.join(BASE_DIR, "cache")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
-DB_PATH = os.path.join(BASE_DIR, "datamaster.db")
-APP_DATA_DIR = BASE_DIR
+APP_DATA_DIR = USER_DATA if getattr(sys, 'frozen', False) else BASE_DIR
+OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 
 # Garante que diretórios existam
-for d in [LOGS_DIR, CACHE_DIR]:
+for d in [LOGS_DIR, CACHE_DIR, OUTPUT_DIR]:
     if not os.path.exists(d):
-        os.makedirs(d)
+        os.makedirs(d, exist_ok=True)
 
 # ==================== SUPABASE ====================
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://aytpuefpisvmlxmqkbfm.supabase.co")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5dHB1ZWZwaXN2bWx4bXFrYmZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMTEzNTQsImV4cCI6MjA5MzY4NzM1NH0.ExGFv5Ltv8xI2Ajkm8lvQjuAor_CG7hW--o4HCGKF84")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5dHB1ZWZwaXN2bWx4bXFrYmZtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODExMTM1NCwiZXhwIjoyMDkzNjg3MzU0fQ.IgTQRiJjXij0EHNBmIVuk3ICqZdcdmojbEv7llRWChs")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
 # ==================== CRIPTOGRAFIA ====================
-ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", "datamaster-pro-secret-key-2026-v1")
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", "")
 
 # ==================== SCRAPERAPI ====================
-SCRAPERAPI_KEY = os.getenv("SCRAPERAPI_KEY", "5096c65a0933d5607bc49d85fae8684c")
+SCRAPERAPI_KEY = os.getenv("SCRAPERAPI_KEY", "")
 
 # ==================== ESTADO DE SESSÃO ====================
 SESSION_UPDATE_CHECKED = False
@@ -55,9 +61,12 @@ SESSION_BANNER_SHOWN = False
 # Validação
 if not SUPABASE_URL:
     raise ValueError(
-        "⚠️  ERRO: supabase_url não foi carregado!\n"
+        "ERRO: SUPABASE_URL não foi carregado!\n"
         "Verifique se o arquivo .env existe e contém SUPABASE_URL"
     )
+
+if not SUPABASE_ANON_KEY:
+    print("AVISO: SUPABASE_ANON_KEY não configurada no .env — autenticação e sincronia podem falhar.")
 
 # ==================== PLANOS E LIMITES ====================
 class PlanType(Enum):
@@ -69,13 +78,18 @@ PLAN_LIMITS = {
     PlanType.GRATIS: {
         "max_lines_month": 1200,
         "max_execs_month": 15,
-        "tools": ["consolidador", "categorizador", "orcamentos", "minerador", "conciliador", "conversor_ocr"],
+        "tools": ["consolidador", "categorizador", "orcamentos", "minerador", "conciliador", "conversor_ocr", "validador_links", "calculadora_lucratividade", "analista_tendencias", "comissoes"],
         "tools_limit": {
             "consolidador": {"max_per_exec": 600, "max_execs": 5},
             "categorizador": {"max_per_exec": 600, "max_execs": 5},
             "orcamentos": {"max_per_exec": 15, "max_execs": 3},
-            "minerador": {"max_per_exec": 50, "max_execs": 2},
+            "minerador": {"max_per_exec": 15, "max_execs": 2},
             "conciliador": {"max_execs": 2},
+            "conversor_ocr": {"max_per_exec": 10, "max_execs": 3},
+            "validador_links": {"max_per_exec": 20, "max_execs": 3},
+            "calculadora_lucratividade": {"max_execs": 3},
+            "analista_tendencias": {"max_per_exec": 5, "max_execs": 3},
+            "comissoes": {"max_per_exec": 20, "max_execs": 3},
         }
     },
     PlanType.PRO: {
@@ -183,6 +197,7 @@ class Colors:
     DARK = {
         "BACKGROUND": "#09090B",
         "CARD": "#18181B",
+        "CARD_TASK": "#27272A",
         "BORDER": "#27272A",
         "PRIMARY": "#d48214",
         "PRIMARY_HOVER": "#b5690f",
@@ -194,6 +209,7 @@ class Colors:
     LIGHT = {
         "BACKGROUND": "#FAFAFA",
         "CARD": "#FFFFFF",
+        "CARD_TASK": "#18181B",
         "BORDER": "#E5E7EB",
         "PRIMARY": "#d48214",
         "PRIMARY_HOVER": "#b5690f",
@@ -207,6 +223,7 @@ class Colors:
         theme = Colors.DARK if theme_name == "dark" else Colors.LIGHT if theme_name == "light" else Colors.DARK
         Colors.BACKGROUND = theme["BACKGROUND"]
         Colors.CARD = theme["CARD"]
+        Colors.CARD_TASK = theme["CARD_TASK"]
         Colors.BORDER = theme["BORDER"]
         Colors.PRIMARY = theme["PRIMARY"]
         Colors.PRIMARY_HOVER = theme["PRIMARY_HOVER"]
@@ -216,3 +233,5 @@ class Colors:
 
 # Inicialização padrão
 Colors.update_from_theme("dark")
+
+APP_URL_SITE = "https://data-master-pro.vercel.app/planos"
