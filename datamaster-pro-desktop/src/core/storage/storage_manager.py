@@ -65,7 +65,8 @@ class StorageManager:
                 notificacoes_desktop INTEGER DEFAULT 1,
                 session_token_encrypted TEXT,
                 password_encrypted TEXT,
-                theme TEXT DEFAULT 'system'
+                theme TEXT DEFAULT 'system',
+                history_retention TEXT DEFAULT '15d'
             )
         """)
 
@@ -83,8 +84,11 @@ class StorageManager:
             try:
                 cursor.execute(f"SELECT {col} FROM users LIMIT 1")
             except sqlite3.OperationalError:
-                logger.info(f"Adicionando coluna {col} à tabela users...")
-                cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
+                log.info(f"Adicionando coluna {col} à tabela users...")
+                try:
+                    cursor.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
+                except sqlite3.OperationalError as e:
+                    log.warning(f"Coluna {col} pode já existir: {e}")
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS executions (
@@ -104,8 +108,11 @@ class StorageManager:
         try:
             cursor.execute("SELECT rows_processed FROM executions LIMIT 1")
         except sqlite3.OperationalError:
-            cursor.execute("ALTER TABLE executions ADD COLUMN rows_processed INTEGER DEFAULT 0")
-            cursor.execute("ALTER TABLE executions ADD COLUMN hours_saved REAL DEFAULT 0")
+            try:
+                cursor.execute("ALTER TABLE executions ADD COLUMN rows_processed INTEGER DEFAULT 0")
+                cursor.execute("ALTER TABLE executions ADD COLUMN hours_saved REAL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS favorites (
@@ -147,13 +154,17 @@ class StorageManager:
 
         # Migração: adicionar colunas que podem não existir em DBs antigos
         col_migrations = [
-            "ALTER TABLE tasks ADD COLUMN tool_display_name TEXT",
+            ("tasks", "tool_display_name", "TEXT"),
         ]
-        for sql in col_migrations:
+        for table, col, col_type in col_migrations:
             try:
-                cursor.execute(sql)
+                cursor.execute(f"SELECT {col} FROM {table} LIMIT 1")
             except sqlite3.OperationalError:
-                pass
+                try:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+                    log.info(f"Adicionada coluna {col} à tabela {table}")
+                except sqlite3.OperationalError:
+                    pass
 
         conn.commit()
         conn.close()
@@ -614,7 +625,7 @@ class StorageManager:
         conn.commit()
         conn.close()
         if removed > 0:
-            logger.info(f"Limpeza: {removed} tarefas antigas removidas")
+            log.info(f"Limpeza: {removed} tarefas antigas removidas")
 
     @_safe_db
     def cleanup_executions_duplicates(self):
@@ -630,4 +641,4 @@ class StorageManager:
         conn.commit()
         conn.close()
         if removed > 0:
-            logger.info(f"Limpeza: {removed} execuções duplicadas removidas")
+            log.info(f"Limpeza: {removed} execuções duplicadas removidas")

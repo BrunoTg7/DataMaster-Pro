@@ -272,9 +272,9 @@ export default function DashboardPage() {
                     return 'Linhas'
                   }
 
-                  const maxLines = toolLimit?.max_per_exec || null
+                   const maxLines = (toolLimit && 'max_per_exec' in toolLimit) ? toolLimit.max_per_exec || null : null
 
-                  const maxExecs = toolLimit?.max_execs || null
+                   const maxExecs = (toolLimit && 'max_execs' in toolLimit) ? toolLimit.max_execs || null : null
 
                   const isOrcamentos = tool.id === 'orcamentos'
 
@@ -306,7 +306,7 @@ export default function DashboardPage() {
                                 {tool.status}
                               </div>
                             )}
-                            {toolLimit?.plano && (
+                            {(toolLimit && 'plano' in toolLimit && toolLimit.plano) && (
                               <div className="text-[10px] font-bold text-primary-600 uppercase tracking-wider">
                                 {toolLimit.plano}
                               </div>
@@ -333,7 +333,7 @@ export default function DashboardPage() {
                             Em breve
                           </div>
                         </div>
-                      ) : toolLimit?.plano ? (
+                      ) : (toolLimit && 'plano' in toolLimit && toolLimit.plano) ? (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5 text-xs font-bold text-primary-600 bg-primary-50 px-3 py-1 rounded-full w-fit">
                             {toolLimit.plano}

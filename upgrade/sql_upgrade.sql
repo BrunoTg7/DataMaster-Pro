@@ -25,10 +25,10 @@ ALTER TABLE execucoes ADD CONSTRAINT execucoes_usuario_created_unique UNIQUE (us
 INSERT INTO public.check_updates (id, versao_atual, versao_disponivel, url_download, changelog, updated_at)
 VALUES (
     2, 
-    '1.1.0', 
-    '1.1.0', 
-    'https://github.com/BrunoTg7/DataMaster-Pro-Upgrade/releases/download/v1.1.0/DataMaster.Pro.Setup.exe', 
-    '# v1.1.0 Pro\n\n- Atualização da versão 1.1.0\n- Correção: upsert execucoes com on_conflict (HTTP 400)\n- Correção: log ScraperAPI 401 agora específico\n- Melhoria: anti-bot mais robusto (fingerprint rotativo, viewport aleatório)\n', 
+    '1.4.0', 
+    '1.4.0', 
+    'https://github.com/BrunoTg7/DataMaster-Pro-Upgrade/releases/download/1.4.0/DataMaster.Pro.Setup.v1.4.0.exe', 
+    '# v1.4.0 Pro\n\n- Atualização da versão 1.4.0\n- Correção: Upsert de execucoes, evitando duplicatas na sincronização. \n -Correção: performance geral nas ferramentas. \n -Correção: bugs corrigidos em geral. ' , 
     NOW()
 )
 ON CONFLICT (id) DO UPDATE SET

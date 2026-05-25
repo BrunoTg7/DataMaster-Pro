@@ -13,7 +13,7 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 
 # ==================== APP ====================
 APP_NAME = os.getenv("APP_NAME", "DataMaster Pro")
-APP_VERSION = os.getenv("APP_VERSION", "1.4.9")
+APP_VERSION = os.getenv("APP_VERSION", "1.4.0")
 THEME = os.getenv("THEME", "dark")
 WINDOW_WIDTH = 1200
 WINDOW_HEIGHT = 800
@@ -21,26 +21,104 @@ SYNC_INTERVAL_MS = 30000
 
 # ==================== DIRETÓRIOS ====================
 if getattr(sys, 'frozen', False):
+    # COMPILADO: Usar AppData para TUDO (sem permissões de admin)
     BASE_DIR = os.path.dirname(sys.executable)
     USER_DATA = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'DataMaster Pro')
-    os.makedirs(USER_DATA, exist_ok=True)
     LOGS_DIR = os.path.join(USER_DATA, "logs")
-    DB_PATH = os.path.join(USER_DATA, "datamaster.db")
     CACHE_DIR = os.path.join(USER_DATA, "cache")
+    DB_PATH = os.path.join(USER_DATA, "datamaster.db")
+    OUTPUT_DIR = os.path.join(USER_DATA, "outputs")
 else:
+    # DESENVOLVIMENTO: Usar pastas locais
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    USER_DATA = BASE_DIR
     LOGS_DIR = os.path.join(BASE_DIR, "logs")
     CACHE_DIR = os.path.join(BASE_DIR, "cache")
     DB_PATH = os.path.join(BASE_DIR, "datamaster.db")
+    OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
-APP_DATA_DIR = USER_DATA if getattr(sys, 'frozen', False) else BASE_DIR
-OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+APP_DATA_DIR = USER_DATA
 
-# Garante que diretórios existam
+# Garanta que diretórios existam (simples, sem fallback complexo)
 for d in [LOGS_DIR, CACHE_DIR, OUTPUT_DIR]:
-    if not os.path.exists(d):
-        os.makedirs(d, exist_ok=True)
+    os.makedirs(d, exist_ok=True)
+
+# ==================== MIGRAÇÃO DE DADOS ANTIGOS ====================
+# IMPORTANTE: Executar ANTES de qualquer outra inicialização
+def _migrate_old_database():
+    """Copia dados do banco antigo (Program Files) para o novo (AppData)"""
+    if getattr(sys, 'frozen', False):
+        old_data_dir = os.path.join(os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)'), 'DataMaster Pro')
+        old_db_path = os.path.join(old_data_dir, 'datamaster.db')
+        
+        # Se banco antigo existe, fazer migração (mesmo que o novo exista)
+        if os.path.exists(old_db_path):
+            try:
+                import shutil
+                
+                # Se banco novo não existe, simplesmente copiar
+                if not os.path.exists(DB_PATH):
+                    shutil.copy2(old_db_path, DB_PATH)
+                    print(f"✅ Banco de dados migrado: {DB_PATH}")
+                else:
+                    # Se banco novo JÁ existe, fazer merge (copiar apenas dados que não existem)
+                    # Vamos fazer backup e depois restaurar
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as tmp:
+                        tmp_path = tmp.name
+                    
+                    # Copia antigo para temp
+                    shutil.copy2(old_db_path, tmp_path)
+                    
+                    # Merge dados (será feito no storage_manager.py)
+                    print(f"ℹ️  Sincronizando com banco antigo...")
+                    # Por enquanto, vamos substituir se o novo estiver vazio
+                    import sqlite3
+                    new_conn = sqlite3.connect(DB_PATH)
+                    new_cursor = new_conn.cursor()
+                    new_cursor.execute("SELECT COUNT(*) FROM users WHERE session_token_encrypted IS NOT NULL")
+                    has_session = new_cursor.fetchone()[0] > 0
+                    new_conn.close()
+                    
+                    # Se novo não tem sessão válida, restaurar a antiga
+                    if not has_session:
+                        shutil.copy2(old_db_path, DB_PATH)
+                        print(f"✅ Sessão restaurada do banco antigo")
+                
+                # Copia pasta outputs se existir
+                old_outputs = os.path.join(old_data_dir, 'outputs')
+                if os.path.exists(old_outputs) and os.path.isdir(old_outputs):
+                    for file in os.listdir(old_outputs):
+                        src = os.path.join(old_outputs, file)
+                        dst = os.path.join(OUTPUT_DIR, file)
+                        if os.path.isfile(src):
+                            try:
+                                if not os.path.exists(dst):
+                                    shutil.copy2(src, dst)
+                            except Exception as e:
+                                pass
+                    print(f"✅ Outputs sincronizados")
+                
+                # Copia pasta logs se existir
+                old_logs = os.path.join(old_data_dir, 'logs')
+                if os.path.exists(old_logs) and os.path.isdir(old_logs):
+                    for file in os.listdir(old_logs):
+                        src = os.path.join(old_logs, file)
+                        dst = os.path.join(LOGS_DIR, file)
+                        if os.path.isfile(src):
+                            try:
+                                if not os.path.exists(dst):
+                                    shutil.copy2(src, dst)
+                            except Exception as e:
+                                pass
+                    print(f"✅ Logs sincronizados")
+                    
+            except Exception as e:
+                print(f"⚠️  Erro na migração: {e}")
+
+# Executar migração IMEDIATAMENTE, antes de qualquer outra coisa
+_migrate_old_database()
 
 # ==================== SUPABASE ====================
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://aytpuefpisvmlxmqkbfm.supabase.co")

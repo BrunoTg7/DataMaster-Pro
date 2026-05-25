@@ -165,20 +165,31 @@ class DashboardPage(ctk.CTkFrame):
         self.hours_label.configure(text=f"{stats.get('total_hours', 0.0):.1f}h")
 
     def _create_tools_grid(self):
-        content = ctk.CTkScrollableFrame(
+        # Container principal (sem scroll)
+        tools_container = ctk.CTkFrame(
             self,
             fg_color="transparent"
         )
-        content.grid(row=2, column=0, sticky="nsew", padx=40, pady=20)
-        content.grid_columnconfigure((0, 1, 2), weight=1)
+        tools_container.grid(row=2, column=0, sticky="nsew", padx=40, pady=20)
+        tools_container.grid_columnconfigure(0, weight=1)
+        tools_container.grid_rowconfigure(1, weight=1)
 
+        # Título fixo
         title = ctk.CTkLabel(
-            content,
+            tools_container,
             text="Suas Ferramentas",
             font=ctk.CTkFont(family="Inter", size=26, weight="bold"),
             text_color=config.Colors.TEXT_PRIMARY
         )
-        title.grid(row=0, column=0, columnspan=3, pady=(0, 25), sticky="w")
+        title.grid(row=0, column=0, pady=(0, 25), sticky="w")
+
+        # ScrollableFrame apenas para os cards
+        content = ctk.CTkScrollableFrame(
+            tools_container,
+            fg_color="transparent"
+        )
+        content.grid(row=1, column=0, sticky="nsew")
+        content.grid_columnconfigure((0, 1, 2), weight=1)
 
         user_plan = self.user_data.get("plan", "gratis")
         self._cached_plan_type = config.PlanType[user_plan.upper()]
@@ -191,7 +202,7 @@ class DashboardPage(ctk.CTkFrame):
 
         tools = list(config.TOOLS.items())
         for idx, (tool_key, tool_info) in enumerate(tools):
-            row = (idx // 3) + 1
+            row = idx // 3
             col = idx % 3
             
             is_coming_soon = tool_info.get("status") == "coming_soon"

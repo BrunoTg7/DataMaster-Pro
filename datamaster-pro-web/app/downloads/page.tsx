@@ -1,6 +1,6 @@
+import { supabase } from "@/lib/supabase";
 import { CheckCircle, Download, FileText, Monitor } from "lucide-react";
 import { Metadata } from "next";
-import { supabase } from "@/lib/supabase";
 
 export const metadata: Metadata = {
   title: "Downloads - DataMaster Pro",
@@ -46,7 +46,7 @@ export default async function DownloadsPage() {
           "Segurança total Nos Seus dados",
           "Criptografia de ponta a ponta",
         ],
-      downloadUrl: latestUpdate?.url_download || "https://github.com/BrunoTg7/DataMaster-Pro-Upgrade/releases/download/v1.0.0/DataMaster.Pro.Setup.v1.0.0.exe",
+      downloadUrl: latestUpdate?.url_download || "https://github.com/BrunoTg7/DataMaster-Pro-Upgrade/releases/download/1.4.0/DataMaster.Pro.Setup.v1.1.0.exe",
     },
   ];
 
