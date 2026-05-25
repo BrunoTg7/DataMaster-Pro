@@ -1,9 +1,13 @@
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.watermark import Watermark
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
 
 THEMES = {
     "classic_blue": {
@@ -50,6 +54,41 @@ THEME_NAMES = {
 THEME_NAMES_REVERSE = {v: k for k, v in THEME_NAMES.items()}
 
 
+def _apply_watermark(ws, watermark_text: str = "DataMaster Pro - Versão Gratuita"):
+    """Adiciona marca d'água ao worksheet"""
+    try:
+        watermark = Watermark()
+        watermark.text = watermark_text
+        watermark.opacity = 0.5
+        ws.water_mark = watermark
+    except Exception as e:
+        logger.warning(f"Não foi possível adicionar marca d'água: {e}")
+
+
+def enforce_theme_for_plan(theme_name: str, user_plan: str) -> str:
+    """
+    Força tema apropriado baseado no plano do usuário
+    
+    Args:
+        theme_name: Tema solicitado
+        user_plan: Plano do usuário ('gratis', 'pro', 'enterprise')
+        
+    Returns:
+        Nome do tema a ser usado
+    """
+    # Plano FREE: forçar sempre classic_blue
+    if user_plan == "gratis":
+        logger.info(f"Plano FREE: forçando tema classic_blue (solicitado: {theme_name})")
+        return "classic_blue"
+    
+    # Plano PRO/ENTERPRISE: permitir todos os temas
+    if theme_name in THEMES:
+        return theme_name
+    
+    # Fallback para classic_blue se tema inválido
+    return "classic_blue"
+
+
 def save_premium_excel(
     df: pd.DataFrame,
     output_path: str,
@@ -58,7 +97,11 @@ def save_premium_excel(
     title: str = "RELATÓRIO",
     stats: Optional[List[Tuple[str, str]]] = None,
     diagnostics: Optional[List[Dict]] = None,
+    user_plan: str = "gratis",
 ):
+    # Validar e forçar tema baseado no plano
+    theme_name = enforce_theme_for_plan(theme_name, user_plan)
+    
     theme = THEMES.get(theme_name, THEMES["classic_blue"])
     wb = Workbook()
 
@@ -196,5 +239,9 @@ def save_premium_excel(
                     max_len = max(max_len, len(str(cell.value)))
             col_letter = get_column_letter(col[0].column)
             ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+        
+        # Aplicar marca d'água se plano FREE
+        if user_plan == "gratis":
+            _apply_watermark(ws, "DataMaster Pro - Versão Gratuita")
 
     wb.save(output_path)
