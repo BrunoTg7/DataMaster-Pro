@@ -1,10 +1,10 @@
 'use client'
 
+import { supabase } from '@/lib/supabase/client'
 import { motion } from 'framer-motion'
-import { ArrowRight, Download, Star, Users, Quote } from 'lucide-react'
+import { ArrowRight, Quote, Star } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase/client'
 
 const testimonials = [
   {
@@ -97,9 +97,9 @@ export function CTASection() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setIsLoggedIn(!!data.session)
-    })
+    supabase.auth.getSession().then(({ data, error }) => {
+      setIsLoggedIn(!error && !!data.session)
+    }).catch(() => setIsLoggedIn(false))
   }, [])
 
   return (

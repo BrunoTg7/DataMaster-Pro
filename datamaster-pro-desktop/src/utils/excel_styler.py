@@ -1,7 +1,6 @@
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.watermark import Watermark
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 import pandas as pd
@@ -55,14 +54,21 @@ THEME_NAMES_REVERSE = {v: k for k, v in THEME_NAMES.items()}
 
 
 def _apply_watermark(ws, watermark_text: str = "DataMaster Pro - Versão Gratuita"):
-    """Adiciona marca d'água ao worksheet"""
+    """Adiciona marca d'água (footer) ao worksheet - identifica versão FREE"""
     try:
-        watermark = Watermark()
-        watermark.text = watermark_text
-        watermark.opacity = 0.5
-        ws.water_mark = watermark
+        # Adiciona texto ao footer do worksheet como marca d'água visual
+        ws.page_setup.paperSize = ws.PAPERSIZE_A4
+        ws.print_options.horizontalCentered = True
+        
+        # Adiciona marca d'água via footer (CENTER section)
+        from openpyxl.worksheet.header_footer import HeaderFooter
+        hf = HeaderFooter()
+        hf.cFooter.text = watermark_text
+        ws.header_footer = hf
+        
     except Exception as e:
-        logger.warning(f"Não foi possível adicionar marca d'água: {e}")
+        logger.debug(f"Marca d'água via footer não aplicada: {e}")
+        # Sem watermark, continua normalmente - não é crítico
 
 
 def enforce_theme_for_plan(theme_name: str, user_plan: str) -> str:

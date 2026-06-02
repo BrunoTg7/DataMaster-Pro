@@ -1,0 +1,1 @@
+from src.tools.precificador_canal.precificador_canal_v1 import PrecificadorCanal

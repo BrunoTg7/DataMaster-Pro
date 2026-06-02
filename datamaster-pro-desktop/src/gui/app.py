@@ -7,6 +7,9 @@ from typing import Optional, Dict
 import sys
 import os
 import threading
+import logging
+
+log = logging.getLogger(__name__)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
@@ -16,10 +19,10 @@ from src.core.storage.storage_manager import StorageManager
 from src.core.sync.sync_manager import SyncManager, ExecutionTracker
 from src.utils.network import check_internet_connection
 from src.core.update.update_checker import check_update_on_start
-from src.core.tasks.task_manager import task_manager
-from src.core.tasks.global_executor import global_executor
+from src.core.tasks.task_executor import task_executor
 from src.tools.tool_registry import register_all_tools
 from src.gui.components.task_bar import TaskBar
+from src.gui.components.toast import ToastManager
 
 TOOL_PAGE_MODULES = {
     "consolidador": "src.gui.pages.tools.consolidador_page",
@@ -35,6 +38,8 @@ TOOL_PAGE_MODULES = {
     "conversor_ocr": "src.gui.pages.tools.conversor_ocr_page",
     "gerador_laudos": "src.gui.pages.tools.gerador_laudos_page",
     "comissoes": "src.gui.pages.tools.comissoes_page",
+    "classificador_ncm": "src.gui.pages.tools.classificador_ncm_page",
+    "precificador_canal": "src.gui.pages.tools.precificador_canal_page",
 }
 
 TOOL_PAGE_CLASSES: Dict[str, type] = {}
@@ -65,7 +70,7 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
         try:
             self.TkdndVersion = TkinterDnD._require(self)
         except Exception as e:
-            print(f"Aviso: Drag & Drop n\u00e3o p\u00f4de ser inicializado: {e}")
+            log.warning("Drag & Drop não pôde ser inicializado: %s", e)
             self.TkdndVersion = None
 
         self.title(config.APP_NAME)
@@ -90,8 +95,8 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
         self.sync_manager = SyncManager(self.storage_manager)
         self.execution_tracker = ExecutionTracker(self.storage_manager, self.sync_manager)
 
-        task_manager.storage = self.storage_manager
-        register_all_tools(task_manager)
+        task_executor.storage = self.storage_manager
+        register_all_tools(task_executor)
 
         self._load_saved_theme()
 
@@ -100,12 +105,15 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
         self._current_page_type = None
         self._current_page_params = {}
         self._sync_scheduled = False
+        self._last_connection_change = 0
+        self._connection_debounce_ms = 2000
 
         self._page_cache: Dict[str, ctk.CTkFrame] = {}
         self._page_cache_order: list = []
         self._max_cache_size = 3
 
         self._setup_layout()
+        self.toast = ToastManager.get_instance(self)
         self._check_dependencies()
         self._start_connection_monitor()
         self._start_footer_poll()
@@ -225,13 +233,38 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
             )
 
     def _start_connection_monitor(self):
-        def check_connection():
-            was_online = self.is_online
-            self.is_online = check_internet_connection()
-            if was_online != self.is_online:
-                self._on_connection_changed()
-            self.after_id = self.after(config.SYNC_INTERVAL_MS, check_connection)
-        check_connection()
+        import queue
+        self._conn_queue = queue.Queue()
+
+        def _check_and_poll():
+            # Processa resultados pendentes de execuções anteriores
+            try:
+                while True:
+                    online = self._conn_queue.get_nowait()
+                    self._on_connection_result(online)
+            except queue.Empty:
+                pass
+            # Dispara nova verificação em background
+            def _bg():
+                try:
+                    online = check_internet_connection()
+                    self._conn_queue.put(online)
+                except Exception:
+                    pass
+            threading.Thread(target=_bg, daemon=True).start()
+            # Agenda próximo ciclo
+            self.after(config.SYNC_INTERVAL_MS, _check_and_poll)
+
+        # Primeiro ciclo imediato
+        _check_and_poll()
+
+    def _on_connection_result(self, online: bool):
+        was_online = self.is_online
+        self.is_online = online
+        if was_online != self.is_online:
+            self._on_connection_changed()
+        else:
+            self._update_footer()
 
     def _start_footer_poll(self):
         def poll():
@@ -241,22 +274,39 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
         poll()
 
     def _on_connection_changed(self):
-        if self.is_online and not self._sync_scheduled:
-            self._sync_scheduled = True
-            def do_sync():
-                self._sync_scheduled = False
-                def _sync_wrapper():
-                    try:
-                        self.sync_manager.sync_now()
-                    except Exception as e:
-                        print(f"Erro na sincronização: {e}")
-                threading.Thread(target=_sync_wrapper, daemon=True).start()
-            self.after(2000, do_sync)
-        self.after(100, self._update_footer)
-        page = getattr(self, 'current_page', None)
-        if page and hasattr(page, 'winfo_exists') and page.winfo_exists():
-            if hasattr(page, 'update_connection_status'):
-                page.update_connection_status(self.is_online)
+        import time
+        now = time.time()
+        if (now - self._last_connection_change) < (self._connection_debounce_ms / 1000):
+            return
+        self._last_connection_change = now
+        self._update_footer()
+        if self.is_online:
+            self.toast.success("Conexão restaurada", duration_ms=2000)
+            if not self._sync_scheduled:
+                self._sync_scheduled = True
+                self.after(2000, self._do_sync)
+        else:
+            self.toast.warning("Conexão perdida - modo offline", duration_ms=3000)
+        try:
+            page = getattr(self, 'current_page', None)
+            if page and page.winfo_exists():
+                if hasattr(page, 'update_connection_status'):
+                    page.update_connection_status(self.is_online)
+        except Exception:
+            pass
+
+    def _do_sync(self):
+        self._sync_scheduled = False
+        def _sync_wrapper():
+            try:
+                result = self.sync_manager.sync_now()
+                if result.get("success"):
+                    self.after(0, lambda: self.toast.success("Dados sincronizados", duration_ms=2000))
+                else:
+                    log.warning(f"Sync parcial: {result.get('error', 'erro desconhecido')}")
+            except Exception as e:
+                log.error(f"Erro na sincronização: {e}")
+        threading.Thread(target=_sync_wrapper, daemon=True).start()
 
     def _update_footer_theme(self):
         if hasattr(self, 'footer'):
@@ -277,7 +327,7 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
             self.footer_connection_label.configure(text="Online" if self.is_online else "Offline")
         if hasattr(self, 'footer_task_label'):
             try:
-                active = task_manager.get_active_tasks()
+                active = task_executor.get_active_tasks()
                 count = len(active) if isinstance(active, list) else 0
                 if count > 0:
                     self.footer_task_label.configure(
@@ -340,7 +390,12 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
 
     def _on_login_success(self, user_data: dict):
         self.auth_manager.set_current_user(user_data)
-        self._sync_theme_from_supabase()
+        from src.core.plan_limits_manager import update_plan_validator
+        update_plan_validator(
+            user_data.get("plan", "gratis"),
+            data_expiracao=user_data.get("data_expiracao")
+        )
+        self._sync_theme()
         if not config.SESSION_UPDATE_CHECKED:
             def run_and_cache():
                 config.LAST_UPDATE_DATA = check_update_on_start()
@@ -354,9 +409,9 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
             try:
                 self._get_tool_page_class(tool_key)
             except Exception as e:
-                print(f"Erro pr\u00e9-carregando {tool_key}: {e}")
+                log.error("Erro pré-carregando %s: %s", tool_key, e)
 
-    def _sync_theme_from_supabase(self):
+    def _sync_theme(self):
         try:
             user = self.auth_manager.get_current_user()
             if not user or not user.get("id"):
@@ -365,10 +420,10 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
             if not access_token:
                 return
             from supabase import create_client
-            supabase = create_client(config.SUPABASE_URL, config.SUPABASE_ANON_KEY)
-            supabase.postgrest.auth(access_token)
-            result = supabase.table("usuarios").select("preferencias_tema").eq("id", user["id"]).execute()
-            if result.data and len(result.data) > 0:
+            _c = create_client(config._u0, config._r1())
+            _c.postgrest.auth(access_token)
+            result = _c.table("usuarios").select("preferencias_tema").eq("id", user["id"]).execute()
+            if result.data and len(result.data) > 0 and isinstance(result.data[0], dict):
                 remote_theme = result.data[0].get("preferencias_tema")
                 if remote_theme:
                     local_theme = self.storage_manager.get_theme()
@@ -381,7 +436,7 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
                         if hasattr(self, 'task_bar') and self.task_bar.winfo_exists():
                             self.task_bar.update_colors()
         except Exception as e:
-            print(f"Erro ao buscar tema do Supabase: {e}")
+            log.error("Erro ao buscar tema remoto: %s", e)
 
     def _show_dashboard(self):
         self._hide_current_page()
@@ -407,8 +462,7 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
             self._cache_page("dashboard", self.current_page)
         self._restore_footer_and_taskbar()
         self._update_footer()
-        task_manager.recover_interrupted_tasks()
-        global_executor.recover_interrupted_tasks()
+        task_executor.recover_interrupted_tasks()
         from src.core.tasks.execution_history_manager import get_history_manager
         get_history_manager()._cleanup_old()
         self.storage_manager.cleanup_old_tasks(days=7)
@@ -492,7 +546,11 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
         self._update_footer_theme()
         if hasattr(self, 'task_bar') and self.task_bar.winfo_exists():
             self.task_bar.update_colors()
-        self._clear_page_cache()
+        old_page = self.current_page
+        old_cache = dict(self._page_cache)
+        old_cache_order = list(self._page_cache_order)
+        self._page_cache.clear()
+        self._page_cache_order.clear()
         page_type = self._current_page_type
         params = self._current_page_params
         if page_type == 'dashboard':
@@ -501,6 +559,12 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
             self._show_tool_page(params.get('tool_key'))
         elif page_type == 'settings':
             self._show_settings()
+        for key, page in old_cache.items():
+            if page and page.winfo_exists() and page is not old_page:
+                try:
+                    page.destroy()
+                except Exception:
+                    pass
 
     def _cache_page(self, key: str, page: ctk.CTkFrame):
         self._page_cache[key] = page

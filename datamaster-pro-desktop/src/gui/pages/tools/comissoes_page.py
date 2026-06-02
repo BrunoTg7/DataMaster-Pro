@@ -10,9 +10,8 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.comissoes.comissoes import Comissoes
 from src.gui.components.result_viewer_modal import ResultViewerButton
-from src.utils.task_helper import TaskHelper
 from src.gui.helpers.execution_helper import ExecutionHelper
-from src.core.tasks.global_executor import global_executor
+from src.core.tasks.task_executor import task_executor
 
 
 class ComissoesPage(ToolPage):
@@ -21,7 +20,6 @@ class ComissoesPage(ToolPage):
             log_callback=self._log_msg,
             progress_callback=self._update_progress_safe
         )
-        self.task_helper = TaskHelper("comissoes")
         self.execution = ExecutionHelper("comissoes", "Comissões", user_id)
         self.sales_file = ""
         self.result_df = None
@@ -31,9 +29,7 @@ class ComissoesPage(ToolPage):
         self._check_task_state()
 
     def _check_task_state(self):
-        from src.core.storage.storage_manager import StorageManager
-        storage = StorageManager()
-        last_task = storage.get_last_task_by_tool("comissoes")
+        last_task = self._tool_service.get_last_task_by_tool("comissoes")
         
         if not last_task:
             return
@@ -78,7 +74,6 @@ class ComissoesPage(ToolPage):
             pass
 
     def _update_progress_safe(self, value: int):
-        self.task_helper.update_progress(value, 100, value)
         self.after(0, lambda: self._set_progress(value))
 
     def _set_progress(self, value: int):
@@ -109,13 +104,31 @@ class ComissoesPage(ToolPage):
             self._select_file
         )
 
+        self.file_frame = ctk.CTkFrame(content, fg_color="transparent")
+        self.file_frame.pack(pady=(0, 10))
+
         self.file_label = ctk.CTkLabel(
-            content,
+            self.file_frame,
             text="Nenhum arquivo selecionado",
             font=ctk.CTkFont(family="Inter", size=11),
             text_color=config.Colors.TEXT_SECONDARY
         )
-        self.file_label.pack(pady=(0, 10))
+        self.file_label.pack(side="left")
+
+        self.file_clear_btn = ctk.CTkButton(
+            self.file_frame,
+            text="✕",
+            width=24,
+            height=20,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color="transparent",
+            hover_color="#e74c3c",
+            text_color="#a0a0a0",
+            corner_radius=3,
+            command=self._clear_sales_file
+        )
+        self.file_clear_btn.pack(side="left", padx=(6, 0))
+        self.file_clear_btn.pack_forget()
 
         # Regras de Comissão
         rules_frame = ctk.CTkFrame(content, fg_color=config.Colors.CARD, corner_radius=12)
@@ -204,6 +217,31 @@ class ComissoesPage(ToolPage):
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=config.Colors.TEXT_PRIMARY
         ).pack(anchor="w", pady=(5, 5))
+        
+        # Verificar se é usuário FREE
+        user_plan = self.user_data.get("plan", "gratis").lower() if self.user_data else "gratis"
+        is_free_user = user_plan == "gratis"
+        
+        if is_free_user:
+            # Mostrar aviso para FREE users
+            aviso_frame = ctk.CTkFrame(theme_frame, fg_color="transparent")
+            aviso_frame.pack(anchor="w", pady=(0, 5))
+            
+            aviso_label = ctk.CTkLabel(
+                aviso_frame,
+                text="🔒 Tema único no plano Grátis (Azul Corporativo)",
+                font=ctk.CTkFont(size=10),
+                text_color="#F59E0B"
+            )
+            aviso_label.pack(anchor="w")
+            
+            upgrade_label = ctk.CTkLabel(
+                aviso_frame,
+                text="Upgrade para PRO para acessar 3 temas adicionais →",
+                font=ctk.CTkFont(size=9),
+                text_color=config.Colors.TEXT_SECONDARY
+            )
+            upgrade_label.pack(anchor="w")
 
         self.visual_theme_menu = ctk.CTkOptionMenu(
             theme_frame,
@@ -215,6 +253,10 @@ class ComissoesPage(ToolPage):
         )
         self.visual_theme_menu.set("Azul Corporativo")
         self.visual_theme_menu.pack(anchor="w", pady=(0, 10))
+        
+        # Desabilitar menu para FREE users
+        if is_free_user:
+            self.visual_theme_menu.configure(state="disabled")
 
         # Botão de Ação
         self.action_btn = self._create_action_button(content, "Calcular Comissões", self._run_calculation)
@@ -255,10 +297,16 @@ class ComissoesPage(ToolPage):
             self.percentage_frame.pack_forget()
             self.tiers_frame.pack(fill="x", padx=20, pady=(0, 15))
 
+    def _clear_sales_file(self):
+        self.sales_file = ""
+        self.file_label.configure(text="Nenhum arquivo selecionado")
+        self.file_clear_btn.pack_forget()
+
     def _select_file(self, files=None):
         if files:
             self.sales_file = files[0]
             self.file_label.configure(text=f"✓ {os.path.basename(self.sales_file)}")
+            self.file_clear_btn.pack(side="left", padx=(6, 0))
         else:
             files = self._browse_files([
                 ("Excel", "*.xlsx *.xls"),
@@ -267,22 +315,17 @@ class ComissoesPage(ToolPage):
             if files:
                 self.sales_file = files[0]
                 self.file_label.configure(text=f"✓ {os.path.basename(self.sales_file)}")
+                self.file_clear_btn.pack(side="left", padx=(6, 0))
 
     def _run_calculation(self):
         if not self.sales_file:
             messagebox.showwarning("Aviso", "Selecione a planilha de vendas")
             return
 
-        task_id, error = self.task_helper.start_task({"file": self.sales_file})
-        if error:
-            messagebox.showwarning("Aviso", error)
-            return
-
         try:
             rate = float(self.percentage_entry.get().strip())
         except ValueError:
             messagebox.showwarning("Aviso", "Percentual inválido. Use um número (ex: 5)")
-            self.task_helper.cancel()
             return
 
         rules = {
@@ -304,11 +347,9 @@ class ComissoesPage(ToolPage):
                 ]
             except ValueError:
                 messagebox.showerror("Erro", "Valores de taxa inválidos")
-                self.task_helper.cancel()
                 return
 
         if not self.start_execution():
-            self.task_helper.cancel()
             return
 
         self.action_btn.configure(state="disabled")
@@ -316,7 +357,7 @@ class ComissoesPage(ToolPage):
 
         sales_file = self.sales_file
         comissoes = self.comissoes
-        global_executor.submit(
+        task_executor.submit(
             execute_func=lambda: comissoes.calculate_commissions(sales_file, rules),
             on_complete=lambda result: self.after(0, lambda: self._on_calculation_done(result)),
             tool_name="comissoes",
@@ -440,7 +481,7 @@ class ComissoesPage(ToolPage):
 
         result_df = self.result_df
         comissoes = self.comissoes
-        global_executor.submit(
+        task_executor.submit(
             execute_func=lambda: comissoes.generate_pdf_reports(result_df, output_dir, company_name="Empresa"),
             on_complete=lambda result: self.after(0, lambda: self._on_pdfs_done(result, output_dir)),
             tool_name="comissoes",
@@ -480,7 +521,6 @@ class ComissoesPage(ToolPage):
         self.action_btn.configure(state="normal")
         messagebox.showerror("Erro", f"Falha no cálculo: {error}")
         self.execution.fail(error)
-        self.task_helper.fail(error)
 
     def _create_output_path(self, default_name: str) -> str:
         from tkinter import filedialog

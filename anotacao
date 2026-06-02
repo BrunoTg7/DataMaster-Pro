@@ -1,144 +1,237 @@
-Aqui esta a analise completa da infraestrutura de testes do DataMaster Pro Desktop.
-1. LISTA COMPLETA DE ARQUIVOS DE TESTE EXISTENTES
-Arquivo	Tipo	O que testa
-C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\test.py	Script avulso (nao pytest)	Gera 5 planilhas de exemplo na pasta Testes_DataMaster/
-C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\test_error.py	Script avulso (nao pytest)	Testa manualmente o Consolidador (consolidacao de 2 DataFrames)
-C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\tests\test_tools.py	Pytest (580 linhas)	7 classes de teste: Consolidador (4), Categorizador (7), Conciliador (4), Integracao (1), Conciliador Avancado (4), Minerador (5), Orcamentos (7)
-C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\tests\test_auth.py	Pytest (80 linhas)	AuthManager: estado inicial, login/logout, validacao de sessao, expiracao
-Classes de Teste em test_tools.py:
-1. TestConsolidador (4 testes) - consolidate_concat, consolidate_single_csv, consolidate_empty_list, get_preview
-2. TestCategorizador (7 testes) - categorize, classify_row, classify_empty, get_categories, priority_ordering, suggest_others, categorize_missing_column
-3. TestConciliador (4 testes) - reconcile, quick_check, reconcile_missing_file, normalize_columns
-4. TestIntegration (1 teste) - full_workflow (consolidador + categorizador)
-5. TestConciliadorAdvanced (4 testes) - date_tolerance_matches, date_tolerance_no_match, fuzzy_description_matching, premium_excel_output
-6. TestMineradorPro (5 testes) - registry_keys, get_selectors, generic_fallback, parse_price_brazilian, mine_from_file_missing_column, export_results
-7. TestOrcamentosPro (7 testes) - generate_single_pdf, generate_bulk_from_excel, all_themes, empty_items, parse_items_json, parse_items_csv, brl_formatting
-2. CONFIGURACAO DO TEST RUNNER
-Arquivo: C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\pytest.ini
-[pytest]
-testpaths = tests
-python_files = test_*.py
-python_classes = Test*
-python_functions = test_*
-addopts = -v --strict-markers --tb=short
-markers =
-    slow: testes lentos
-    integration: testes de integracao
-[coverage:run]
-source = src
-omit = tests/*,.venv/*
-[coverage:report]
-exclude_lines =
-    pragma: no cover
-    def __repr__
-    raise NotImplementedError
-Configuracao presente: SIM - pytest com suporte a coverage.
-Problema: As configuracoes de coverage apontam source = src e omitem tests/*, mas nenhuma dependencia de teste esta instalada no .venv ativo. O pytest nao esta disponivel no ambiente.
-Arquivos de dependencias de teste:
-- C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop\tests\requirements.txt contem:
-pytest>=7.4.0
-pytest-cov>=4.1.0
-pytest-mock>=3.12.0
-Mas estas dependencias NAO estao no requirements.txt principal, e aparentemente nunca foram instaladas.
-3. MENCAO A TESTES NO README
-O README.md menciona testes APENAS no "Next Steps" ao final:
-- [ ] Testes de sincronização
-Nao ha documentacao de como executar os testes, cobertura esperada, ou instrucoes para desenvolvedores. O README nao reflete a existencia dos arquivos de teste.
-4. CI/CD CONFIG
-NENHUM arquivo de CI/CD encontrado:
-- Nenhum .github/workflows/ --- ausente
-- Nenhum .gitlab-ci.yml --- ausente
-- Nenhum Jenkinsfile --- ausente
-- Nenhum .coveragerc ou setup.cfg --- ausente
-- Nenhum Makefile --- ausente
-CI/CD: Inexistente. Nao ha pipeline automatizada para execucao de testes.
-5. DEPENDENCIAS DE TESTE
-requirements.txt (raiz) - 48 linhas de dependencias de producao, zero dependecias de teste.
-tests/requirements.txt - 3 dependencias de teste:
-pytest>=7.4.0
-pytest-cov>=4.1.0
-pytest-mock>=3.12.0
-Status: Dependencias de teste nao instaladas no .venv. O comando pytest falha com No module named pytest.
-6. ESTRUTURA DO DIRETORIO DE TESTES
-tests/
-├── __pycache__/
-├── fixtures/              ← VAZIO (0 arquivos)
-├── requirements.txt       ← dependecias de teste
-├── test_auth.py           ← 80 linhas, 2 classes
-└── test_tools.py          ← 580 linhas, 7 classes
-conftest.py: NENHUM encontrado em qualquer lugar do projeto. Nao ha fixtures compartilhadas.
-fixtures/: Diretorio existe mas esta vazio.
-7. AREAS CRITICAS SEM TESTES (ZERO COBERTURA)
-Core Logic (src/core/) - ZERO testes:
-Modulo	Arquivo
-Storage	src/core/storage/storage_manager.py
-Sync	src/core/sync/sync_manager.py
-Security	src/core/security/security_manager.py
-Tasks	src/core/tasks/execution_manager.py
-Tasks	src/core/tasks/global_executor.py
-Tasks	src/core/tasks/execution_history_manager.py
-Tasks	src/core/tasks/task_manager.py
-Update	src/core/update/update_checker.py
-Logging	src/core/logging_setup.py
-Tools (src/tools/) - 8 ferramentas SEM testes:
-Ferramenta	Arquivo
-Analista Tendencias	src/tools/analista_tendencias/analista_tendencias_v2.py
-Calculadora Lucratividade	src/tools/calculadora_lucratividade/calculadora_lucratividade_v2.py
-Comissoes	src/tools/comissoes/comissoes.py
-Conversor OCR	src/tools/conversor_ocr/conversor_ocr_v2.py
-Data Sanitizer	src/tools/data_sanitizer/data_sanitizer_v2.py
-Extrator Reviews	src/tools/extrator_reviews/extrator_reviews_v2.py
-Gerador Laudos	src/tools/gerador_laudos/gerador_laudos_v2.py
-Validador Links	src/tools/validador_links/validador_links_v2.py
-Tool Registry	src/tools/tool_registry.py
-Utils (src/utils/) - ZERO testes:
-Utilitario	Arquivo
-Encryption	src/utils/encryption.py
-Excel Styler	src/utils/excel_styler.py
-Network	src/utils/network.py
-Notifications	src/utils/notifications.py
-Task Helper	src/utils/task_helper.py
-User Agents	src/utils/user_agents.py
-GUI (src/gui/) - ZERO testes (esperado para GUI/Tkinter):
-Componente
-app.py, pages/*.py (10 paginas), components/*.py (6 componentes), helpers/*.py
-8. PROBLEMA CRITICO: IMPORTS QUEBRADOS
-Os testes existentes em test_tools.py importam de modulos que NAO EXISTEM:
-from src.tools.consolidador.consolidador import Consolidador  # FAIL - só existe consolidador_v2.py
-from src.tools.categorizador.categorizador import Categorizador  # FAIL - só existe categorizador_v2.py
-from src.tools.conciliador.conciliador import Conciliador  # FAIL - só existe conciliador_v2.py
-Impacto: Todas as classes TestConsolidador, TestCategorizador, TestConciliador (inclusive os avancados) falhariam na importacao. Apenas TestMineradorPro (importa minerador_v2 corretamente) e TestAuthManager (importa auth_manager corretamente) funcionariam.
-9. RECOMENDACAO: O QUE TESTAR PRIMEIRO
-Prioridade CRITICA (corrigir antes de escrever novos testes):
-1. Corrigir os imports nos testes existentes - Renomear as importacoes de consolidador -> consolidador_v2, categorizador -> categorizador_v2, conciliador -> conciliador_v2. Sem isso, 80% dos testes existentes nunca rodarao.
-2. Instalar pytest no ambiente - Executar pip install -r tests/requirements.txt para que pytest esteja disponivel.
-Prioridade ALTA (mais critico, mais facil de testar):
-Ordem	Modulo	Por que
-1	src/utils/encryption.py	28 linhas, funcoes puras (encrypt_data, decrypt_data, _derive_key), sem dependencias externas alem da cryptography. Testes unitarios faceis e de alto valor.
-2	src/tools/tool_registry.py	Centraliza registro de todas as ferramentas. Se quebrar, nada funciona. Provavelmente tem interface simples.
-3	src/core/storage/storage_manager.py	Banco SQLite local - coracao dos dados. Testar com tmp_path e SQLite in-memory.
-4	src/core/tasks/task_manager.py e execution_manager.py	Orquestram execucao - testar logica de estado e fluxo.
-5	src/core/auth/auth_manager.py	Ja tem teste basico, mas precisa de mais cobertura (login offline, refresh token, criptografia de credenciais).
-6	src/core/sync/sync_manager.py	Logica de sincronizacao offline/online - testar com mocks de Supabase.
-Prioridade MEDIA (ferramentas sem testes):
-Ferramenta
-calculadora_lucratividade_v2.py
-comissoes.py
-analista_tendencias_v2.py
-data_sanitizer_v2.py
-validador_links_v2.py
-conversor_ocr_v2.py
-extrator_reviews_v2.py
-gerador_laudos_v2.py
-RESUMO EXECUTIVO
-Status geral:        🟡 PARCIAL (esqueleto existe, mas quebrado)
-Arquivos de teste:   4 (2 sao scripts avulso, 2 sao pytest)
-Testes viaveis:      2 de 7 classes de teste (28%)
-Cobertura real:      ~5% do codigo fonte (so auth_manager tem testes funcionais)
-Config de runner:    SIM (pytest.ini com coverage)
-Dependencias:        NAO INSTALADAS
-CI/CD:               INEXISTENTE
-conftest.py:         INEXISTENTE
-Fixtures:            DIRETORIO VAZIO
-Imports quebrados:   SIM (consolidador, categorizador, conciliador)
-Conclusao: O projeto tem um esqueleto de teste bem intencionado mas quebrado. Os testes foram escritos para nomes de modulo antigos (consolidador.py) que foram renomeados para consolidador_v2.py sem atualizar os imports. O maior valor imediato e corrigir esses imports e rodar os testes existentes - varios deles (Minerador, Orcamentos) parecem bem escritos e testariam funcionalidade real. Depois disso, priorizar encryption.py, tool_registry.py, e storage_manager.py como os modulos mais criticos e faceis de testar.
+Análise de Segurança — DataMaster Pro Web
+CRÍTICO (corrigir antes de qualquer deploy)
+#	Problema	Arquivo
+1	.env sem .gitignore — secrets (Google Client Secret, Supabase Service Role Key) serão commitados no git	.env
+2	Open Redirect no callback — next param aceita qualquer URL, permete phishing pós-login	app/auth/callback/route.ts:7
+3	Webhook sem autenticação — CAKTO_WEBHOOK_SECRET está como placeholder your-webhook-secret, bypass total	app/api/cako/route.ts:5-11
+4	select('*') em queries — pode expor colunas sensíveis (hashes, tokens) ao cliente	app/dashboard/page.tsx:73, lib/supabase.ts
+MÉDIO (corrigir antes de produção)
+#	Problema	Arquivo
+5	Rate limiting ausente — login, reset password e API endpoints sem limite de tentativas	Todos os endpoints
+6	Webhook revela emails — retorna email do usuário em resposta, enable email enumeration	app/api/cako/route.ts:53
+7	Sem Content-Security-Policy (CSP) — XSS fica sem defesa principal	next.config.js
+8	Downloads page usa browser client em Server Component — queries rodam sem auth	app/downloads/page.tsx:1
+9	Botão 2FA é falsidade — não faz nada, dá sensação falsa de segurança	app/dashboard/configuracoes/page.tsx:228
+10	Senha fraca permitida — só minLength={6}, sem complexidade	components/auth/AuthForm.tsx:180
+BAIXO
+#	Problema	Arquivo
+11	X-XSS-Protection deprecated — remover e usar CSP	next.config.js:22
+12	Sem Permissions-Policy header	next.config.js
+13	Dois clientes Supabase duplicados (lib/supabase.ts + lib/supabase/client.ts)	lib/supabase/
+14	console.log no webhook loga payload completo (dados de pagamento)	app/api/cako/route.ts:14
+BOM
+- Middleware protege /dashboard e /configuracoes
+- Service role key nunca exposta ao client (NEXT_PUBLIC_)
+- Security headers (HSTS, X-Frame-Options, X-Content-Type-Options) configurados
+- poweredByHeader: false
+- OAuth redirect usa window.location.origin
+- TypeScript strict mode
+Quer que eu corrija os itens críticos?
+▣  Build · MiMo V2.5 Free · 2m 22s
+corrija
++ Thought: 3.9s
+# Todos
+[•] Create .gitignore
+[ ] Fix open redirect in auth callback
+[ ] Fix webhook auth bypass
+[ ] Fix select('*') in queries
+[ ] Fix webhook email enumeration
+[ ] Add CSP header
+[ ] Fix downloads page server client
+[ ] Remove non-functional 2FA button
+[ ] Add password complexity validation
+[ ] Remove deprecated X-XSS-Protection header
++ Thought: 1.2s
+# Wrote datamaster-pro-web\.gitignore
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# production
+build/
+dist/
+
+# env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# misc
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+
++ Thought: 2.7s
+# Todos
+[✓] Create .gitignore
+[•] Fix open redirect in auth callback
+[ ] Fix webhook auth bypass
+[ ] Fix select('*') in queries
+[ ] Fix webhook email enumeration
+[ ] Add CSP header
+[ ] Fix downloads page server client
+[ ] Remove non-functional 2FA button
+[ ] Add password complexity validation
+[ ] Remove deprecated X-XSS-Protection header
++ Thought: 1.7s
+← Edit datamaster-pro-web\app\auth\callback\route.ts
+
+export async function GET(request: Request) {
+  const { searchParams, origin } = new URL(request.url)
+  const code = searchParams.get('code')
+  const next = searchParams.get('next') ?? '/dashboard'
+  let next = searchParams.get('next') ?? '/dashboard'
+
+  // Prevenir open redirect — aceitar apenas paths relativos
+  if (!next.startsWith('/') || next.startsWith('//')) {
+    next = '/dashboard'
+  }
+
+  if (code) {
+    const supabase = createClient()
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error) {
++ Thought: 2.1s
+# Todos
+[✓] Create .gitignore
+[✓] Fix open redirect in auth callback
+[•] Fix webhook auth bypass + email enumeration
+[ ] Fix select('*') in queries
+[ ] Add CSP header
+[ ] Fix downloads page server client
+[ ] Remove non-functional 2FA button
+[ ] Add password complexity validation
+[ ] Remove deprecated X-XSS-Protection header
++ Thought: 109ms
+→Read datamaster-pro-web\app\api\cako\route.ts 
++ Thought: 6.8s
+# Wrote datamaster-pro-web\app\api\cako\route.ts
+import { NextResponse } from 'next/server'
+
+export async function POST(request: Request) {
+  try {
+    const expectedSecret = process.env.CAKTO_WEBHOOK_SECRET
+
+    if (!expectedSecret || expectedSecret === 'your-webhook-secret') {
+      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+    }
+
+    const authHeader = request.headers.get('authorization') || request.headers.get('x-cakto-signature')
+
+    if (authHeader !== expectedSecret && authHeader !== `Bearer ${expectedSecret}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const payload = await request.json()
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    
+    const { createClient } = await import('@supabase/supabase-js')
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    const eventType = payload.event || ''
+    
+    let action = 'unknown'
+    if (eventType === 'purchase_approved' || eventType === 'subscription_created') {
+      action = 'activate'
+    } else if (eventType === 'subscription_canceled' || eventType === 'purchase_refused') {
+      action = 'cancel'
+    } else if (eventType === 'refund' || eventType === 'chargeback') {
+      action = 'refund'
+    } else if (eventType === 'subscription_renewed') {
+      action = 'renew'
+    }
+
+    const email = payload.data?.email || payload.data?.customer_email || ''
+    const planName = payload.data?.plan || payload.data?.plan_name || 'pro'
+    const price = payload.data?.price || 0
+    const expirationDate = payload.data?.expiration_date || payload.data?.next_billing_date || null
+    const transactionId = payload.data?.transaction_id || payload.data?.subscription_id || ''
+
+    if (!email) {
+      return NextResponse.json({ error: 'No email provided' }, { status: 400 })
+    }
+
+    const { data: userData, error: userError } = await supabase
+      .from('usuarios')
+      .select('id')
+      .eq('email', email)
+      .single()
+
+    if (userError || !userData) {
+      return NextResponse.json({ message: 'Processed' }, { status: 200 })
+    }
+
+    let planType = 'gratis'
+    if (action === 'cancel' || action === 'refund') {
+      planType = 'gratis'
+    } else if (planName.toLowerCase().includes('pro') || price >= 49.90) {
+      planType = 'pro'
+    } else if (planName.toLowerCase().includes('enterprise')) {
+      planType = 'enterprise'
+    }
+
+    let updateData: any = {
+      plano_tipo: planType,
+      updated_at: new Date().toISOString()
+    }
+    
+    if (action === 'activate' || action === 'renew') {
+      updateData.data_expiracao = expirationDate
+    } else if (action === 'cancel' || action === 'refund') {
+      updateData.data_expiracao = null
+    }
+
+    const { error: updateError } = await supabase
+      .from('usuarios')
+      .update(updateData)
+      .eq('id', userData.id)
+
+    if (updateError) {
+      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    }
+
+    await supabase
+      .from('pagamentos')
+      .insert({
+        usuario_id: userData.id,
+        plano: planType,
+        valor: price,
+        status: action,
+        transacao_id: transactionId,
+        gateway: 'cakto',
+        metadata: JSON.stringify(payload.data || {})
+      })
+
+    return NextResponse.json({ message: 'Processed' }, { status: 200 })
+
+  } catch {
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}
+
++ Thought: 2.0s
+# Todos
+[✓] Create .gitignore
+[✓] Fix open redirect in auth callback
+[✓] Fix webhook auth bypass + email enumeration
+[•] Fix select('*') in queries
+[ ] Add CSP header
+[ ] Fix downloads page server client
+[ ] Remove non-functional 2FA button
+[ ] Add password complexity validation
+[ ] Remove deprecated X-XSS-Protection header
++ Thought: 226ms
+✱Grep "\.select\('\*'\)" in datamaster-pro-web (6 matches)

@@ -1,5 +1,5 @@
 """
-Script de Integração - Adiciona ExecutionManager a todas as 13 ferramentas
+Script de Integração - Adiciona ExecutionManager a todas as 15 ferramentas
 
 Executer: python datamaster-pro-desktop/INTEGRAR_TODAS_FERRAMENTAS.py
 """
@@ -7,7 +7,7 @@ Executer: python datamaster-pro-desktop/INTEGRAR_TODAS_FERRAMENTAS.py
 import os
 import re
 
-# Lista das 13 ferramentas
+# Lista das 15 ferramentas
 FERRAMENTAS = [
     ("consolidador", "src/gui/pages/tools/consolidador_page.py", "Consolidador"),
     ("categorizador", "src/gui/pages/tools/categorizador_page.py", "Categorizador"),
@@ -77,7 +77,7 @@ from src.gui.helpers.execution_helper import ExecutionHelper
 
 def main():
     print("=" * 60)
-    print("INTEGRAÇÃO: ExecutionManager em 13 Ferramentas")
+    print("INTEGRAÇÃO: ExecutionManager em 15 ferramentas")
     print("=" * 60)
     print()
     

@@ -13,9 +13,8 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.gerador_laudos.gerador_laudos_v2 import GeradorLaudos
 from src.gui.components.result_viewer_modal import ResultViewerButton
-from src.utils.task_helper import TaskHelper
 from src.gui.helpers.execution_helper import ExecutionHelper
-from src.core.tasks.global_executor import global_executor
+from src.core.tasks.task_executor import task_executor
 
 
 class GeradorLaudosPage(ToolPage):
@@ -24,15 +23,12 @@ class GeradorLaudosPage(ToolPage):
         self.execution = ExecutionHelper("gerador_laudos", "Gerador de Laudos", user_id)
         super().__init__(master, "gerador_laudos", "Gerador de Laudos", on_back, execution_tracker, user_id)
         self._check_task_state()
-        self.task_helper = TaskHelper("gerador_laudos")
         self.extrato_file = None
         self.notas_file = None
         self._last_result_text = ""
 
     def _check_task_state(self):
-        from src.core.storage.storage_manager import StorageManager
-        storage = StorageManager()
-        last_task = storage.get_last_task_by_tool("gerador_laudos")
+        last_task = self._tool_service.get_last_task_by_tool("gerador_laudos")
         
         if not last_task:
             return
@@ -99,13 +95,31 @@ class GeradorLaudosPage(ToolPage):
         )
         self.extrato_btn.pack(anchor="w", padx=20, pady=(0, 5))
 
+        self.extrato_frame = ctk.CTkFrame(input_frame, fg_color="transparent")
+        self.extrato_frame.pack(anchor="w", padx=20, pady=(0, 15))
+
         self.extrato_label = ctk.CTkLabel(
-            input_frame,
+            self.extrato_frame,
             text="",
             font=ctk.CTkFont(size=11),
             text_color=config.Colors.TEXT_SECONDARY
         )
-        self.extrato_label.pack(anchor="w", padx=20, pady=(0, 15))
+        self.extrato_label.pack(side="left")
+
+        self.extrato_clear_btn = ctk.CTkButton(
+            self.extrato_frame,
+            text="✕",
+            width=24,
+            height=20,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color="transparent",
+            hover_color="#e74c3c",
+            text_color="#a0a0a0",
+            corner_radius=3,
+            command=self._clear_extrato
+        )
+        self.extrato_clear_btn.pack(side="left", padx=(6, 0))
+        self.extrato_clear_btn.pack_forget()
 
         lbl_notas = ctk.CTkLabel(
             input_frame,
@@ -124,13 +138,31 @@ class GeradorLaudosPage(ToolPage):
         )
         self.notas_btn.pack(anchor="w", padx=20, pady=(0, 5))
 
+        self.notas_frame = ctk.CTkFrame(input_frame, fg_color="transparent")
+        self.notas_frame.pack(anchor="w", padx=20, pady=(0, 15))
+
         self.notas_label = ctk.CTkLabel(
-            input_frame,
+            self.notas_frame,
             text="",
             font=ctk.CTkFont(size=11),
             text_color=config.Colors.TEXT_SECONDARY
         )
-        self.notas_label.pack(anchor="w", padx=20, pady=(0, 15))
+        self.notas_label.pack(side="left")
+
+        self.notas_clear_btn = ctk.CTkButton(
+            self.notas_frame,
+            text="✕",
+            width=24,
+            height=20,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color="transparent",
+            hover_color="#e74c3c",
+            text_color="#a0a0a0",
+            corner_radius=3,
+            command=self._clear_notas
+        )
+        self.notas_clear_btn.pack(side="left", padx=(6, 0))
+        self.notas_clear_btn.pack_forget()
 
         config_frame = ctk.CTkFrame(content, fg_color=config.Colors.CARD, corner_radius=12)
         config_frame.pack(fill="x", padx=20, pady=10)
@@ -238,6 +270,18 @@ class GeradorLaudosPage(ToolPage):
         )
         self.viewer_btn.pack(pady=(0, 15))
 
+    def _clear_extrato(self):
+        self.extrato_file = None
+        self.extrato_label.configure(text="")
+        self.extrato_clear_btn.pack_forget()
+        self._update_status()
+
+    def _clear_notas(self):
+        self.notas_file = None
+        self.notas_label.configure(text="")
+        self.notas_clear_btn.pack_forget()
+        self._update_status()
+
     def _select_extrato(self):
         file_path = filedialog.askopenfilename(
             title="Selecionar Extrato",
@@ -251,6 +295,7 @@ class GeradorLaudosPage(ToolPage):
         if file_path:
             self.extrato_file = file_path
             self.extrato_label.configure(text=os.path.basename(file_path))
+            self.extrato_clear_btn.pack(side="left", padx=(6, 0))
             self._update_status()
 
     def _select_notas(self):
@@ -266,6 +311,7 @@ class GeradorLaudosPage(ToolPage):
         if file_path:
             self.notas_file = file_path
             self.notas_label.configure(text=os.path.basename(file_path))
+            self.notas_clear_btn.pack(side="left", padx=(6, 0))
             self._update_status()
 
     def _update_status(self):
@@ -286,11 +332,6 @@ class GeradorLaudosPage(ToolPage):
                 pass
 
     def _run_generation(self):
-        task_id, error = self.task_helper.start_task({})
-        if error:
-            messagebox.showwarning("Aviso", error)
-            return
-
         if not self.extrato_file:
             messagebox.showwarning("Aviso", "Selecione o extrato bancário")
             return
@@ -330,7 +371,7 @@ class GeradorLaudosPage(ToolPage):
         def _on_complete(result):
             self.after(0, lambda: self._show_results(result))
 
-        global_executor.submit(
+        task_executor.submit(
             execute_func=_execute_func,
             on_complete=_on_complete,
             tool_name="gerador_laudos",
@@ -414,4 +455,3 @@ RESUMO:
         self.action_btn.configure(state="normal")
         messagebox.showerror("Erro", f"Erro ao gerar laudo: {error}")
         self.execution.fail(error)
-        self.task_helper.fail(error)

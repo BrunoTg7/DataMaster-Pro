@@ -1,16 +1,16 @@
 'use client'
 
+import { supabase } from '@/lib/supabase/client'
 import { motion } from 'framer-motion'
-import { ArrowRight, CheckCircle, Zap, Shield, Clock, Play } from 'lucide-react'
+import { ArrowRight, CheckCircle, Clock, Shield, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase/client'
 
 const stats = [
-  { value: '50k+', label: 'Planilhas processadas' },
+  { value: '100%', label: 'Processado Localmente' },
+  { value: '100%', label: 'Compatível com qualquer planilha' },
   { value: '10x', label: 'Mais rápido' },
   { value: '99.9%', label: 'Precisão' },
-  { value: '4.9/5', label: 'Avaliação' },
 ]
 
 const benefits = [
@@ -35,9 +35,9 @@ export function HeroSection() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setIsLoggedIn(!!data.session)
-    })
+    supabase.auth.getSession().then(({ data, error }) => {
+      setIsLoggedIn(!error && !!data.session)
+    }).catch(() => setIsLoggedIn(false))
   }, [])
 
   return (
@@ -92,7 +92,7 @@ export function HeroSection() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="text-lg sm:text-xl text-surface-600 mb-10 max-w-2xl mx-auto leading-relaxed"
           >
-            13 ferramentas profissionais para automatizar tarefas repetitivas no Excel.{' '}
+            15 ferramentas profissionais para automatizar tarefas repetitivas no Excel.{' '}
             Consolide, categorize, preencha orçamentos, miner dados e concilie em segundos, e muito mais...
           </motion.p>
 

@@ -15,8 +15,8 @@ export function UpdatePasswordForm() {
   useEffect(() => {
     // Check if the user has a valid session to update the password
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error || !session) {
         setError('Sessão inválida ou expirada. Por favor, solicite a redefinição de senha novamente.')
       }
     }

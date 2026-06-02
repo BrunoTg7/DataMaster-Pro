@@ -72,7 +72,7 @@ class TestAuthManagerLogin:
         auth_manager = AuthManager()
 
         import config
-        if not config.SUPABASE_URL or not config.SUPABASE_ANON_KEY:
+        if not config._u0 or not config._r1():
             pytest.skip("Supabase não configurado")
 
         result = auth_manager.login("test@test.com", "password")

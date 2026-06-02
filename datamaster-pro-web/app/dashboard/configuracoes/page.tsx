@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useEffect } from 'react'
-import { User, Bell, Shield, Check, Monitor, Moon, Sun, Lock, Loader2, Mail, Key } from 'lucide-react'
-import Link from 'next/link'
-import { supabase } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 import { useThemeContext } from '@/hooks/ThemeProvider'
+import { supabase } from '@/lib/supabase/client'
+import { Bell, Check, Loader2, Lock, Mail, Monitor, Moon, Shield, Sun, User } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 type Tab = 'perfil' | 'seguranca' | 'notificacoes'
 
@@ -28,8 +27,8 @@ export default function ConfiguracoesPage() {
 
   useEffect(() => {
     async function loadProfile() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
         router.push('/auth/login')
         return
       }
@@ -58,8 +57,8 @@ export default function ConfiguracoesPage() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) return
 
       const { error } = await supabase
         .from('usuarios')
@@ -143,7 +142,7 @@ export default function ConfiguracoesPage() {
                 <div className="space-y-6">
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-bold text-surface-700 dark:text-surface-300 mb-2">Nome Completo</label>
+                      <label className="block text-sm font-bold text-surface-700 dark:text-surface-300 mb-2">Nome </label>
                       <input
                         type="text"
                         value={formData.nome}

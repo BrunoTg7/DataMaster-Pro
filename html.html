@@ -1,0 +1,2454 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SPIKE DASH - Arena de Reflexos e Ritmo</title>
+    <!-- Tailwind CSS para estilização rápida e responsiva -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts para tipografia Cyberpunk/Moderna -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Font Awesome para Icons consistentes -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
+    <style>
+      body {
+        font-family: "Rajdhani", sans-serif;
+      }
+      .font-cyber {
+        font-family: "Orbitron", sans-serif;
+      }
+      /* Efeitos de Brilho Neon (Glow) */
+      .glow-green {
+        box-shadow: 0 0 15px rgba(0, 255, 102, 0.6);
+        text-shadow: 0 0 8px rgba(0, 255, 102, 0.8);
+      }
+      .glow-yellow {
+        box-shadow: 0 0 15px rgba(255, 255, 0, 0.6);
+        text-shadow: 0 0 8px rgba(255, 255, 0, 0.8);
+      }
+      .glow-cyan {
+        box-shadow: 0 0 15px rgba(0, 240, 255, 0.6);
+        text-shadow: 0 0 8px rgba(0, 240, 255, 0.8);
+      }
+      .glow-magenta {
+        box-shadow: 0 0 15px rgba(255, 0, 127, 0.6);
+        text-shadow: 0 0 8px rgba(255, 0, 127, 0.8);
+      }
+      .text-glow-green {
+        text-shadow:
+          0 0 10px rgba(0, 255, 102, 0.8),
+          0 0 20px rgba(0, 255, 102, 0.4);
+      }
+      .text-glow-yellow {
+        text-shadow:
+          0 0 10px rgba(255, 255, 0, 0.8),
+          0 0 20px rgba(255, 255, 0, 0.4);
+      }
+      .text-glow-cyan {
+        text-shadow:
+          0 0 10px rgba(0, 240, 255, 0.8),
+          0 0 20px rgba(0, 240, 255, 0.4);
+      }
+      .text-glow-magenta {
+        text-shadow:
+          0 0 10px rgba(255, 0, 127, 0.8),
+          0 0 20px rgba(255, 0, 127, 0.4);
+      }
+      .border-glow-green {
+        box-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+        border-color: #00ff66;
+      }
+      .border-glow-yellow {
+        box-shadow: 0 0 10px rgba(255, 255, 0, 0.3);
+        border-color: #ffff00;
+      }
+      .border-glow-cyan {
+        box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+        border-color: #00f0ff;
+      }
+      /* Esconder barras de scroll mas manter funcionalidade */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      /* Animação do cursor */
+      .timing-slider {
+        transition: left 0.01s linear;
+      }
+
+      /* ======================================================= */
+      /* NOVA REGRA PARA FORÇAR A COR DO CELULAR DE QUALQUER JEITO */
+      div.relative.max-w-\[400px\] {
+        background-color: #27272a !important; /* <--- Troque #27272a pela cor que você quiser! */
+      }
+      /* ======================================================= */
+    </style>
+  </head>
+  <body
+    class="text-white min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-green-500 selection:text-black"
+  >
+    <main class="flex-grow flex items-center justify-center py-8 px-4">
+      <div
+        class="relative w-full max-w-[400px] h-[800px] rounded-[48px] border-[12px] border-zinc-800 shadow-2xl overflow-hidden flex flex-col justify-between"
+      >
+        <!-- Sensor de câmara / Dynamic Island Simulado -->
+        <div
+          class="absolute top-3 left-1/2 -translate-x-1/2 w-32 h-6 bg-zinc-800 rounded-full z-40 flex items-center justify-center"
+        >
+          <div class="w-3 h-3 bg-black rounded-full ml-auto mr-3"></div>
+        </div>
+
+        <!-- tela 1: AUTENTICAÇÃO (LOGIN) -->
+        <div
+          id="auth-screen"
+          class="game-screen w-full h-full pt-12 pb-6 px-6 flex flex-col justify-between bg-black"
+        >
+          <div class="text-center mt-12">
+            <div
+              class="inline-block p-2 bg-zinc-900 border border-zinc-800 rounded-2xl mb-4"
+            >
+              <i
+                class="fa-solid fa-bolt text-4xl text-[#00FF66] animate-pulse"
+              ></i>
+            </div>
+            <h2
+              class="text-4xl font-black font-cyber tracking-widest text-white"
+            >
+              SPIKE
+            </h2>
+            <h3
+              class="text-4xl font-black font-cyber tracking-widest text-[#00FF66] text-glow-green"
+            >
+              DASH
+            </h3>
+            <p class="text-zinc-100 text-sm mt-2 tracking-wider">
+              COMPETE • REAGE • CONQUISTA
+            </p>
+          </div>
+
+          <div class="space-y-4">
+            <div class="space-y-1">
+              <label class="text-xs font-cyber tracking-wider text-zinc-100"
+                >E-MAIL DO JOGADOR</label
+              >
+              <div class="relative">
+                <i
+                  class="fa-regular fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-zinc-100"
+                ></i>
+                <input
+                  type="email"
+                  id="login-email"
+                  value="user@gmail.com"
+                  placeholder="nome@exemplo.com"
+                  class="w-full bg-[#121212] border border-zinc-800 focus:border-[#00FF66] rounded-xl py-3.5 pl-12 pr-4 text-sm text-white placeholder-zinc-600 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex justify-between items-center">
+                <label class="text-xs font-cyber tracking-wider text-zinc-100"
+                  >PALAVRA-PASSE</label
+                >
+                <a href="#" class="text-xs text-[#FFFF00] hover:underline"
+                  >Esqueceu-se?</a
+                >
+              </div>
+              <div class="relative">
+                <i
+                  class="fa-solid fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-zinc-100"
+                ></i>
+                <input
+                  type="password"
+                  id="login-pass"
+                  value="senha123"
+                  placeholder="••••••••••••"
+                  class="w-full bg-[#121212] border border-zinc-800 focus:border-[#00FF66] rounded-xl py-3.5 pl-12 pr-4 text-sm text-white placeholder-zinc-600 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <button
+              onclick="showScreen('home-screen')"
+              class="w-full bg-[#00FF66] hover:bg-green-400 text-black font-cyber font-bold py-4 rounded-xl transition-all duration-300 shadow-[0_0_15px_rgba(0,255,102,0.4)] hover:shadow-[0_0_25px_rgba(0,255,102,0.8)] flex items-center justify-center gap-2"
+            >
+              ENTRAR NA ARENA <i class="fa-solid fa-arrow-right"></i>
+            </button>
+
+            <div class="relative flex py-2 items-center">
+              <div class="flex-grow border-t border-zinc-800"></div>
+              <span class="flex-shrink mx-4 text-zinc-100 text-xs font-cyber"
+                >OU LOGIN SOCIAL</span
+              >
+              <div class="flex-grow border-t border-zinc-800"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                onclick="showScreen('home-screen')"
+                class="bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold transition-all"
+              >
+                <i class="fa-brands fa-google text-red-500"></i> Google
+              </button>
+              <button
+                onclick="showScreen('home-screen')"
+                class="bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold transition-all"
+              >
+                <i class="fa-brands fa-apple text-white"></i> Apple
+              </button>
+            </div>
+          </div>
+
+          <div class="text-center text-xs text-zinc-100-600 mt-4">
+            Não tem uma conta?
+            <button
+              onclick="showScreen('register-screen')"
+              class="text-[#00FF66] font-bold hover:underline bg-transparent border-none p-0 cursor-pointer"
+            >
+              Registe-se agora
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="register-screen"
+          class="game-screen w-full h-full pt-12 pb-6 px-6 flex flex-col justify-between bg-black hidden"
+        >
+          <div class="text-center mt-6">
+            <div
+              class="inline-block p-1.5 bg-zinc-900 border border-zinc-800 rounded-xl mb-2"
+            >
+              <i
+                class="fa-solid fa-user-plus text-2xl text-[#00FF66] animate-pulse"
+              ></i>
+            </div>
+            <h2
+              class="text-2xl font-black font-cyber tracking-widest text-white"
+            >
+              NOVO JOGADOR
+            </h2>
+            <p class="text-zinc-100 text-xs mt-1 tracking-wider">
+              REGISTA-TE E REIVINDICA O TEU NOME
+            </p>
+          </div>
+
+          <div class="space-y-3 my-auto">
+            <div class="space-y-1">
+              <label class="text-[10px] font-cyber tracking-wider text-zinc-100"
+                >NOME DE JOGADOR (NICKNAME)</label
+              >
+              <div class="relative">
+                <i
+                  class="fa-solid fa-signature absolute left-4 top-1/2 -translate-y-1/2 text-zinc-100 text-xs"
+                ></i>
+                <input
+                  id="reg-username"
+                  type="text"
+                  placeholder="Ex: CyberSamurai"
+                  class="w-full bg-[#121212] border border-zinc-800 focus:border-[#00FF66] rounded-xl py-2.5 pl-12 pr-4 text-xs text-white placeholder-zinc-600 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-[10px] font-cyber tracking-wider text-zinc-100"
+                >EMAIL DO JOGADOR</label
+              >
+              <div class="relative">
+                <i
+                  class="fa-regular fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-zinc-100 text-xs"
+                ></i>
+                <input
+                  id="reg-email"
+                  type="email"
+                  placeholder="nome@exemplo.com"
+                  class="w-full bg-[#121212] border border-zinc-800 focus:border-[#00FF66] rounded-xl py-2.5 pl-12 pr-4 text-xs text-white placeholder-zinc-600 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-[10px] font-cyber tracking-wider text-zinc-100"
+                >PALAVRA-PASSE</label
+              >
+              <div class="relative">
+                <i
+                  class="fa-solid fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-zinc-100 text-xs"
+                ></i>
+                <input
+                  id="reg-password"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  class="w-full bg-[#121212] border border-zinc-800 focus:border-[#00FF66] rounded-xl py-2.5 pl-12 pr-4 text-xs text-white placeholder-zinc-600 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-[10px] font-cyber tracking-wider text-zinc-100"
+                >CONFIRMAR PALAVRA-PASSE</label
+              >
+              <div class="relative">
+                <i
+                  class="fa-solid fa-shield-halved absolute left-4 top-1/2 -translate-y-1/2 text-zinc-100 text-xs"
+                ></i>
+                <input
+                  id="reg-password-confirm"
+                  type="password"
+                  placeholder="Repita a palavra-passe"
+                  class="w-full bg-[#121212] border border-zinc-800 focus:border-[#00FF66] rounded-xl py-2.5 pl-12 pr-4 text-xs text-white placeholder-zinc-600 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div class="flex items-start gap-2 pt-1">
+              <input
+                id="reg-terms"
+                type="checkbox"
+                class="mt-0.5 rounded border-zinc-850 bg-[#121212] text-[#00FF66] focus:ring-0 accent-[#00FF66] h-3.5 w-3.5"
+              />
+              <label
+                for="reg-terms"
+                class="text-[10px] text-zinc-100 leading-tight"
+              >
+                Aceito os
+                <a href="#" class="text-[#00FF66] hover:underline"
+                  >Termos de Serviço</a
+                >
+                e a
+                <a href="#" class="text-[#00FF66] hover:underline"
+                  >Política de Privacidade</a
+                >
+                do Spike Dash.
+              </label>
+            </div>
+
+            <button
+              onclick="handleRegister(event)"
+              class="w-full bg-[#00FF66] hover:bg-green-400 text-black font-cyber font-bold py-3 rounded-xl transition-all duration-300 shadow-[0_0_15px_rgba(0,255,102,0.3)] hover:shadow-[0_0_20px_rgba(0,255,102,0.6)] flex items-center justify-center gap-2 text-xs mt-2"
+            >
+              CRIAR CONTA DE COMBATE <i class="fa-solid fa-id-card"></i>
+            </button>
+          </div>
+
+          <div class="text-center text-xs text-zinc-100-600">
+            Já possui uma conta ativa?
+            <button
+              onclick="showScreen('auth-screen')"
+              class="text-[#FFFF00] font-bold hover:underline bg-transparent border-none p-0 cursor-pointer"
+            >
+              Entrar agora
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="home-screen"
+          class="game-screen w-full h-full pt-12 pb-6 px-4 flex flex-col justify-between bg-black hidden"
+        >
+          <!-- Top HUD do Jogador -->
+          <div
+            class="flex items-center justify-between border-b border-zinc-900 pb-3 mt-4"
+          >
+            <div
+              onclick="showScreen('profile-screen')"
+              class="flex items-center gap-3 cursor-pointer group"
+            >
+              <div class="relative">
+                <div
+                  class="w-10 h-10 rounded-full bg-zinc-850 border-2 border-[#00FF66] flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform"
+                >
+                  <i
+                    id="hud-avatar-icon"
+                    class="fa-solid fa-user-ninja text-lg text-[#00FF66]"
+                  ></i>
+                </div>
+                <span
+                  class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-black rounded-full"
+                ></span>
+              </div>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span
+                    id="display-nick"
+                    class="font-bold text-sm tracking-wide group-hover:text-[#00FF66] transition-colors"
+                    >BrunoTG</span
+                  >
+                  <span
+                    id="hud-active-title"
+                    class="bg-[#FFFF00] text-black text-[8px] font-bold px-1 rounded font-cyber"
+                    >PRO</span
+                  >
+                </div>
+                <span class="text-[10px] text-zinc-100 font-cyber"
+                  >ID: #99321</span
+                >
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <div
+                class="bg-zinc-900 px-2 py-1 rounded-lg border border-zinc-800 flex items-center gap-1"
+              >
+                <i class="fa-solid fa-trophy text-xs text-[#FFFF00]"></i>
+                <span
+                  id="hud-trophies"
+                  class="text-xs font-bold font-cyber text-[#FFFF00]"
+                  >2,850</span
+                >
+              </div>
+              <button
+                onclick="showScreen('profile-screen')"
+                class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-[#00FF66] flex items-center justify-center text-zinc-100 hover:text-[#00FF66] transition-all"
+              >
+                <i class="fa-solid fa-sliders"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Status Rápidos -->
+          <div class="grid grid-cols-3 gap-2 my-2">
+            <div
+              class="bg-zinc-950 border border-zinc-900 p-2.5 rounded-xl text-center"
+            >
+              <span class="text-[9px] text-zinc-100 block font-cyber"
+                >VITÓRIAS</span
+              >
+              <span class="text-base font-bold text-white font-cyber">142</span>
+            </div>
+            <div
+              class="bg-zinc-950 border border-zinc-900 p-2.5 rounded-xl text-center"
+            >
+              <span class="text-[9px] text-zinc-100 block font-cyber"
+                >RANKING</span
+              >
+              <span class="text-base font-bold text-[#00FF66] font-cyber"
+                >#1.4k</span
+              >
+            </div>
+            <div
+              class="bg-zinc-950 border border-zinc-900 p-2.5 rounded-xl text-center"
+            >
+              <span class="text-[9px] text-zinc-100 block font-cyber"
+                >PRECISÃO</span
+              >
+              <span class="text-base font-bold text-[#FFFF00] font-cyber"
+                >94.8%</span
+              >
+            </div>
+          </div>
+
+          <!-- Modos de Jogo Centrais -->
+          <div
+            class="flex-grow flex flex-col justify-start gap-2 overflow-y-auto no-scrollbar py-2"
+          >
+            <button
+              onclick="showScreen('tap-precision-screen')"
+              class="group relative w-full bg-gradient-to-r from-zinc-950 to-zinc-900 border border-zinc-800 hover:border-[#00FF66] p-3 rounded-xl text-left transition-all duration-300"
+            >
+              <div
+                class="absolute right-4 top-3.5 w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center text-[#00FF66] border border-zinc-800 group-hover:border-[#00FF66] transition-colors"
+              >
+                <i class="fa-solid fa-crosshairs text-sm"></i>
+              </div>
+              <span
+                class="text-[9px] text-[#00FF66] font-bold font-cyber tracking-widest block"
+                >MELHORIA DE REFLEXOS</span
+              >
+              <h4 class="text-lg font-bold font-cyber mt-0.5">TAP PRECISION</h4>
+              <p class="text-[11px] text-zinc-100 mt-0.5 max-w-[75%]">
+                Reage rapidamente aos alvos que surgem na tela. Treino solo.
+              </p>
+            </button>
+
+            <button
+              onclick="showScreen('reflex-duel-screen')"
+              class="group relative w-full bg-gradient-to-r from-zinc-950 to-zinc-900 border border-zinc-800 hover:border-[#FFFF00] p-3 rounded-xl text-left transition-all duration-300"
+            >
+              <div
+                class="absolute right-4 top-3.5 w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center text-[#FFFF00] border border-zinc-800 group-hover:border-[#FFFF00] transition-colors"
+              >
+                <i class="fa-solid fa-bolt-lightning text-sm"></i>
+              </div>
+              <span
+                class="text-[9px] text-[#FFFF00] font-bold font-cyber tracking-widest block"
+                >MULTIJOGADOR LOCAL</span
+              >
+              <h4 class="text-lg font-bold font-cyber mt-0.5">REFLEX DUEL</h4>
+              <p class="text-[11px] text-zinc-100 mt-0.5 max-w-[75%]">
+                Espera pelo verde. Dispara primeiro mas evita falsas partidas!
+              </p>
+            </button>
+
+            <button
+              onclick="showScreen('perfect-timing-screen')"
+              class="group relative w-full bg-gradient-to-r from-zinc-950 to-zinc-900 border border-zinc-800 hover:border-[#00F0FF] p-3 rounded-xl text-left transition-all duration-300"
+            >
+              <div
+                class="absolute right-4 top-3.5 w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center text-[#00F0FF] border border-zinc-800 group-hover:border-[#00F0FF] transition-colors"
+              >
+                <i class="fa-solid fa-stopwatch text-sm"></i>
+              </div>
+              <span
+                class="text-[9px] text-[#00F0FF] font-bold font-cyber tracking-widest block"
+                >DESAFIO DE RITMO</span
+              >
+              <h4 class="text-lg font-bold font-cyber mt-0.5 text-glow-cyan">
+                PERFECT TIMING EVO
+              </h4>
+              <p class="text-[11px] text-zinc-100 mt-0.5 max-w-[75%]">
+                Acerte na zona central que se transforma, encolhe e muda de cor!
+              </p>
+            </button>
+
+            <button
+              onclick="showScreen('stroop-selection-screen')"
+              class="group relative w-full bg-gradient-to-r from-zinc-950 to-zinc-900 border border-zinc-800 hover:border-[#FF007F] p-3 rounded-xl text-left transition-all duration-300"
+            >
+              <div
+                class="absolute right-4 top-3.5 w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center text-[#FF007F] border border-zinc-800 group-hover:border-[#FF007F] transition-colors"
+              >
+                <i class="fa-solid fa-brain text-sm"></i>
+              </div>
+              <span
+                class="text-[9px] text-[#FF007F] font-bold font-cyber tracking-widest block"
+                >PRESSÃO COGNITIVA</span
+              >
+              <h4 class="text-lg font-bold font-cyber mt-0.5 text-glow-magenta">
+                STROOP SHOT
+              </h4>
+              <p class="text-[11px] text-zinc-100 mt-0.5 max-w-[75%]">
+                Novo modo! Decifre o enigma das cores em modo Solo ou 1x1
+                dividida.
+              </p>
+            </button>
+          </div>
+
+          <!-- Navegação Inferior de Estilo Mobile -->
+          <div
+            class="bg-zinc-950 border border-zinc-900 rounded-2xl p-2 flex items-center justify-around mt-1"
+          >
+            <button
+              onclick="showScreen('ranking-screen')"
+              class="flex flex-col items-center gap-0.5 text-zinc-100 hover:text-white transition-colors"
+            >
+              <i class="fa-solid fa-ranking-star text-base"></i>
+              <span class="text-[9px] font-cyber">RANKINGS</span>
+            </button>
+            <button
+              onclick="showScreen('home-screen')"
+              class="flex flex-col items-center gap-0.5 text-[#00FF66] transition-colors"
+            >
+              <i class="fa-solid fa-gamepad text-lg text-glow-green"></i>
+              <span class="text-[9px] font-cyber font-bold">JOGAR</span>
+            </button>
+            <button
+              onclick="showScreen('profile-screen')"
+              class="flex flex-col items-center gap-0.5 text-zinc-100 hover:text-white transition-colors"
+            >
+              <i class="fa-solid fa-user text-base"></i>
+              <span class="text-[9px] font-cyber">PERFIL</span>
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="tap-precision-screen"
+          class="game-screen w-full h-full pt-12 pb-6 px-4 flex flex-col justify-between bg-black hidden"
+        >
+          <div
+            class="flex items-center justify-between border-b border-zinc-900 pb-3 mt-4"
+          >
+            <button
+              onclick="
+                showScreen('home-screen');
+                resetTapGame();
+              "
+              class="text-zinc-100 hover:text-white flex items-center gap-1 text-sm font-semibold"
+            >
+              <i class="fa-solid fa-chevron-left"></i> Sair
+            </button>
+            <div class="text-center">
+              <span class="text-[10px] text-[#FFFF00] block font-cyber"
+                >TEMPO</span
+              >
+              <span
+                id="tap-timer"
+                class="text-xl font-black font-cyber text-glow-yellow"
+                >00:30</span
+              >
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] text-zinc-100 block font-cyber"
+                >PONTOS</span
+              >
+              <span
+                id="tap-score"
+                class="text-lg font-bold font-cyber text-white"
+                >0</span
+              >
+            </div>
+          </div>
+
+          <div
+            id="game-arena-tap"
+            class="relative flex-grow my-4 bg-[#050505] border border-zinc-900 rounded-2xl overflow-hidden cursor-crosshair"
+          >
+            <div
+              id="tap-start-panel"
+              class="absolute inset-0 bg-black/90 flex flex-col items-center justify-center text-center p-6 z-10"
+            >
+              <div
+                class="w-14 h-14 rounded-full border-2 border-[#00FF66] flex items-center justify-center mb-4 text-glow-green"
+              >
+                <i class="fa-solid fa-hand-pointer text-xl text-[#00FF66]"></i>
+              </div>
+              <h4 class="text-2xl font-bold font-cyber mb-2">TAP PRECISION</h4>
+              <p class="text-xs text-zinc-100 mb-6 max-w-[80%]">
+                Clica rapidamente nos alvos verdes que surgem na tela. Não
+                falhes para manteres o teu combo ativo!
+              </p>
+              <button
+                onclick="startTapGame()"
+                class="bg-[#00FF66] text-black font-cyber font-bold px-6 py-3 rounded-xl hover:bg-green-400 transition-all shadow-[0_0_15px_rgba(0,255,102,0.4)]"
+              >
+                COMEÇAR TREINO
+              </button>
+            </div>
+
+            <div class="absolute top-3 left-3 z-0 pointer-events-none">
+              <span
+                id="tap-combo-badge"
+                class="hidden text-xs bg-[#00FF66]/10 text-[#00FF66] border border-[#00FF66]/30 px-2 py-1 rounded font-cyber"
+              >
+                COMBO <span id="tap-combo" class="font-bold">x0</span>
+              </span>
+            </div>
+
+            <div
+              id="active-target"
+              class="absolute hidden transition-all duration-75"
+            >
+              <button
+                onclick="registerHit(event)"
+                class="relative w-12 h-12 flex items-center justify-center"
+              >
+                <span
+                  class="absolute inset-0 rounded-full border border-[#00FF66] animate-ping opacity-75"
+                ></span>
+                <span
+                  class="w-8 h-8 rounded-full bg-[#00FF66]/20 border-2 border-[#00FF66] flex items-center justify-center shadow-[0_0_10px_rgba(0,255,102,0.6)]"
+                >
+                  <span class="w-2.5 h-2.5 rounded-full bg-[#00FF66]"></span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div
+            class="bg-zinc-950 border border-zinc-900 rounded-xl p-3 text-center"
+          >
+            <p class="text-xs text-zinc-100">
+              Média de Reação ideal:
+              <span class="text-[#00FF66] font-bold">&lt; 200ms</span>
+            </p>
+          </div>
+        </div>
+
+        <div
+          id="reflex-duel-screen"
+          class="game-screen w-full h-full pt-12 pb-6 px-4 flex flex-col justify-between bg-black hidden"
+        >
+          <div
+            class="flex items-center justify-between border-b border-zinc-900 pb-3 mt-4"
+          >
+            <button
+              onclick="
+                showScreen('home-screen');
+                resetDuelGame();
+              "
+              class="text-zinc-100 hover:text-white flex items-center gap-1 text-sm font-semibold"
+            >
+              <i class="fa-solid fa-chevron-left"></i> Voltar
+            </button>
+            <span
+              class="text-sm font-cyber font-bold tracking-widest text-[#FFFF00]"
+              >REFLEX DUEL</span
+            >
+            <button
+              onclick="resetDuelGame()"
+              class="text-zinc-100 hover:text-white text-xs"
+            >
+              <i class="fa-solid fa-rotate-right"></i> Reiniciar
+            </button>
+          </div>
+
+          <div
+            id="duel-arena"
+            class="flex-grow my-4 flex flex-col justify-between items-center gap-3"
+          >
+            <div
+              class="w-full bg-zinc-950 border border-zinc-900 rounded-2xl p-4 text-center"
+            >
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-cyber text-zinc-100">JOGADOR 2</span>
+                <span id="p2-status" class="text-xs text-zinc-100 font-bold"
+                  >AGUARDA...</span
+                >
+              </div>
+              <button
+                id="btn-player2"
+                disabled
+                onclick="playerClick(2)"
+                class="w-full bg-zinc-900/50 border border-zinc-800 disabled:opacity-40 text-white font-cyber font-bold py-6 rounded-xl transition-all flex flex-col items-center justify-center gap-1"
+              >
+                <i class="fa-regular fa-hand-pointer text-lg"></i>
+                <span>CLICAR (P2)</span>
+              </button>
+            </div>
+
+            <div
+              id="semaphore-light"
+              class="w-full py-8 bg-[#121212] border-2 border-zinc-800 rounded-3xl flex flex-col items-center justify-center transition-all duration-300"
+            >
+              <div
+                id="semaphore-bulb"
+                class="w-16 h-16 rounded-full bg-red-600 shadow-[0_0_20px_rgba(220,38,38,0.8)] border-4 border-zinc-900 mb-3 transition-all duration-150"
+              ></div>
+              <h4
+                id="semaphore-text"
+                class="text-lg font-bold font-cyber text-red-500 tracking-wider"
+              >
+                PRIMEIRO PREPARA...
+              </h4>
+              <button
+                id="btn-start-duel"
+                onclick="startDuelCountdown()"
+                class="mt-4 bg-zinc-900 border border-zinc-800 hover:border-[#FFFF00] text-white px-4 py-2 rounded-lg text-xs font-cyber font-bold transition-all"
+              >
+                INICIAR DUELO
+              </button>
+            </div>
+
+            <div
+              class="w-full bg-zinc-950 border border-zinc-900 rounded-2xl p-4 text-center"
+            >
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-cyber text-zinc-100">JOGADOR 1</span>
+                <span id="p1-status" class="text-xs text-zinc-100 font-bold"
+                  >AGUARDA...</span
+                >
+              </div>
+              <button
+                id="btn-player1"
+                disabled
+                onclick="playerClick(1)"
+                class="w-full bg-zinc-900/50 border border-zinc-800 disabled:opacity-40 text-white font-cyber font-bold py-6 rounded-xl transition-all flex flex-col items-center justify-center gap-1"
+              >
+                <i class="fa-regular fa-hand-pointer text-lg"></i>
+                <span>CLICAR (P1)</span>
+              </button>
+            </div>
+          </div>
+
+          <div
+            class="bg-zinc-950 border border-zinc-900 rounded-xl p-2.5 text-center"
+          >
+            <p class="text-[11px] text-zinc-100">
+              Qualquer toque antes do VERDE resulta em derrota automática.
+            </p>
+          </div>
+        </div>
+
+        <div
+          id="perfect-timing-screen"
+          class="game-screen w-full h-full pt-12 pb-6 px-4 flex flex-col justify-between bg-black hidden"
+        >
+          <div
+            class="flex items-center justify-between border-b border-zinc-900 pb-3 mt-4"
+          >
+            <button
+              onclick="
+                showScreen('home-screen');
+                stopTimingGame();
+              "
+              class="text-zinc-100 hover:text-white flex items-center gap-1 text-sm font-semibold"
+            >
+              <i class="fa-solid fa-chevron-left"></i> Sair
+            </button>
+            <div class="text-center">
+              <span class="text-[9px] text-[#00F0FF] block font-cyber"
+                >VELOCIDADE</span
+              >
+              <span
+                id="timing-speed-text"
+                class="text-sm font-black font-cyber text-glow-cyan"
+                >1.0x</span
+              >
+            </div>
+            <div class="text-right">
+              <span class="text-[9px] text-zinc-100 block font-cyber"
+                >SCORE</span
+              >
+              <span
+                id="timing-score"
+                class="text-sm font-bold font-cyber text-white"
+                >0</span
+              >
+            </div>
+          </div>
+
+          <div
+            id="timing-arena"
+            class="relative flex-grow my-4 bg-zinc-950 border border-zinc-900 rounded-2xl flex flex-col justify-center items-center px-4 overflow-hidden"
+          >
+            <div
+              id="timing-start-panel"
+              class="absolute inset-0 bg-black/95 flex flex-col items-center justify-center text-center p-6 z-10"
+            >
+              <div
+                class="w-14 h-14 rounded-full border-2 border-[#00F0FF] flex items-center justify-center mb-4 text-glow-cyan"
+              >
+                <i class="fa-solid fa-stopwatch text-xl text-[#00F0FF]"></i>
+              </div>
+              <h4 class="text-2xl font-bold font-cyber mb-2 text-glow-cyan">
+                PERFECT TIMING
+              </h4>
+              <p class="text-xs text-zinc-100 mb-6 max-w-[85%]">
+                Pressione o botão de ação no momento exato em que o ponteiro
+                estiver no **Alvo Central Mutante**. A cada acerto ele encolhe
+                de tamanho, muda de cor e acelera!
+              </p>
+              <button
+                onclick="startTimingGame()"
+                class="bg-[#00F0FF] text-black font-cyber font-bold px-6 py-3 rounded-xl hover:bg-cyan-400 transition-all shadow-[0_0_15px_rgba(0,240,255,0.4)]"
+              >
+                COMEÇAR RITMO
+              </button>
+            </div>
+
+            <div class="h-8 mb-6 flex items-center justify-center">
+              <span
+                id="timing-feedback"
+                class="text-lg font-black font-cyber opacity-0 transition-all duration-150 uppercase"
+                >PERFECT!</span
+              >
+            </div>
+
+            <div
+              class="w-full relative h-12 bg-zinc-900 rounded-xl border border-zinc-800 flex items-center"
+            >
+              <!-- Zona Adjacente Great (Encolhe também) -->
+              <div
+                id="timing-great-zone"
+                class="absolute h-full bg-yellow-500/10 border-x border-yellow-500/20"
+                style="left: 35%; right: 35%"
+              ></div>
+
+              <!-- Zona Central Mutante (Perfect) -->
+              <div
+                id="timing-perfect-zone"
+                class="absolute h-full bg-[#00FF66]/20 border-x-2 border-[#00FF66]/40 flex items-center justify-center transition-all duration-150"
+                style="left: 45%; right: 45%"
+              >
+                <div
+                  id="timing-perfect-pulse"
+                  class="w-0.5 h-full bg-[#00FF66] animate-pulse"
+                ></div>
+              </div>
+
+              <!-- Marcador de Posição -->
+              <div
+                id="timing-cursor"
+                class="absolute w-4 h-16 bg-white border border-zinc-950 rounded-md shadow-[0_0_10px_white] -top-2 left-[0%] -translate-x-1/2 timing-slider"
+              ></div>
+            </div>
+
+            <div class="mt-6">
+              <span
+                id="timing-combo-badge"
+                class="text-xs bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30 px-3 py-1.5 rounded-full font-cyber tracking-widest"
+                >COMBO <span id="timing-combo" class="font-bold">x0</span></span
+              >
+            </div>
+          </div>
+
+          <div class="w-full">
+            <button
+              id="btn-timing-trigger"
+              disabled
+              onclick="triggerTimingHit()"
+              class="w-full bg-gradient-to-r from-[#00F0FF]/20 to-[#00FF66]/20 border border-[#00F0FF]/40 disabled:opacity-30 hover:border-[#00F0FF] text-white font-cyber font-bold py-6 rounded-2xl transition-all duration-100 flex flex-col items-center justify-center gap-1 active:scale-95"
+            >
+              <span class="text-xs text-zinc-100">PRESSIONAR NO ALVO</span>
+              <span class="text-xl tracking-wider text-glow-cyan">AGORA!</span>
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="stroop-selection-screen"
+          class="game-screen w-full h-full pt-12 pb-6 px-4 flex flex-col justify-between bg-black hidden"
+        >
+          <div
+            class="flex items-center justify-between border-b border-zinc-900 pb-3 mt-4"
+          >
+            <button
+              onclick="showScreen('home-screen')"
+              class="text-zinc-100 hover:text-white flex items-center gap-1 text-sm font-semibold"
+            >
+              <i class="fa-solid fa-chevron-left"></i> Voltar
+            </button>
+            <span
+              class="text-sm font-cyber font-bold tracking-widest text-[#00F0FF]"
+              >STROOP SHOT</span
+            >
+            <div class="w-8"></div>
+          </div>
+
+          <div class="flex-grow flex flex-col justify-center gap-4 my-auto">
+            <div class="text-center mb-2">
+              <span
+                class="bg-[#00F0FF]/15 text-[#00F0FF] text-[10px] font-cyber font-bold px-2 py-0.5 rounded border border-[#00F0FF]/30"
+                >NOVA ARENA DE REFLEXOS</span
+              >
+              <h4 class="text-2xl font-black font-cyber mt-2">
+                DESAFIO DE STROOP
+              </h4>
+              <p
+                class="text-xs text-zinc-100 mt-1 max-w-[85%] mx-auto text-center"
+              >
+                Sua mente consegue separar a palavra da cor visual? Teste seus
+                reflexos sob extrema pressão cognitiva.
+              </p>
+            </div>
+
+            <button
+              onclick="initStroop('solo')"
+              class="group w-full bg-zinc-950 border border-zinc-900 hover:border-[#00F0FF] p-5 rounded-2xl text-left transition-all duration-300"
+            >
+              <div class="flex items-center gap-4">
+                <div
+                  class="w-12 h-12 rounded-xl bg-zinc-900 flex items-center justify-center text-[#00F0FF] border border-zinc-800"
+                >
+                  <i class="fa-solid fa-user text-xl"></i>
+                </div>
+                <div>
+                  <h5 class="font-cyber font-bold text-base text-white">
+                    TREINO NEURAL SOLO
+                  </h5>
+                  <p class="text-[11px] text-zinc-100 mt-0.5">
+                    Dispute contra o relógio de forma contínua.
+                  </p>
+                </div>
+              </div>
+            </button>
+
+            <button
+              onclick="initStroop('1v1')"
+              class="group w-full bg-zinc-950 border border-zinc-900 hover:border-[#FFFF00] p-5 rounded-2xl text-left transition-all duration-300"
+            >
+              <div class="flex items-center gap-4">
+                <div
+                  class="w-12 h-12 rounded-xl bg-zinc-900 flex items-center justify-center text-[#FFFF00] border border-zinc-800"
+                >
+                  <i class="fa-solid fa-user-friends text-xl"></i>
+                </div>
+                <div>
+                  <h5 class="font-cyber font-bold text-base text-white">
+                    DUELO TELA DIVIDIDA 1X1
+                  </h5>
+                  <p class="text-[11px] text-zinc-100 mt-0.5">
+                    Dois jogadores no mesmo aparelho, face-a-face.
+                  </p>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <div
+            class="bg-zinc-950 border border-zinc-900 rounded-xl p-3 text-center"
+          >
+            <p class="text-[10px] text-zinc-100">
+              O tempo cego do enigma é de **2 a 5 segundos**. Atenção máxima!
+            </p>
+          </div>
+        </div>
+
+        <div
+          id="stroop-game-screen"
+          class="game-screen w-full h-full pt-12 pb-6 px-4 flex flex-col justify-between bg-black hidden"
+        >
+          <div
+            class="flex items-center justify-between border-b border-zinc-900 pb-2 mt-4"
+          >
+            <!-- Botão sair limpa os estados para evitar loops de redirecionamento travados -->
+            <button
+              onclick="
+                exitStroop();
+                showScreen('stroop-selection-screen');
+              "
+              class="text-zinc-100 hover:text-white flex items-center gap-1 text-xs"
+            >
+              <i class="fa-solid fa-chevron-left"></i> Sair
+            </button>
+            <span
+              class="text-xs font-cyber font-bold tracking-widest text-[#FF007F]"
+              >STROOP SHOT</span
+            >
+            <div
+              id="stroop-global-timer"
+              class="text-xs font-cyber text-yellow-400"
+            >
+              Tempo: 30s
+            </div>
+          </div>
+
+          <div
+            id="stroop-arena"
+            class="flex-grow flex flex-col justify-between relative my-2 overflow-hidden rounded-2xl border border-zinc-900 bg-zinc-950 p-2"
+          >
+            <!-- PARTE SUPERIOR: PLAYER 2 (Invertida 180º para mesa frente a frente) -->
+            <div
+              id="stroop-p2-split"
+              class="h-1/2 w-full border-b border-dashed border-zinc-800 flex flex-col justify-center items-center relative hidden rotate-180 transition-all duration-300"
+            >
+              <div
+                id="stroop-p2-text"
+                class="text-2xl font-cyber font-black tracking-widest transition-all duration-300"
+              >
+                PREPARAR...
+              </div>
+              <div
+                id="stroop-p2-spheres"
+                class="absolute inset-0 hidden grid grid-cols-3 gap-2 p-3 items-center justify-items-center"
+              ></div>
+              <div
+                class="absolute bottom-2 left-2 text-[9px] font-cyber text-zinc-100"
+              >
+                P2 PONTOS:
+                <span id="stroop-p2-score" class="text-yellow-400 font-bold"
+                  >0</span
+                >
+              </div>
+            </div>
+
+            <!-- DIVISOR VISUAL -->
+            <div
+              id="stroop-split-line"
+              class="h-1 w-full bg-zinc-800 hidden"
+            ></div>
+
+            <!-- PARTE INFERIOR: PLAYER 1 -->
+            <div
+              id="stroop-p1-split"
+              class="h-full w-full flex flex-col justify-center items-center relative transition-all duration-300"
+            >
+              <div
+                id="stroop-p1-text"
+                class="text-2xl font-cyber font-black tracking-widest transition-all duration-300"
+              >
+                PREPARAR...
+              </div>
+              <div
+                id="stroop-p1-spheres"
+                class="absolute inset-0 hidden grid grid-cols-3 gap-2 p-3 items-center justify-items-center"
+              ></div>
+              <div
+                class="absolute bottom-2 right-2 text-[9px] font-cyber text-zinc-100"
+              >
+                P1 PONTOS:
+                <span id="stroop-p1-score" class="text-[#00FF66] font-bold"
+                  >0</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <div
+            id="stroop-game-footer"
+            class="bg-zinc-950 border border-zinc-900 rounded-xl p-2 text-center text-[10px] text-zinc-100"
+          >
+            Aperte na esfera com a
+            <span class="text-cyan-400 font-bold">COR VISUAL</span> do texto
+            após o tempo cego de memorização acabar!
+          </div>
+        </div>
+
+        <div
+          id="ranking-screen"
+          class="game-screen w-full h-full pt-12 pb-6 px-4 flex flex-col justify-between bg-black hidden"
+        >
+          <div
+            class="flex items-center justify-between border-b border-zinc-900 pb-3 mt-4"
+          >
+            <button
+              onclick="showScreen('home-screen')"
+              class="text-zinc-100 hover:text-white flex items-center gap-1 text-sm font-semibold"
+            >
+              <i class="fa-solid fa-chevron-left"></i> Voltar
+            </button>
+            <span
+              class="text-sm font-cyber font-bold tracking-widest text-[#00FF66]"
+              >LIDERANÇA</span
+            >
+            <div class="w-8"></div>
+          </div>
+
+          <!-- Abas de Filtros de Ranking -->
+          <div
+            class="grid grid-cols-3 gap-1 my-3 bg-zinc-950 p-1 rounded-lg border border-zinc-900"
+          >
+            <button
+              onclick="switchRankingTab('global')"
+              id="tab-rank-global"
+              class="py-1.5 rounded-md text-xs font-bold font-cyber bg-[#00FF66] text-black transition-all"
+            >
+              GLOBAL
+            </button>
+            <button
+              onclick="switchRankingTab('weekly')"
+              id="tab-rank-weekly"
+              class="py-1.5 rounded-md text-xs font-bold font-cyber text-zinc-100 hover:text-white transition-all"
+            >
+              SEMANAL
+            </button>
+            <button
+              onclick="switchRankingTab('friends')"
+              id="tab-rank-friends"
+              class="py-1.5 rounded-md text-xs font-bold font-cyber text-zinc-100 hover:text-white transition-all"
+            >
+              AMIGOS
+            </button>
+          </div>
+
+          <!-- Pódio Visual dos Top 3 -->
+          <div
+            id="podium-area"
+            class="grid grid-cols-3 gap-1 items-end pt-4 pb-2 border-b border-zinc-900"
+          >
+            <!-- 2º Lugar -->
+            <div class="flex flex-col items-center">
+              <div class="relative mb-1">
+                <div
+                  class="w-10 h-10 rounded-full border-2 border-zinc-400 bg-zinc-900 flex items-center justify-center overflow-hidden"
+                >
+                  <i class="fa-solid fa-user text-zinc-100-300"></i>
+                </div>
+                <span
+                  class="absolute -top-2 -right-1 bg-zinc-400 text-black text-[9px] font-bold px-1 rounded-full"
+                  >2</span
+                >
+              </div>
+              <span
+                class="text-[10px] font-bold text-center block truncate w-full"
+                id="p-silver-name"
+                >CyberGhost</span
+              >
+              <span
+                class="text-[9px] font-cyber text-zinc-100"
+                id="p-silver-score"
+                >2,910 t</span
+              >
+              <div
+                class="w-full bg-zinc-800 h-10 rounded-t-lg mt-1 flex items-center justify-center border-t border-zinc-700"
+              >
+                <span class="text-xs font-bold font-cyber text-zinc-100"
+                  >II</span
+                >
+              </div>
+            </div>
+
+            <!-- 1º Lugar -->
+            <div class="flex flex-col items-center">
+              <div class="relative mb-1">
+                <div
+                  class="w-12 h-12 rounded-full border-2 border-[#FFFF00] bg-zinc-900 flex items-center justify-center overflow-hidden shadow-[0_0_10px_rgba(255,255,0,0.4)]"
+                >
+                  <i class="fa-solid fa-user-ninja text-lg text-[#FFFF00]"></i>
+                </div>
+                <span class="absolute -top-2.5 right-3.5 text-[#FFFF00] text-xs"
+                  ><i class="fa-solid fa-crown"></i
+                ></span>
+                <span
+                  class="absolute -top-2 -right-1 bg-[#FFFF00] text-black text-[9px] font-bold px-1.5 rounded-full"
+                  >1</span
+                >
+              </div>
+              <span
+                class="text-xs font-black text-center block truncate w-full text-glow-yellow"
+                id="p-gold-name"
+                >NeonShifter</span
+              >
+              <span
+                class="text-[10px] font-cyber text-[#FFFF00]"
+                id="p-gold-score"
+                >3,200 t</span
+              >
+              <div
+                class="w-full bg-[#121212] h-14 rounded-t-lg mt-1 flex items-center justify-center border-t-2 border-[#FFFF00]/60 shadow-[0_0_10px_rgba(255,255,0,0.1)]"
+              >
+                <span class="text-sm font-bold font-cyber text-[#FFFF00]"
+                  >I</span
+                >
+              </div>
+            </div>
+
+            <!-- 3º Lugar -->
+            <div class="flex flex-col items-center">
+              <div class="relative mb-1">
+                <div
+                  class="w-10 h-10 rounded-full border-2 border-amber-600 bg-zinc-900 flex items-center justify-center overflow-hidden"
+                >
+                  <i class="fa-solid fa-user text-amber-500"></i>
+                </div>
+                <span
+                  class="absolute -top-2 -right-1 bg-amber-600 text-black text-[9px] font-bold px-1 rounded-full"
+                  >3</span
+                >
+              </div>
+              <span
+                class="text-[10px] font-bold text-center block truncate w-full"
+                id="p-bronze-name"
+                >BrunoTG</span
+              >
+              <span
+                class="text-[9px] font-cyber text-zinc-100"
+                id="p-bronze-score"
+                >2,850 t</span
+              >
+              <div
+                class="w-full bg-zinc-900 h-8 rounded-t-lg mt-1 flex items-center justify-center border-t border-zinc-800"
+              >
+                <span class="text-xs font-bold font-cyber text-amber-600"
+                  >III</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Lista Scrollável do Ranking -->
+          <div
+            id="ranking-list"
+            class="flex-grow overflow-y-auto no-scrollbar py-2 space-y-1.5"
+          ></div>
+
+          <!-- Indicador de Posição Própria -->
+          <div
+            class="bg-gradient-to-r from-zinc-950 to-zinc-900 border border-[#00FF66]/30 p-2.5 rounded-xl flex items-center justify-between"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-cyber font-black text-[#00FF66] text-xs"
+                >#3</span
+              >
+              <div
+                class="w-6 h-6 rounded-full bg-zinc-850 border border-[#00FF66] flex items-center justify-center"
+              >
+                <i
+                  class="fa-solid fa-user-ninja text-[10px] text-[#00FF66]"
+                ></i>
+              </div>
+              <span id="rank-own-name" class="text-xs font-bold"
+                >BrunoTG (Tu)</span
+              >
+            </div>
+            <span class="text-xs font-cyber text-[#FFFF00]">2,850 troféus</span>
+          </div>
+        </div>
+
+        <div
+          id="profile-screen"
+          class="game-screen w-full h-full pt-12 pb-6 px-4 flex flex-col justify-between bg-black hidden"
+        >
+          <div
+            class="flex items-center justify-between border-b border-zinc-900 pb-3 mt-4"
+          >
+            <button
+              onclick="showScreen('home-screen')"
+              class="text-zinc-100 hover:text-white flex items-center gap-1 text-sm font-semibold"
+            >
+              <i class="fa-solid fa-chevron-left"></i> Voltar
+            </button>
+            <span
+              class="text-sm font-cyber font-bold tracking-widest text-[#00F0FF]"
+              >PERFIL</span
+            >
+            <div class="w-8"></div>
+          </div>
+
+          <div class="flex-grow overflow-y-auto no-scrollbar py-3 space-y-4">
+            <div
+              class="bg-gradient-to-b from-zinc-950 to-zinc-900 border border-zinc-850 p-4 rounded-2xl text-center relative"
+            >
+              <div class="relative w-16 h-16 mx-auto mb-2">
+                <div
+                  id="profile-avatar-container"
+                  class="w-full h-full rounded-full bg-zinc-800 border-2 border-[#00F0FF] flex items-center justify-center overflow-hidden transition-all duration-300"
+                >
+                  <i
+                    id="profile-avatar-icon"
+                    class="fa-solid fa-user-ninja text-2xl text-[#00F0FF]"
+                  ></i>
+                </div>
+                <button
+                  onclick="cycleAvatar()"
+                  class="absolute bottom-0 right-0 bg-[#00F0FF] hover:bg-cyan-400 text-black rounded-full w-5 h-5 flex items-center justify-center border border-black shadow"
+                >
+                  <i class="fa-solid fa-rotate text-[10px]"></i>
+                </button>
+              </div>
+
+              <h4
+                id="profile-display-nick"
+                class="text-lg font-black font-cyber"
+              >
+                BrunoTG
+              </h4>
+
+              <div class="inline-block mt-1">
+                <button
+                  onclick="cycleTitle()"
+                  id="profile-title-badge"
+                  class="bg-[#FFFF00] hover:bg-yellow-400 text-black text-[9px] font-cyber font-bold px-2.5 py-1 rounded transition-colors"
+                >
+                  TITULO: PRO ⚡
+                </button>
+              </div>
+
+              <div class="mt-4 text-left">
+                <div
+                  class="flex justify-between text-[10px] font-cyber text-zinc-100 mb-1"
+                >
+                  <span>NÍVEL 14 (NEURAL-DASH)</span>
+                  <span>75% PARA Lvl 15</span>
+                </div>
+                <div
+                  class="w-full bg-zinc-900 h-2 rounded-full overflow-hidden border border-zinc-800"
+                >
+                  <div class="bg-[#00F0FF] h-full" style="width: 75%"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Grade de Conquistas -->
+            <div>
+              <h5
+                class="text-xs font-cyber text-[#00F0FF] tracking-widest mb-2 uppercase"
+              >
+                CONQUISTAS
+              </h5>
+              <div class="grid grid-cols-4 gap-2">
+                <div
+                  onclick="selectBadge('fast-finger')"
+                  id="badge-fast-finger"
+                  class="bg-zinc-950 hover:bg-zinc-900 border border-[#00FF66] p-2.5 rounded-xl text-center cursor-pointer transition-all flex flex-col items-center justify-center"
+                >
+                  <i class="fa-solid fa-bolt text-lg text-[#00FF66] mb-1"></i>
+                  <span
+                    class="text-[8px] text-zinc-100 font-cyber font-bold leading-tight"
+                    >Fast</span
+                  >
+                </div>
+                <div
+                  onclick="selectBadge('combo-master')"
+                  id="badge-combo-master"
+                  class="bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 p-2.5 rounded-xl text-center cursor-pointer transition-all flex flex-col items-center justify-center"
+                >
+                  <i
+                    class="fa-solid fa-fire text-lg text-zinc-100-600 mb-1"
+                    id="icon-combo"
+                  ></i>
+                  <span
+                    class="text-[8px] text-zinc-100 font-cyber font-bold leading-tight"
+                    >Combo</span
+                  >
+                </div>
+                <div
+                  onclick="selectBadge('perfect-timing-badge')"
+                  id="badge-perfect-timing-badge"
+                  class="bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 p-2.5 rounded-xl text-center cursor-pointer transition-all flex flex-col items-center justify-center"
+                >
+                  <i
+                    class="fa-solid fa-hourglass-half text-lg text-zinc-100-600 mb-1"
+                    id="icon-timing"
+                  ></i>
+                  <span
+                    class="text-[8px] text-zinc-100 font-cyber font-bold leading-tight"
+                    >Ritmo</span
+                  >
+                </div>
+                <div
+                  onclick="selectBadge('champion')"
+                  id="badge-champion"
+                  class="bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 p-2.5 rounded-xl text-center cursor-pointer transition-all flex flex-col items-center justify-center"
+                >
+                  <i
+                    class="fa-solid fa-trophy text-lg text-zinc-100-600 mb-1"
+                    id="icon-champion"
+                  ></i>
+                  <span
+                    class="text-[8px] text-zinc-100 font-cyber font-bold leading-tight"
+                    >Glória</span
+                  >
+                </div>
+              </div>
+              <p
+                id="badge-desc"
+                class="text-[10px] text-zinc-100 text-center mt-2 font-mono"
+              >
+                Selecione uma conquista para equipar ou ver requisitos.
+              </p>
+            </div>
+
+            <!-- Histórico -->
+            <div>
+              <h5
+                class="text-xs font-cyber text-zinc-100 tracking-widest mb-2 uppercase"
+              >
+                HISTÓRICO RECENTE
+              </h5>
+              <div class="space-y-1.5">
+                <div
+                  class="bg-zinc-950 border border-zinc-900 p-2.5 rounded-xl flex items-center justify-between"
+                >
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-[#00FF66]"></span>
+                    <div>
+                      <span class="text-xs font-bold block"
+                        >BrunoTG vs Cyborg_9</span
+                      >
+                      <span class="text-[9px] text-zinc-100">Há 5 minutos</span>
+                    </div>
+                  </div>
+                  <span class="text-xs font-cyber text-[#00FF66] font-bold"
+                    >+150 TR</span
+                  >
+                </div>
+                <div
+                  class="bg-zinc-950 border border-zinc-900 p-2.5 rounded-xl flex items-center justify-between"
+                >
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-[#00FF66]"></span>
+                    <div>
+                      <span class="text-xs font-bold block"
+                        >Perfect Timing (Solo)</span
+                      >
+                      <span class="text-[9px] text-zinc-100">Há 1 hora</span>
+                    </div>
+                  </div>
+                  <span class="text-xs font-cyber text-[#00FF66] font-bold"
+                    >+280 TR</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onclick="showScreen('auth-screen')"
+            class="w-full bg-zinc-900 border border-zinc-800 hover:border-red-500 hover:text-red-500 text-zinc-100 font-cyber font-bold py-3 rounded-xl transition-all"
+          >
+            TERMINAR SESSÃO <i class="fa-solid fa-sign-out-alt ml-1"></i>
+          </button>
+        </div>
+
+        <!-- Rodapé decorativo do telefone -->
+        <div
+          class="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-36 h-1 bg-zinc-800 rounded-full z-40"
+        ></div>
+      </div>
+    </main>
+
+    <script>
+      // ==========================================
+      // ESTADOS DO JOGADOR E CONFIGURAÇÕES DO LOBBY
+      // ==========================================
+      const avatars = [
+        "fa-user-ninja",
+        "fa-user-astronaut",
+        "fa-user-secret",
+        "fa-robot",
+      ];
+      let currentAvatarIndex = 0;
+
+      const playerTitles = [
+        { name: "PRO ⚡", color: "bg-[#FFFF00]" },
+        { name: "SHADOW 👤", color: "bg-[#00F0FF]" },
+        { name: "NET-RUNNER 🌐", color: "bg-[#00FF66] text-black" },
+        { name: "CYBER-GHOST 👻", color: "bg-purple-600 text-white" },
+      ];
+      let currentTitleIndex = 0;
+
+      const badgesInfo = {
+        "fast-finger":
+          "Fast Finger: Complete o modo Tap Precision com menos de 200ms de reação.",
+        "combo-master":
+          "Combo Master: Consiga um combo de x15 em qualquer modo de jogo.",
+        "perfect-timing-badge":
+          "Ritmo Perfeito: Acerte 5 PERFECTs consecutivos no Perfect Timing Evo.",
+        champion: "Glória Máxima: Atinja o Top 3 no Ranking Semanal ou Global.",
+      };
+
+      const rankingData = {
+        global: [
+          {
+            name: "NeonShifter",
+            score: 3200,
+            icon: "fa-user-ninja",
+            title: "GOD 🌟",
+            self: false,
+          },
+          {
+            name: "CyberGhost",
+            score: 2910,
+            icon: "fa-user",
+            title: "ELITE 🌀",
+            self: false,
+          },
+          {
+            name: "BrunoTG",
+            score: 2850,
+            icon: "fa-user-ninja",
+            title: "PRO ⚡",
+            self: true,
+          },
+          {
+            name: "MatrixRunner",
+            score: 2500,
+            icon: "fa-user-astronaut",
+            title: "RUNNER 🏃",
+            self: false,
+          },
+        ],
+        weekly: [
+          {
+            name: "BrunoTG",
+            score: 2850,
+            icon: "fa-user-ninja",
+            title: "PRO ⚡",
+            self: true,
+          },
+          {
+            name: "MatrixRunner",
+            score: 2200,
+            icon: "fa-user-astronaut",
+            title: "RUNNER 🏃",
+            self: false,
+          },
+          {
+            name: "CyberGhost",
+            score: 2100,
+            icon: "fa-user",
+            title: "ELITE 🌀",
+            self: false,
+          },
+        ],
+        friends: [
+          {
+            name: "CyberGhost",
+            score: 2910,
+            icon: "fa-user",
+            title: "ELITE 🌀",
+            self: false,
+          },
+          {
+            name: "BrunoTG",
+            score: 2850,
+            icon: "fa-user-ninja",
+            title: "PRO ⚡",
+            self: true,
+          },
+        ],
+      };
+
+      // Alerta customizado de alta fidelidade
+      function alertMessage(msg, type) {
+        const existingAlert = document.querySelector(".cyber-alert");
+        if (existingAlert) existingAlert.remove();
+
+        const alertBox = document.createElement("div");
+        alertBox.className = `cyber-alert fixed top-24 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl font-cyber font-bold text-xs tracking-wide text-center transition-all duration-300 transform scale-95 opacity-0 ${
+          type === "success"
+            ? "bg-black border-2 border-[#00FF66] text-[#00FF66] shadow-[0_0_15px_rgba(0,255,102,0.6)]"
+            : "bg-black border-2 border-red-500 text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.6)]"
+        }`;
+        alertBox.textContent = msg;
+        document.body.appendChild(alertBox);
+
+        setTimeout(() => {
+          alertBox.classList.remove("scale-95", "opacity-0");
+          alertBox.classList.add("scale-100", "opacity-100");
+        }, 50);
+
+        setTimeout(() => {
+          alertBox.classList.remove("scale-100", "opacity-100");
+          alertBox.classList.add("scale-95", "opacity-0");
+          setTimeout(() => alertBox.remove(), 300);
+        }, 2800);
+      }
+
+      function showScreen(screenId) {
+        // 1. Esconder todos os telas
+        document.querySelectorAll(".game-screen").forEach((screen) => {
+          screen.classList.add("hidden");
+        });
+
+        // 2. Mostrar o tela selecionado
+        const targetScreen = document.getElementById(screenId);
+        if (targetScreen) {
+          targetScreen.classList.remove("hidden");
+        }
+
+        // 3. Resetar estilo dos botões da barra simuladora de navegação
+        document.querySelectorAll(".nav-btn").forEach((btn) => {
+          btn.className =
+            "nav-btn bg-zinc-850 hover:bg-zinc-700 text-white px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all";
+        });
+
+        const activeBtn = document.getElementById(`btn-${screenId}`);
+        if (activeBtn) {
+          activeBtn.className =
+            "nav-btn bg-[#00FF66] text-black px-2.5 py-1.5 rounded-md text-xs font-bold transition-all shadow-[0_0_10px_rgba(0,255,102,0.4)]";
+        }
+
+        // 4. Parar loops físicos e temporizadores dos jogos ativos de forma limpa (Sem chamar showScreen internamente)
+        if (screenId !== "perfect-timing-screen") {
+          stopTimingGame();
+        }
+        if (screenId !== "stroop-game-screen") {
+          exitStroop();
+        }
+        if (screenId !== "tap-precision-screen") {
+          resetTapGame();
+        }
+        if (screenId !== "reflex-duel-screen") {
+          resetDuelGame();
+        }
+
+        // 5. Inicializações específicas das telas
+        if (screenId === "ranking-screen") {
+          renderRankingList("global");
+        }
+      }
+
+      // Processar novo Registo
+      function handleRegister(event) {
+        event.preventDefault();
+        const usernameInput = document
+          .getElementById("reg-username")
+          .value.trim();
+        const emailInput = document.getElementById("reg-email").value.trim();
+        const passwordInput = document.getElementById("reg-password").value;
+        const confirmInput = document.getElementById(
+          "reg-password-confirm",
+        ).value;
+        const termsCheckbox = document.getElementById("reg-terms").checked;
+
+        if (!usernameInput || !emailInput || !passwordInput || !confirmInput) {
+          alertMessage(
+            "Por favor, preencha todos os campos do formulário!",
+            "error",
+          );
+          return;
+        }
+        if (passwordInput.length < 6) {
+          alertMessage("A senha deve conter pelo menos 6 caracteres!", "error");
+          return;
+        }
+        if (passwordInput !== confirmInput) {
+          alertMessage("As senhas não coincidem!", "error");
+          return;
+        }
+        if (!termsCheckbox) {
+          alertMessage(
+            "Deverá aceitar os Termos de Serviço para continuar!",
+            "error",
+          );
+          return;
+        }
+
+        // Aplicar nome do jogador aos componentes globais de forma dinâmica
+        document.getElementById("display-nick").textContent = usernameInput;
+        document.getElementById("profile-display-nick").textContent =
+          usernameInput;
+        document.getElementById("rank-own-name").textContent =
+          `${usernameInput} (Tu)`;
+
+        alertMessage(
+          `Conta criada com sucesso para @${usernameInput}!`,
+          "success",
+        );
+        setTimeout(() => {
+          showScreen("home-screen");
+        }, 1200);
+      }
+
+      // Gestão de Avatares e Títulos do perfil
+      function cycleAvatar() {
+        currentAvatarIndex = (currentAvatarIndex + 1) % avatars.length;
+        const newClass = avatars[currentAvatarIndex];
+        document.getElementById("profile-avatar-icon").className =
+          `fa-solid ${newClass} text-2xl text-[#00F0FF]`;
+        document.getElementById("hud-avatar-icon").className =
+          `fa-solid ${newClass} text-lg text-[#00FF66]`;
+      }
+
+      function cycleTitle() {
+        currentTitleIndex = (currentTitleIndex + 1) % playerTitles.length;
+        const selectedTitle = playerTitles[currentTitleIndex];
+
+        const profileBadge = document.getElementById("profile-title-badge");
+        profileBadge.textContent = `TITULO: ${selectedTitle.name}`;
+        profileBadge.className = `${selectedTitle.color} hover:opacity-80 text-black text-[9px] font-cyber font-bold px-2.5 py-1 rounded transition-colors`;
+
+        const hudTitle = document.getElementById("hud-active-title");
+        hudTitle.textContent = selectedTitle.name.split(" ")[0];
+        hudTitle.className = `${selectedTitle.color} text-black text-[8px] font-bold px-1 rounded font-cyber`;
+      }
+
+      function selectBadge(badgeId) {
+        const badgesKeys = [
+          "fast-finger",
+          "combo-master",
+          "perfect-timing-badge",
+          "champion",
+        ];
+        badgesKeys.forEach((k) => {
+          document
+            .getElementById(`badge-${k}`)
+            .classList.remove("border-glow-cyan", "border-[#00F0FF]");
+          document
+            .getElementById(`badge-${k}`)
+            .classList.add("border-zinc-900");
+        });
+
+        const targetBadge = document.getElementById(`badge-${badgeId}`);
+        targetBadge.classList.remove("border-zinc-900");
+        targetBadge.classList.add("border-[#00F0FF]", "border-glow-cyan");
+
+        document.getElementById("badge-desc").textContent = badgesInfo[badgeId];
+      }
+
+      // Gestão de Rankings
+      function switchRankingTab(tabId) {
+        const tabs = ["global", "weekly", "friends"];
+        tabs.forEach((t) => {
+          document.getElementById(`tab-rank-${t}`).className =
+            "py-1.5 rounded-md text-xs font-bold font-cyber text-zinc-100 hover:text-white transition-all";
+        });
+        document.getElementById(`tab-rank-${tabId}`).className =
+          "py-1.5 rounded-md text-xs font-bold font-cyber bg-[#00FF66] text-black transition-all";
+        renderRankingList(tabId);
+      }
+
+      function renderRankingList(tabId) {
+        const listContainer = document.getElementById("ranking-list");
+        listContainer.innerHTML = "";
+        const data = rankingData[tabId] || [];
+
+        data.forEach((player, idx) => {
+          const globalIdx = idx + 1;
+          const bgClass = player.self
+            ? "bg-zinc-900 border-[#00FF66]/30"
+            : "bg-zinc-950/60 border-zinc-900";
+          const nameColorClass = player.self
+            ? "text-[#00FF66]"
+            : "text-zinc-100";
+
+          const itemHtml = `
+            <div class="flex items-center justify-between p-2 rounded-xl border ${bgClass}">
+              <div class="flex items-center gap-2">
+                <span class="w-5 font-cyber text-[10px] text-zinc-100 text-center">#${globalIdx}</span>
+                <div class="w-7 h-7 rounded-full bg-zinc-900 border border-zinc-850 flex items-center justify-center">
+                  <i class="fa-solid ${player.icon} text-xs text-zinc-100"></i>
+                </div>
+                <div>
+                  <span class="text-xs font-bold block ${nameColorClass}">${player.name}</span>
+                  <span class="text-[8px] bg-zinc-900 px-1 py-0.5 rounded text-zinc-100 font-cyber font-bold">${player.title}</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-xs font-cyber text-[#FFFF00] block">${player.score} t</span>
+              </div>
+            </div>
+          `;
+          listContainer.innerHTML += itemHtml;
+        });
+      }
+
+      // ==========================================
+      // LÓGICA DO JOGO: PERFECT TIMING EVO (MUTANTE)
+      // ==========================================
+      let timingScore = 0;
+      let timingCombo = 0;
+      let timingDirection = 1;
+      let timingPosition = 0;
+      let timingBaseSpeed = 1.3;
+      let timingAnimId = null;
+      let isTimingPlaying = false;
+      let currentPerfectWidth = 10;
+
+      const mutationPalettes = [
+        {
+          name: "VERDE",
+          color: "#00FF66",
+          bg: "rgba(0, 255, 102, 0.25)",
+          border: "rgba(0, 255, 102, 0.5)",
+          shadow: "rgba(0, 255, 102, 0.4)",
+        },
+        {
+          name: "CIAN",
+          color: "#00F0FF",
+          bg: "rgba(0, 240, 255, 0.25)",
+          border: "rgba(0, 240, 255, 0.5)",
+          shadow: "rgba(0, 240, 255, 0.4)",
+        },
+        {
+          name: "MAGENTA",
+          color: "#FF007F",
+          bg: "rgba(255, 0, 127, 0.25)",
+          border: "rgba(255, 0, 127, 0.5)",
+          shadow: "rgba(255, 0, 127, 0.4)",
+        },
+        {
+          name: "AMARELO",
+          color: "#FFFF00",
+          bg: "rgba(255, 255, 0, 0.25)",
+          border: "rgba(255, 255, 0, 0.5)",
+          shadow: "rgba(255, 255, 0, 0.4)",
+        },
+      ];
+
+      function resetTimingGame() {
+        stopTimingGame();
+        timingScore = 0;
+        timingCombo = 0;
+        timingPosition = 0;
+        currentPerfectWidth = 10;
+        document.getElementById("timing-score").textContent = "0";
+        document.getElementById("timing-combo").textContent = "x0";
+        document.getElementById("timing-speed-text").textContent = "1.0x";
+        document.getElementById("timing-cursor").style.left = "0%";
+        document
+          .getElementById("timing-start-panel")
+          .classList.remove("hidden");
+        document.getElementById("btn-timing-trigger").disabled = true;
+        document.getElementById("timing-feedback").style.opacity = "0";
+        mutatePerfectZone(0);
+      }
+
+      function startTimingGame() {
+        resetTimingGame();
+        isTimingPlaying = true;
+        document.getElementById("timing-start-panel").classList.add("hidden");
+        document.getElementById("btn-timing-trigger").disabled = false;
+        timingLoop();
+      }
+
+      function stopTimingGame() {
+        isTimingPlaying = false;
+        if (timingAnimId) cancelAnimationFrame(timingAnimId);
+      }
+
+      function timingLoop() {
+        if (!isTimingPlaying) return;
+
+        const speedMultiplier = 1 + timingCombo * 0.12;
+        document.getElementById("timing-speed-text").textContent =
+          `${speedMultiplier.toFixed(1)}x`;
+
+        const step = timingBaseSpeed * speedMultiplier;
+        timingPosition += step * timingDirection;
+
+        if (timingPosition >= 100) {
+          timingPosition = 100;
+          timingDirection = -1;
+        } else if (timingPosition <= 0) {
+          timingPosition = 0;
+          timingDirection = 1;
+        }
+
+        const cursor = document.getElementById("timing-cursor");
+        if (cursor) cursor.style.left = `${timingPosition}%`;
+
+        timingAnimId = requestAnimationFrame(timingLoop);
+      }
+
+      // O Alvo central encolhe e muda de cor de acordo com o combo
+      function mutatePerfectZone(comboVal) {
+        const zone = document.getElementById("timing-perfect-zone");
+        const pulse = document.getElementById("timing-perfect-pulse");
+        const great = document.getElementById("timing-great-zone");
+
+        if (!zone || !pulse || !great) return;
+
+        const palette = mutationPalettes[comboVal % mutationPalettes.length];
+
+        // Encolhe progressivamente o tamanho central
+        currentPerfectWidth = Math.max(4, 10 - Math.floor(comboVal / 3) * 1.5);
+
+        const halfWidth = currentPerfectWidth / 2;
+        const leftPercent = 50 - halfWidth;
+        const rightPercent = 50 - halfWidth;
+
+        zone.style.left = `${leftPercent}%`;
+        zone.style.right = `${rightPercent}%`;
+
+        // Modifica paleta de cores interna e sombra de brilho neon
+        zone.style.backgroundColor = palette.bg;
+        zone.style.borderColor = palette.border;
+        zone.style.boxShadow = `0 0 15px ${palette.shadow}`;
+        pulse.style.backgroundColor = palette.color;
+
+        // Adapta a área de acerto aceitável lateral (Great Zone)
+        const greatWidth = currentPerfectWidth * 2.5;
+        const halfGreat = greatWidth / 2;
+        great.style.left = `${50 - halfGreat}%`;
+        great.style.right = `${50 - halfGreat}%`;
+      }
+
+      function triggerTimingHit() {
+        if (!isTimingPlaying) return;
+
+        const pos = timingPosition;
+        const feedback = document.getElementById("timing-feedback");
+        let scoreReward = 0;
+        let isHit = false;
+
+        const halfPerfect = currentPerfectWidth / 2;
+        const perfectMin = 50 - halfPerfect;
+        const perfectMax = 50 + halfPerfect;
+
+        const greatWidth = currentPerfectWidth * 2.5;
+        const halfGreat = greatWidth / 2;
+        const greatMin = 50 - halfGreat;
+        const greatMax = 50 + halfGreat;
+
+        if (pos >= perfectMin && pos <= perfectMax) {
+          timingCombo++;
+          scoreReward = 500 + timingCombo * 50;
+          feedback.textContent = `PERFECT! +${scoreReward}`;
+
+          const palette =
+            mutationPalettes[timingCombo % mutationPalettes.length];
+          feedback.style.color = palette.color;
+          feedback.className =
+            "text-lg font-black font-cyber opacity-100 transition-all duration-100";
+          isHit = true;
+
+          mutatePerfectZone(timingCombo);
+        } else if (pos >= greatMin && pos <= greatMax) {
+          timingCombo++;
+          scoreReward = 200 + timingCombo * 20;
+          feedback.textContent = `GREAT! +${scoreReward}`;
+          feedback.style.color = "#00F0FF";
+          feedback.className =
+            "text-base font-bold font-cyber text-glow-cyan opacity-100 transition-all duration-100";
+          isHit = true;
+
+          mutatePerfectZone(timingCombo);
+        } else {
+          timingCombo = 0;
+          feedback.textContent = "MISS!";
+          feedback.style.color = "#EF4444";
+          feedback.className =
+            "text-sm font-bold font-cyber opacity-100 transition-all duration-100 animate-bounce";
+
+          mutatePerfectZone(0);
+        }
+
+        timingScore += scoreReward;
+        document.getElementById("timing-score").textContent = timingScore;
+        document.getElementById("timing-combo").textContent = `x${timingCombo}`;
+
+        const arena = document.getElementById("timing-arena");
+        if (isHit) {
+          arena.classList.add("bg-zinc-900");
+          setTimeout(() => arena.classList.remove("bg-zinc-900"), 100);
+        } else {
+          arena.classList.add("bg-red-950/20");
+          setTimeout(() => arena.classList.remove("bg-red-950/20"), 150);
+        }
+
+        setTimeout(() => {
+          if (isTimingPlaying) feedback.style.opacity = "0.2";
+        }, 300);
+      }
+
+      // ==========================================
+      // LÓGICA DO JOGO: STROOP SHOT (MUITO MAIS FLUIDO)
+      // ==========================================
+      let stroopMode = "solo";
+      let stroopP1Score = 0;
+      let stroopP2Score = 0;
+      let stroopTimer = 30;
+      let stroopInterval = null;
+      let stroopChallengeTimeout = null;
+      let currentCorrectColor = null;
+
+      const stroopColors = [
+        { name: "VERDE", hex: "#00FF66" },
+        { name: "AMARELO", hex: "#FFFF00" },
+        { name: "CIAN", hex: "#00F0FF" },
+        { name: "ROSA", hex: "#FF007F" },
+        { name: "AZUL", hex: "#3B82F6" },
+        { name: "BRANCO", hex: "#FFFFFF" },
+      ];
+
+      function initStroop(mode) {
+        stroopMode = mode;
+        stroopP1Score = 0;
+        stroopP2Score = 0;
+        stroopTimer = 30;
+
+        document.getElementById("stroop-p1-score").textContent = "0";
+        document.getElementById("stroop-p2-score").textContent = "0";
+        document.getElementById("stroop-global-timer").textContent =
+          "Tempo: 30s";
+
+        const p2Area = document.getElementById("stroop-p2-split");
+        const splitLine = document.getElementById("stroop-split-line");
+        const p1Area = document.getElementById("stroop-p1-split");
+
+        if (mode === "1v1") {
+          p2Area.classList.remove("hidden");
+          splitLine.classList.remove("hidden");
+          p1Area.className =
+            "h-1/2 w-full flex flex-col justify-center items-center relative transition-all duration-300";
+        } else {
+          p2Area.classList.add("hidden");
+          splitLine.classList.add("hidden");
+          p1Area.className =
+            "h-full w-full flex flex-col justify-center items-center relative transition-all duration-300";
+        }
+
+        showScreen("stroop-game-screen");
+
+        stroopInterval = setInterval(() => {
+          stroopTimer--;
+          document.getElementById("stroop-global-timer").textContent =
+            `Tempo: ${stroopTimer}s`;
+          if (stroopTimer <= 0) {
+            endStroopGame();
+          }
+        }, 1000);
+
+        startStroopRound();
+      }
+
+      function startStroopRound() {
+        if (stroopTimer <= 0) return;
+
+        // Ocultar esferas velhas e limpar HTML
+        document.getElementById("stroop-p1-spheres").classList.add("hidden");
+        document.getElementById("stroop-p1-spheres").innerHTML = "";
+        document.getElementById("stroop-p2-spheres").classList.add("hidden");
+        document.getElementById("stroop-p2-spheres").innerHTML = "";
+
+        const textP1 = document.getElementById("stroop-p1-text");
+        const textP2 = document.getElementById("stroop-p2-text");
+
+        textP1.classList.remove("hidden");
+        textP2.classList.remove("hidden");
+
+        // Embaralhar cores conflitantes
+        const wordData =
+          stroopColors[Math.floor(Math.random() * stroopColors.length)];
+        let colorData =
+          stroopColors[Math.floor(Math.random() * stroopColors.length)];
+
+        while (colorData.hex === wordData.hex) {
+          colorData =
+            stroopColors[Math.floor(Math.random() * stroopColors.length)];
+        }
+
+        currentCorrectColor = colorData;
+
+        // Mostrar imediatamente o estímulo visual confuso de Stroop
+        textP1.textContent = wordData.name;
+        textP1.style.color = colorData.hex;
+
+        textP2.textContent = wordData.name;
+        textP2.style.color = colorData.hex;
+
+        // Gerar tempo cego de memorização entre 2 e 5 segundos
+        const randomWaitTime = Math.floor(Math.random() * 3000) + 2000;
+
+        // Após os 2 a 5 segundos de observação, a palavra some e as esferas surgem
+        stroopChallengeTimeout = setTimeout(() => {
+          if (stroopTimer <= 0) return;
+
+          textP1.classList.add("hidden");
+          textP2.classList.add("hidden");
+
+          spawnStroopSpheres();
+        }, randomWaitTime);
+      }
+
+      function spawnStroopSpheres() {
+        const gridP1 = document.getElementById("stroop-p1-spheres");
+        const gridP2 = document.getElementById("stroop-p2-spheres");
+
+        gridP1.classList.remove("hidden");
+        if (stroopMode === "1v1") gridP2.classList.remove("hidden");
+
+        const options = [...stroopColors].sort(() => Math.random() - 0.5);
+
+        options.forEach((item) => {
+          const sphP1 = document.createElement("button");
+          sphP1.className =
+            "w-11 h-11 rounded-full transition-transform active:scale-90 shadow-lg border border-zinc-900";
+          sphP1.style.backgroundColor = item.hex;
+          sphP1.style.boxShadow = `0 0 15px ${item.hex}80`;
+          sphP1.onclick = () => selectStroopColor(1, item.hex);
+          gridP1.appendChild(sphP1);
+
+          if (stroopMode === "1v1") {
+            const sphP2 = document.createElement("button");
+            sphP2.className =
+              "w-11 h-11 rounded-full transition-transform active:scale-90 shadow-lg border border-zinc-900";
+            sphP2.style.backgroundColor = item.hex;
+            sphP2.style.boxShadow = `0 0 15px ${item.hex}80`;
+            sphP2.onclick = () => selectStroopColor(2, item.hex);
+            gridP2.appendChild(sphP2);
+          }
+        });
+      }
+
+      function selectStroopColor(playerNum, selectedHex) {
+        if (selectedHex === currentCorrectColor.hex) {
+          if (playerNum === 1) {
+            stroopP1Score += 100;
+            document.getElementById("stroop-p1-score").textContent =
+              stroopP1Score;
+          } else {
+            stroopP2Score += 100;
+            document.getElementById("stroop-p2-score").textContent =
+              stroopP2Score;
+          }
+          alertMessage(`Jogador ${playerNum} acertou! +100pts`, "success");
+        } else {
+          if (playerNum === 1) {
+            stroopP1Score = Math.max(0, stroopP1Score - 50);
+            document.getElementById("stroop-p1-score").textContent =
+              stroopP1Score;
+          } else {
+            stroopP2Score = Math.max(0, stroopP2Score - 50);
+            document.getElementById("stroop-p2-score").textContent =
+              stroopP2Score;
+          }
+          alertMessage(`Jogador ${playerNum} errou! -50pts`, "error");
+        }
+
+        clearTimeout(stroopChallengeTimeout);
+        startStroopRound();
+      }
+
+      function endStroopGame() {
+        clearInterval(stroopInterval);
+        clearTimeout(stroopChallengeTimeout);
+
+        document.getElementById("stroop-p1-spheres").classList.add("hidden");
+        document.getElementById("stroop-p2-spheres").classList.add("hidden");
+
+        const textP1 = document.getElementById("stroop-p1-text");
+        const textP2 = document.getElementById("stroop-p2-text");
+
+        textP1.classList.remove("hidden");
+        textP2.classList.remove("hidden");
+
+        textP1.style.color = "#00FF66";
+        textP2.style.color = "#FFFF00";
+
+        if (stroopMode === "solo") {
+          textP1.innerHTML = `CONCLUÍDO!<br><span class="text-white text-lg font-cyber">PONTOS: ${stroopP1Score}</span>`;
+        } else {
+          if (stroopP1Score > stroopP2Score) {
+            textP1.textContent = "VITÓRIA! 🏆";
+            textP2.textContent = "DERROTA";
+          } else if (stroopP2Score > stroopP1Score) {
+            textP1.textContent = "DERROTA";
+            textP2.textContent = "VITÓRIA! 🏆";
+          } else {
+            textP1.textContent = "EMPATE 🤝";
+            textP2.textContent = "EMPATE 🤝";
+          }
+        }
+
+        setTimeout(() => {
+          showScreen("stroop-selection-screen");
+        }, 3500);
+      }
+
+      // Função limpa sem recursividade para evitar loops travados
+      function exitStroop() {
+        clearInterval(stroopInterval);
+        clearTimeout(stroopChallengeTimeout);
+
+        const p1Spheres = document.getElementById("stroop-p1-spheres");
+        const p2Spheres = document.getElementById("stroop-p2-spheres");
+        if (p1Spheres) p1Spheres.innerHTML = "";
+        if (p2Spheres) p2Spheres.innerHTML = "";
+      }
+
+      // ==========================================
+      // LÓGICA DO JOGO: TAP PRECISION
+      // ==========================================
+      let tapScore = 0;
+      let tapCombo = 0;
+      let tapTimer = 30;
+      let tapInterval = null;
+      let targetTimeout = null;
+
+      function startTapGame() {
+        tapScore = 0;
+        tapCombo = 0;
+        tapTimer = 30;
+        document.getElementById("tap-score").textContent = tapScore;
+        document.getElementById("tap-combo").textContent = `x${tapCombo}`;
+        document.getElementById("tap-timer").textContent = `00:30`;
+
+        document.getElementById("tap-start-panel").classList.add("hidden");
+        document.getElementById("tap-combo-badge").classList.remove("hidden");
+
+        tapInterval = setInterval(() => {
+          tapTimer--;
+          if (tapTimer <= 0) {
+            endTapGame();
+          } else {
+            document.getElementById("tap-timer").textContent =
+              `00:${tapTimer < 10 ? "0" + tapTimer : tapTimer}`;
+          }
+        }, 1000);
+
+        spawnTarget();
+      }
+
+      function spawnTarget() {
+        if (tapTimer <= 0) return;
+
+        const arena = document.getElementById("game-arena-tap");
+        const target = document.getElementById("active-target");
+
+        const arenaWidth = arena.clientWidth;
+        const arenaHeight = arena.clientHeight;
+
+        const randomX = Math.floor(Math.random() * (arenaWidth - 60)) + 10;
+        const randomY = Math.floor(Math.random() * (arenaHeight - 60)) + 10;
+
+        target.style.left = `${randomX}px`;
+        target.style.top = `${randomY}px`;
+        target.classList.remove("hidden");
+
+        clearTimeout(targetTimeout);
+        targetTimeout = setTimeout(() => {
+          tapCombo = 0;
+          document.getElementById("tap-combo-badge").className =
+            "text-xs bg-red-600/10 text-red-500 border border-red-500/30 px-2 py-1 rounded font-cyber";
+          document.getElementById("tap-combo").textContent = `FALHOU`;
+          spawnTarget();
+        }, 1500);
+      }
+
+      function registerHit(event) {
+        event.stopPropagation();
+        clearTimeout(targetTimeout);
+
+        tapCombo++;
+        tapScore += 100 + tapCombo * 10;
+
+        document.getElementById("tap-score").textContent = tapScore;
+        document.getElementById("tap-combo-badge").className =
+          "text-xs bg-[#00FF66]/10 text-[#00FF66] border border-[#00FF66]/30 px-2 py-1 rounded font-cyber";
+        document.getElementById("tap-combo").textContent = `x${tapCombo}`;
+
+        const target = document.getElementById("active-target");
+        target.classList.add("scale-75", "opacity-50");
+
+        setTimeout(() => {
+          target.classList.remove("scale-75", "opacity-50");
+          spawnTarget();
+        }, 50);
+      }
+
+      function endTapGame() {
+        clearInterval(tapInterval);
+        clearTimeout(targetTimeout);
+        document.getElementById("active-target").classList.add("hidden");
+
+        const startPanel = document.getElementById("tap-start-panel");
+        startPanel.innerHTML = `
+          <div class="w-14 h-14 rounded-full border-2 border-[#FFFF00] flex items-center justify-center mb-4 text-glow-yellow">
+            <i class="fa-solid fa-trophy text-xl text-[#FFFF00]"></i>
+          </div>
+          <h4 class="text-2xl font-bold font-cyber mb-1 text-[#FFFF00] text-glow-yellow">FIM DO TREINO</h4>
+          <p class="text-sm font-cyber mb-1">SCORE: <span class="text-white">${tapScore}</span></p>
+          <p class="text-xs text-zinc-100 mb-6">Combo Máximo Atingido: ${tapCombo}</p>
+          <button onclick="startTapGame()" class="bg-[#00FF66] text-black font-cyber font-bold px-6 py-3 rounded-xl hover:bg-green-400 transition-all shadow-[0_0_15px_rgba(0,255,102,0.4)]">REPETIR DESAFIO</button>
+        `;
+        startPanel.classList.remove("hidden");
+      }
+
+      function resetTapGame() {
+        clearInterval(tapInterval);
+        clearTimeout(targetTimeout);
+        tapScore = 0;
+        tapCombo = 0;
+        const startPanel = document.getElementById("tap-start-panel");
+        if (startPanel) startPanel.classList.remove("hidden");
+        const activeTarget = document.getElementById("active-target");
+        if (activeTarget) activeTarget.classList.add("hidden");
+        const comboBadge = document.getElementById("tap-combo-badge");
+        if (comboBadge) comboBadge.classList.add("hidden");
+      }
+
+      // ==========================================
+      // LÓGICA DO JOGO: REFLEX DUEL
+      // ==========================================
+      let duelState = "idle";
+      let duelTimeout = null;
+      let greenTime = 0;
+
+      function resetDuelGame() {
+        clearTimeout(duelTimeout);
+        duelState = "idle";
+
+        const bulb = document.getElementById("semaphore-bulb");
+        if (bulb) {
+          bulb.className =
+            "w-16 h-16 rounded-full bg-red-600 shadow-[0_0_20px_rgba(220,38,38,0.8)] border-4 border-zinc-900 mb-3 transition-all";
+        }
+        const text = document.getElementById("semaphore-text");
+        if (text) {
+          text.textContent = "PRIMEIRO PREPARA...";
+          text.className =
+            "text-lg font-bold font-cyber text-red-500 tracking-wider";
+        }
+        const btnStart = document.getElementById("btn-start-duel");
+        if (btnStart) btnStart.classList.remove("hidden");
+
+        const btnP1 = document.getElementById("btn-player1");
+        const btnP2 = document.getElementById("btn-player2");
+        if (btnP1) {
+          btnP1.disabled = true;
+          btnP1.className =
+            "w-full bg-zinc-900/50 border border-zinc-800 disabled:opacity-40 text-white font-cyber font-bold py-6 rounded-xl transition-all flex flex-col items-center justify-center gap-1";
+        }
+        if (btnP2) {
+          btnP2.disabled = true;
+          btnP2.className =
+            "w-full bg-zinc-900/50 border border-zinc-800 disabled:opacity-40 text-white font-cyber font-bold py-6 rounded-xl transition-all flex flex-col items-center justify-center gap-1";
+        }
+
+        const s1 = document.getElementById("p1-status");
+        const s2 = document.getElementById("p2-status");
+        if (s1) {
+          s1.textContent = "AGUARDA...";
+          s1.className = "text-xs text-zinc-100 font-bold";
+        }
+        if (s2) {
+          s2.textContent = "AGUARDA...";
+          s2.className = "text-xs text-zinc-100 font-bold";
+        }
+      }
+
+      function startDuelCountdown() {
+        resetDuelGame();
+        duelState = "counting";
+
+        document.getElementById("btn-start-duel").classList.add("hidden");
+        document.getElementById("semaphore-text").textContent = "PREPARA-TE...";
+
+        document.getElementById("btn-player1").disabled = false;
+        document.getElementById("btn-player2").disabled = false;
+
+        const randomDelay = Math.floor(Math.random() * 3000) + 2000;
+
+        duelTimeout = setTimeout(() => {
+          if (duelState !== "counting") return;
+
+          duelState = "green";
+          greenTime = Date.now();
+
+          const bulb = document.getElementById("semaphore-bulb");
+          bulb.className =
+            "w-16 h-16 rounded-full bg-[#00FF66] shadow-[0_0_25px_rgba(0,255,102,1)] border-4 border-zinc-900 mb-3 transition-all";
+
+          const text = document.getElementById("semaphore-text");
+          text.textContent = "DASH! DISPARA!";
+          text.className =
+            "text-xl font-black font-cyber text-[#00FF66] text-glow-green tracking-widest animate-bounce";
+        }, randomDelay);
+      }
+
+      function playerClick(playerNum) {
+        if (duelState === "idle") return;
+        const otherPlayer = playerNum === 1 ? 2 : 1;
+
+        if (duelState === "counting") {
+          duelState = "over";
+          clearTimeout(duelTimeout);
+
+          document.getElementById(`p${playerNum}-status`).textContent =
+            "FALTA! (Derrota)";
+          document.getElementById(`p${playerNum}-status`).className =
+            "text-xs text-red-500 font-bold font-cyber";
+          document.getElementById(`btn-player${playerNum}`).className =
+            "w-full bg-red-950/40 border border-red-500 text-red-500 font-cyber font-bold py-6 rounded-xl flex flex-col items-center justify-center gap-1";
+
+          document.getElementById(`p${otherPlayer}-status`).textContent =
+            "VENCEU! (Falsa Partida)";
+          document.getElementById(`p${otherPlayer}-status`).className =
+            "text-xs text-[#00FF66] font-bold font-cyber";
+          document.getElementById(`btn-player${otherPlayer}`).className =
+            "w-full bg-green-950/40 border border-[#00FF66] text-[#00FF66] font-cyber font-bold py-6 rounded-xl flex flex-col items-center justify-center gap-1";
+
+          document.getElementById("semaphore-text").textContent =
+            "FALSA PARTIDA!";
+          document.getElementById("semaphore-text").className =
+            "text-lg font-bold font-cyber text-red-500 tracking-wider";
+          document.getElementById("btn-start-duel").classList.remove("hidden");
+        } else if (duelState === "green") {
+          duelState = "over";
+          const reactionTime = Date.now() - greenTime;
+
+          document.getElementById(`p${playerNum}-status`).textContent =
+            `VENCEU! (${reactionTime}ms)`;
+          document.getElementById(`p${playerNum}-status`).className =
+            "text-xs text-[#00FF66] font-bold font-cyber text-glow-green";
+          document.getElementById(`btn-player${playerNum}`).className =
+            "w-full bg-[#00FF66]/20 border border-[#00FF66] text-[#00FF66] font-cyber font-bold py-6 rounded-xl flex flex-col items-center justify-center gap-1 shadow-[0_0_15px_rgba(0,255,102,0.3)]";
+
+          document.getElementById(`p${otherPlayer}-status`).textContent =
+            "DERROTA";
+          document.getElementById(`p${otherPlayer}-status`).className =
+            "text-xs text-zinc-100-600 font-bold";
+          document.getElementById(`btn-player${otherPlayer}`).className =
+            "w-full bg-zinc-950/20 border border-zinc-900 text-zinc-100-600 font-cyber font-bold py-6 rounded-xl flex flex-col items-center justify-center gap-1";
+
+          document.getElementById("semaphore-text").textContent =
+            `JOGADOR ${playerNum} GANHOU!`;
+          document.getElementById("semaphore-text").className =
+            "text-lg font-bold font-cyber text-[#FFFF00] tracking-wider";
+          document.getElementById("btn-start-duel").classList.remove("hidden");
+        }
+      }
+
+      window.onload = function () {
+        showScreen("auth-screen");
+      };
+    </script>
+  </body>
+</html>

@@ -12,9 +12,8 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.conversor_ocr.conversor_ocr_v2 import ConversorOCR
 from src.gui.components.result_viewer_modal import ResultViewerButton
-from src.utils.task_helper import TaskHelper
 from src.gui.helpers.execution_helper import ExecutionHelper
-from src.core.tasks.global_executor import global_executor
+from src.core.tasks.task_executor import task_executor
 
 
 
@@ -24,7 +23,6 @@ class ConversorOCRPage(ToolPage):
         self.execution = ExecutionHelper("conversor_ocr", "Conversor OCR Premium", user_id)
         super().__init__(master, "conversor_ocr", "Conversor OCR Premium", on_back, execution_tracker, user_id)
         self._check_task_state()
-        self.task_helper = TaskHelper("conversor_ocr")
         self.ocr = ConversorOCR(log_callback=self._log_msg)
         self.input_files = []
         self._last_result_text = ""
@@ -33,9 +31,7 @@ class ConversorOCRPage(ToolPage):
         self._auto_setup_tesseract()
 
     def _check_task_state(self):
-        from src.core.storage.storage_manager import StorageManager
-        storage = StorageManager()
-        last_task = storage.get_last_task_by_tool("conversor_ocr")
+        last_task = self._tool_service.get_last_task_by_tool("conversor_ocr")
         
         if not last_task:
             return
@@ -107,6 +103,31 @@ class ConversorOCRPage(ToolPage):
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=config.Colors.TEXT_PRIMARY
         ).pack(anchor="w", pady=(5, 5))
+        
+        # Verificar se é usuário FREE
+        user_plan = self.user_data.get("plan", "gratis").lower() if self.user_data else "gratis"
+        is_free_user = user_plan == "gratis"
+        
+        if is_free_user:
+            # Mostrar aviso para FREE users
+            aviso_frame = ctk.CTkFrame(theme_frame, fg_color="transparent")
+            aviso_frame.pack(anchor="w", pady=(0, 5))
+            
+            aviso_label = ctk.CTkLabel(
+                aviso_frame,
+                text="🔒 Tema único no plano Grátis (Azul Corporativo)",
+                font=ctk.CTkFont(size=10),
+                text_color="#F59E0B"
+            )
+            aviso_label.pack(anchor="w")
+            
+            upgrade_label = ctk.CTkLabel(
+                aviso_frame,
+                text="Upgrade para PRO para acessar 3 temas adicionais →",
+                font=ctk.CTkFont(size=9),
+                text_color=config.Colors.TEXT_SECONDARY
+            )
+            upgrade_label.pack(anchor="w")
 
         self.visual_theme_menu = ctk.CTkOptionMenu(
             theme_frame,
@@ -118,6 +139,10 @@ class ConversorOCRPage(ToolPage):
         )
         self.visual_theme_menu.set("Azul Corporativo")
         self.visual_theme_menu.pack(anchor="w", pady=(0, 10))
+        
+        # Desabilitar menu para FREE users
+        if is_free_user:
+            self.visual_theme_menu.configure(state="disabled")
 
         # Botão de Ação (Abaixo do drop zone, mas integrado)
         self.action_btn = self._create_action_button(content, "Iniciar Conversão para Excel", self._run_conversion)
@@ -187,6 +212,72 @@ class ConversorOCRPage(ToolPage):
         else:
             self.after(0, lambda: self._update_results_text(f"❌ Erro na instalação: {inst_res['error']}\n"))
 
+    def _clear_all_files(self):
+        self.input_files = []
+        self.action_btn.configure(state="disabled")
+        self.results_text.configure(state="normal")
+        self.results_text.delete("1.0", "end")
+        self.results_text.insert("1.0", "Aguardando arquivos...\n")
+        self.results_text.configure(state="disabled")
+        if hasattr(self, 'file_list_frame'):
+            self.file_list_frame.destroy()
+
+    def _remove_file_at(self, index):
+        if 0 <= index < len(self.input_files):
+            del self.input_files[index]
+            if not self.input_files:
+                self._clear_all_files()
+            else:
+                self._refresh_file_list()
+
+    def _refresh_file_list(self):
+        if hasattr(self, 'file_list_frame') and self.file_list_frame.winfo_exists():
+            self.file_list_frame.destroy()
+        if not self.input_files:
+            return
+        self.file_list_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.file_list_frame.place(relx=0.5, rely=0.5, anchor="center")
+        header = ctk.CTkFrame(self.file_list_frame, fg_color="transparent")
+        header.pack(fill="x")
+        ctk.CTkLabel(
+            header,
+            text=f"📁 {len(self.input_files)} arquivo(s)",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=config.Colors.TEXT_PRIMARY
+        ).pack(side="left")
+        ctk.CTkButton(
+            header,
+            text="Limpar todos",
+            width=90, height=24,
+            font=ctk.CTkFont(size=10),
+            fg_color="transparent",
+            hover_color="#e74c3c",
+            text_color="#e74c3c",
+            border_width=1, border_color="#e74c3c",
+            corner_radius=4,
+            command=self._clear_all_files
+        ).pack(side="right")
+        for i, f in enumerate(self.input_files):
+            row = ctk.CTkFrame(self.file_list_frame, fg_color="transparent")
+            row.pack(fill="x", pady=2)
+            ctk.CTkLabel(
+                row,
+                text=f"📄 {os.path.basename(f)}",
+                font=ctk.CTkFont(size=11),
+                text_color=config.Colors.TEXT_SECONDARY
+            ).pack(side="left")
+            ctk.CTkButton(
+                row,
+                text="✕",
+                width=20, height=18,
+                font=ctk.CTkFont(size=8, weight="bold"),
+                fg_color="transparent",
+                hover_color="#e74c3c",
+                text_color="#a0a0a0",
+                corner_radius=3,
+                command=lambda idx=i: self._remove_file_at(idx)
+            ).pack(side="right", padx=(4, 0))
+
     def _on_files_selected(self, files=None):
         if not files:
             files = self._browse_files([
@@ -205,13 +296,9 @@ class ConversorOCRPage(ToolPage):
             for f in files[:10]:
                 self.results_text.insert("end", f"- {os.path.basename(f)}\n")
             self.results_text.configure(state="disabled")
+            self._refresh_file_list()
 
     def _run_conversion(self):
-        task_id, error = self.task_helper.start_task({})
-        if error:
-            messagebox.showwarning("Aviso", error)
-            return
-
         if not self.input_files:
             messagebox.showwarning("Aviso", "Selecione os arquivos PDF ou imagem primeiro")
             return
@@ -240,9 +327,6 @@ class ConversorOCRPage(ToolPage):
                     self.after(0, lambda: self.progress_bar.set(p/100))
             except Exception:
                 pass
-            self.task_helper.update_progress(p, 100, p)
-            self.task_helper.add_log(f"Processando... {p}%")
-
         self.ocr.progress_callback = _update_progress_safe
 
         _input_files = list(self.input_files)
@@ -258,7 +342,7 @@ class ConversorOCRPage(ToolPage):
             self.after(0, lambda: self._show_result_details(result) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
             self.after(0, lambda: self.action_btn.configure(state="normal") if hasattr(self, 'action_btn') and self.action_btn.winfo_exists() else None)
 
-        global_executor.submit(
+        task_executor.submit(
             execute_func=_execute_func,
             on_complete=_on_complete,
             tool_name="conversor_ocr",

@@ -20,8 +20,8 @@ export function PaymentLink({ children, className, planId }: PaymentLinkProps) {
 
   useEffect(() => {
     async function getUserEmail() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (!error && session?.user) {
         setIsLoggedIn(true)
         if (session.user.email) {
           setEmail(session.user.email)

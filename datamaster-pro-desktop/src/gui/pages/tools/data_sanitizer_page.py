@@ -12,9 +12,8 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.data_sanitizer.data_sanitizer_v2 import DataSanitizer
 from src.gui.components.result_viewer_modal import ResultViewerButton
-from src.utils.task_helper import TaskHelper
 from src.gui.helpers.execution_helper import ExecutionHelper
-from src.core.tasks.global_executor import global_executor
+from src.core.tasks.task_executor import task_executor
 
 
 
@@ -27,15 +26,12 @@ class DataSanitizerPage(ToolPage):
         self.execution = ExecutionHelper("data_sanitizer", "Data Sanitizer", user_id)
         super().__init__(master, "data_sanitizer", "Data Sanitizer", on_back, execution_tracker, user_id)
         self._check_task_state()
-        self.task_helper = TaskHelper("data_sanitizer")
         self.input_file = None
         self.df = None
         self.detected_fields = {}
 
     def _check_task_state(self):
-        from src.core.storage.storage_manager import StorageManager
-        storage = StorageManager()
-        last_task = storage.get_last_task_by_tool("data_sanitizer")
+        last_task = self._tool_service.get_last_task_by_tool("data_sanitizer")
         
         if not last_task:
             return
@@ -115,13 +111,31 @@ class DataSanitizerPage(ToolPage):
         )
         self.file_btn.pack(anchor="w", padx=20, pady=(0, 10))
 
+        self.file_frame = ctk.CTkFrame(input_frame, fg_color="transparent")
+        self.file_frame.pack(anchor="w", padx=20, pady=(0, 15))
+
         self.file_label = ctk.CTkLabel(
-            input_frame,
+            self.file_frame,
             text="",
             font=ctk.CTkFont(size=11),
             text_color=config.Colors.TEXT_SECONDARY
         )
-        self.file_label.pack(anchor="w", padx=20, pady=(0, 15))
+        self.file_label.pack(side="left")
+
+        self.file_clear_btn = ctk.CTkButton(
+            self.file_frame,
+            text="✕",
+            width=24,
+            height=20,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color="transparent",
+            hover_color="#e74c3c",
+            text_color="#a0a0a0",
+            corner_radius=3,
+            command=self._clear_input_file
+        )
+        self.file_clear_btn.pack(side="left", padx=(6, 0))
+        self.file_clear_btn.pack_forget()
 
         options_frame = ctk.CTkFrame(content, fg_color=config.Colors.CARD, corner_radius=12)
         options_frame.pack(fill="x", padx=20, pady=10)
@@ -178,6 +192,31 @@ class DataSanitizerPage(ToolPage):
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=config.Colors.TEXT_PRIMARY
         ).pack(anchor="w", pady=(5, 5))
+        
+        # Verificar se é usuário FREE
+        user_plan = self.user_data.get("plan", "gratis").lower() if self.user_data else "gratis"
+        is_free_user = user_plan == "gratis"
+        
+        if is_free_user:
+            # Mostrar aviso para FREE users
+            aviso_frame = ctk.CTkFrame(theme_frame, fg_color="transparent")
+            aviso_frame.pack(anchor="w", pady=(0, 5))
+            
+            aviso_label = ctk.CTkLabel(
+                aviso_frame,
+                text="🔒 Tema único no plano Grátis (Azul Corporativo)",
+                font=ctk.CTkFont(size=10),
+                text_color="#F59E0B"
+            )
+            aviso_label.pack(anchor="w")
+            
+            upgrade_label = ctk.CTkLabel(
+                aviso_frame,
+                text="Upgrade para PRO para acessar 3 temas adicionais →",
+                font=ctk.CTkFont(size=9),
+                text_color=config.Colors.TEXT_SECONDARY
+            )
+            upgrade_label.pack(anchor="w")
 
         self.visual_theme_menu = ctk.CTkOptionMenu(
             theme_frame,
@@ -189,6 +228,10 @@ class DataSanitizerPage(ToolPage):
         )
         self.visual_theme_menu.set("Azul Corporativo")
         self.visual_theme_menu.pack(anchor="w", pady=(0, 10))
+        
+        # Desabilitar menu para FREE users
+        if is_free_user:
+            self.visual_theme_menu.configure(state="disabled")
 
         self.action_btn = self._create_action_button(content, "Limpar e Normalizar", self._run_sanitization)
 
@@ -233,6 +276,17 @@ class DataSanitizerPage(ToolPage):
         self.results_text.insert("1.0", "Carregue um arquivo para ver o preview...\n")
         self.results_text.configure(state="disabled")
 
+    def _clear_input_file(self):
+        self.input_file = None
+        self.df = None
+        self.detected_fields = {}
+        self.file_label.configure(text="")
+        self.file_clear_btn.pack_forget()
+        self.results_text.configure(state="normal")
+        self.results_text.delete("1.0", "end")
+        self.results_text.insert("1.0", "Carregue um arquivo para ver o preview...\n")
+        self.results_text.configure(state="disabled")
+
     def _select_file(self):
         file_path = filedialog.askopenfilename(
             title="Selecionar arquivo",
@@ -246,6 +300,7 @@ class DataSanitizerPage(ToolPage):
         if file_path:
             self.input_file = file_path
             self.file_label.configure(text=os.path.basename(file_path))
+            self.file_clear_btn.pack(side="left", padx=(6, 0))
             
             try:
                 if file_path.endswith('.xlsx'):
@@ -278,11 +333,6 @@ class DataSanitizerPage(ToolPage):
             var.set(True)
 
     def _run_sanitization(self):
-        task_id, error = self.task_helper.start_task({})
-        if error:
-            messagebox.showwarning("Aviso", error)
-            return
-
         if not self.input_file:
             messagebox.showwarning("Aviso", "Por favor, selecione um arquivo primeiro")
             return
@@ -313,7 +363,7 @@ class DataSanitizerPage(ToolPage):
 
         input_file = self.input_file
         sanitizer = self.sanitizer
-        global_executor.submit(
+        task_executor.submit(
             execute_func=lambda: sanitizer.process_file(input_file, save_path, options, visual_theme=visual_theme),
             on_complete=lambda result: self.after(0, lambda: self._show_results(result)),
             tool_name="data_sanitizer",
@@ -376,5 +426,3 @@ Alterações por campo:
                 self.progress_label.configure(text=f"Normalizando... {value}%")
         except Exception:
             pass
-        self.task_helper.update_progress(value, 100, value)
-        self.task_helper.add_log(f"Normalizando... {value}%")

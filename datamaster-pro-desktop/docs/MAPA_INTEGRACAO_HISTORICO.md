@@ -1,4 +1,4 @@
-# 🗺️ MAPA DE INTEGRAÇÃO - Histórico nas 13 Ferramentas
+# 🗺️ MAPA DE INTEGRAÇÃO - Histórico nas 15 ferramentas
 
 Guia passo a passo para adicionar HistoryButton + histórico em cada ferramenta.
 

@@ -8,6 +8,7 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 import re
 import os
+import bisect
 from typing import Dict, List, Optional, Callable
 from pathlib import Path
 from datetime import datetime
@@ -90,33 +91,44 @@ class Conciliador:
             extract_df = self._normalize_columns(extract_df)
             sales_df = self._normalize_columns_sales(sales_df)
 
+            # Garante que os índices sejam sequenciais e únicos para o rastreamento
+            extract_df = extract_df.reset_index(drop=True)
+            sales_df = sales_df.reset_index(drop=True)
+
             matched = []
-            unmatched_extract = []
-            matched_values = set()
+            matched_extract = set()
+            matched_sales = set()
+
+            # Pre-conversão vetorizada das datas para garantir datetimes
+            extract_df['date'] = pd.to_datetime(extract_df['date'], errors='coerce')
+            sales_df['date'] = pd.to_datetime(sales_df['date'], errors='coerce')
+
+            # =================================================================
+            # PASSO 1: Casamento Exato (Valor Exato + Data Exata + Fuzzy se houver)
+            # =================================================================
+            from collections import defaultdict
+            sales_exact_map = defaultdict(list)
+            for idx_s, row_s in sales_df.iterrows():
+                val_s = float(row_s.get("amount", 0))
+                date_s = row_s.get("date")
+                dt_key = date_s if pd.notna(date_s) else None
+                # Arredonda valor para evitar discrepâncias float
+                sales_exact_map[(round(val_s, 4), dt_key)].append(idx_s)
 
             for idx_e, row_e in extract_df.iterrows():
-                found = False
-                for idx_s, row_s in sales_df.iterrows():
-                    key = f"{row_s.get('date')}_{row_s.get('amount')}_{row_s.get('id', idx_s)}"
-                    if key in matched_values:
+                val_e = float(row_e.get("amount", 0))
+                date_e = row_e.get("date")
+                dt_key = date_e if pd.notna(date_e) else None
+
+                candidates = sales_exact_map.get((round(val_e, 4), dt_key), [])
+                best_idx_s = None
+
+                for idx_s in candidates:
+                    if idx_s in matched_sales:
                         continue
+                    row_s = sales_df.iloc[idx_s]
 
-                    date_e = pd.to_datetime(row_e.get("date"), errors='coerce')
-                    date_s = pd.to_datetime(row_s.get("date"), errors='coerce')
-
-                    # 1. Checagem de tolerância de data
-                    date_match = False
-                    if pd.notna(date_e) and pd.notna(date_s):
-                        date_diff = abs((date_e - date_s).days)
-                        if date_diff <= date_tolerance_days:
-                            date_match = True
-
-                    # 2. Checagem de tolerância de valor
-                    val_e = float(row_e.get("amount", 0))
-                    val_s = float(row_s.get("amount", 0))
-                    value_match = abs(val_e - val_s) <= tolerance
-
-                    # 3. Fuzzy match de descrição opcional
+                    # Checagem de descrição opcional
                     desc_match = True
                     if fuzzy_threshold > 0:
                         desc_e = str(row_e.get("description", "")).strip().lower()
@@ -132,7 +144,95 @@ class Conciliador:
                                 if desc_e not in desc_s and desc_s not in desc_e:
                                     desc_match = False
 
-                    if date_match and value_match and desc_match:
+                    if desc_match:
+                        best_idx_s = idx_s
+                        break
+
+                if best_idx_s is not None:
+                    matched_extract.add(idx_e)
+                    matched_sales.add(best_idx_s)
+                    row_s = sales_df.iloc[best_idx_s]
+                    matched.append({
+                        "status": "CONCILIADO",
+                        "data": date_e.strftime('%Y-%m-%d') if pd.notna(date_e) else "",
+                        "date": date_e.strftime('%Y-%m-%d') if pd.notna(date_e) else "",
+                        "valor": val_e,
+                        "amount": val_e,
+                        "descricao": row_e.get("description", ""),
+                        "description": row_e.get("description", ""),
+                        "venda_id": row_s.get("id", ""),
+                        "origem_match": "EXATO"
+                    })
+
+            # =================================================================
+            # PASSO 2: Casamento por Tolerância (Valor Tolerância + Janela de Datas + Fuzzy)
+            # =================================================================
+            unmatched_sales_indices = [idx for idx in range(len(sales_df)) if idx not in matched_sales]
+            if unmatched_sales_indices:
+                sales_unmatched_sub = sales_df.iloc[unmatched_sales_indices].copy()
+                sales_unmatched_sub['original_idx'] = unmatched_sales_indices
+                sales_unmatched_sub = sales_unmatched_sub.sort_values('amount')
+
+                sales_amounts = sales_unmatched_sub['amount'].values
+                sales_sub_indices = sales_unmatched_sub['original_idx'].values
+
+                for idx_e, row_e in extract_df.iterrows():
+                    if idx_e in matched_extract:
+                        continue
+
+                    val_e = float(row_e.get("amount", 0))
+                    date_e = row_e.get("date")
+
+                    # Busca binária O(log M)
+                    left_idx = bisect.bisect_left(sales_amounts, val_e - tolerance)
+                    right_idx = bisect.bisect_right(sales_amounts, val_e + tolerance)
+
+                    best_idx_s = None
+                    best_date_diff = float('inf')
+
+                    for idx_in_sub in range(left_idx, right_idx):
+                        idx_s = sales_sub_indices[idx_in_sub]
+                        if idx_s in matched_sales:
+                            continue
+
+                        row_s = sales_df.iloc[idx_s]
+                        date_s = row_s.get("date")
+
+                        # Checagem de tolerância de data
+                        date_match = False
+                        date_diff = float('inf')
+                        if pd.notna(date_e) and pd.notna(date_s):
+                            date_diff = abs((date_e - date_s).days)
+                            if date_diff <= date_tolerance_days:
+                                date_match = True
+
+                        if not date_match:
+                            continue
+
+                        # Checagem de descrição opcional
+                        desc_match = True
+                        if fuzzy_threshold > 0:
+                            desc_e = str(row_e.get("description", "")).strip().lower()
+                            desc_s = str(row_s.get("description", "")).strip().lower()
+                            if desc_e and desc_s:
+                                try:
+                                    from fuzzywuzzy import fuzz
+                                    score = fuzz.token_sort_ratio(desc_e, desc_s)
+                                    if score < fuzzy_threshold:
+                                        desc_match = False
+                                except ImportError:
+                                    if desc_e not in desc_s and desc_s not in desc_e:
+                                        desc_match = False
+
+                        if desc_match:
+                            if date_diff < best_date_diff:
+                                best_idx_s = idx_s
+                                best_date_diff = date_diff
+
+                    if best_idx_s is not None:
+                        matched_extract.add(idx_e)
+                        matched_sales.add(best_idx_s)
+                        row_s = sales_df.iloc[best_idx_s]
                         matched.append({
                             "status": "CONCILIADO",
                             "data": date_e.strftime('%Y-%m-%d') if pd.notna(date_e) else "",
@@ -141,14 +241,90 @@ class Conciliador:
                             "amount": val_e,
                             "descricao": row_e.get("description", ""),
                             "description": row_e.get("description", ""),
-                            "venda_id": row_s.get("id", "")
+                            "venda_id": row_s.get("id", ""),
+                            "origem_match": "TOLERANCIA"
                         })
-                        matched_values.add(key)
-                        found = True
-                        break
 
-                if not found:
-                    date_e = pd.to_datetime(row_e.get("date"), errors='coerce')
+            # =================================================================
+            # PASSO 3: Fallback de Valor (Valor Tolerância apenas + Fuzzy, ignorando data)
+            # =================================================================
+            unmatched_sales_indices = [idx for idx in range(len(sales_df)) if idx not in matched_sales]
+            if unmatched_sales_indices:
+                sales_unmatched_sub = sales_df.iloc[unmatched_sales_indices].copy()
+                sales_unmatched_sub['original_idx'] = unmatched_sales_indices
+                sales_unmatched_sub = sales_unmatched_sub.sort_values('amount')
+
+                sales_amounts = sales_unmatched_sub['amount'].values
+                sales_sub_indices = sales_unmatched_sub['original_idx'].values
+
+                for idx_e, row_e in extract_df.iterrows():
+                    if idx_e in matched_extract:
+                        continue
+
+                    val_e = float(row_e.get("amount", 0))
+                    date_e = row_e.get("date")
+
+                    # Busca binária O(log M)
+                    left_idx = bisect.bisect_left(sales_amounts, val_e - tolerance)
+                    right_idx = bisect.bisect_right(sales_amounts, val_e + tolerance)
+
+                    best_idx_s = None
+
+                    for idx_in_sub in range(left_idx, right_idx):
+                        idx_s = sales_sub_indices[idx_in_sub]
+                        if idx_s in matched_sales:
+                            continue
+
+                        row_s = sales_df.iloc[idx_s]
+                        date_s = row_s.get("date")
+
+                        # Se ambas as datas estão preenchidas e a diferença excede a tolerância, não casar!
+                        if pd.notna(date_e) and pd.notna(date_s):
+                            if abs((date_e - date_s).days) > date_tolerance_days:
+                                continue
+
+                        # Checagem de descrição opcional
+                        desc_match = True
+                        if fuzzy_threshold > 0:
+                            desc_e = str(row_e.get("description", "")).strip().lower()
+                            desc_s = str(row_s.get("description", "")).strip().lower()
+                            if desc_e and desc_s:
+                                try:
+                                    from fuzzywuzzy import fuzz
+                                    score = fuzz.token_sort_ratio(desc_e, desc_s)
+                                    if score < fuzzy_threshold:
+                                        desc_match = False
+                                except ImportError:
+                                    if desc_e not in desc_s and desc_s not in desc_e:
+                                        desc_match = False
+
+                        if desc_match:
+                            best_idx_s = idx_s
+                            break
+
+                    if best_idx_s is not None:
+                        matched_extract.add(idx_e)
+                        matched_sales.add(best_idx_s)
+                        row_s = sales_df.iloc[best_idx_s]
+                        matched.append({
+                            "status": "CONCILIADO",
+                            "data": date_e.strftime('%Y-%m-%d') if pd.notna(date_e) else "",
+                            "date": date_e.strftime('%Y-%m-%d') if pd.notna(date_e) else "",
+                            "valor": val_e,
+                            "amount": val_e,
+                            "descricao": row_e.get("description", ""),
+                            "description": row_e.get("description", ""),
+                            "venda_id": row_s.get("id", ""),
+                            "origem_match": "FALLBACK_VALOR"
+                        })
+
+            # =================================================================
+            # CONSTRUÇÃO DOS NÃO CONCILIADOS E GERAÇÃO DO DATAFRAME DE RESULTADO
+            # =================================================================
+            unmatched_extract = []
+            for idx_e, row_e in extract_df.iterrows():
+                if idx_e not in matched_extract:
+                    date_e = row_e.get("date")
                     val_e = float(row_e.get("amount", 0))
                     unmatched_extract.append({
                         "status": "PENDENTE (sem venda)",
@@ -158,14 +334,14 @@ class Conciliador:
                         "amount": val_e,
                         "descricao": row_e.get("description", ""),
                         "description": row_e.get("description", ""),
-                        "venda_id": "-"
+                        "venda_id": "-",
+                        "origem_match": "-"
                     })
 
             unmatched_sales = []
             for idx_s, row_s in sales_df.iterrows():
-                key = f"{row_s.get('date')}_{row_s.get('amount')}_{row_s.get('id', idx_s)}"
-                if key not in matched_values:
-                    date_s = pd.to_datetime(row_s.get("date"), errors='coerce')
+                if idx_s not in matched_sales:
+                    date_s = row_s.get("date")
                     val_s = float(row_s.get("amount", 0))
                     unmatched_sales.append({
                         "status": "PENDENTE (sem recebimento)",
@@ -175,9 +351,11 @@ class Conciliador:
                         "amount": val_s,
                         "descricao": row_s.get("description", ""),
                         "description": row_s.get("description", ""),
-                        "venda_id": row_s.get("id", "")
+                        "venda_id": row_s.get("id", "") if pd.notna(row_s.get("id")) else "",
+                        "origem_match": "-"
                     })
 
+            # Combina tudo em um único DataFrame de saída
             result_df = pd.DataFrame(matched + unmatched_extract + unmatched_sales)
             
             # Exportação estilizada premium
@@ -235,35 +413,126 @@ class Conciliador:
             bank_df['valor'] = bank_df['valor'].abs()
             self._log(f"Extrato carregado: {len(bank_df)} transações")
 
+            # Reseta e sequencia os índices
+            nfe_df = nfe_df.reset_index(drop=True)
+            bank_df = bank_df.reset_index(drop=True)
+
+            # Pre-conversão das datas
+            nfe_df['date_parsed'] = pd.to_datetime(nfe_df['data'], errors='coerce')
+            bank_df['date_parsed'] = pd.to_datetime(bank_df['data'], errors='coerce')
+
             matched = []
-            unmatched_nfe = []
+            matched_nfe = set()
             matched_banks = set()
 
-            for idx_n, nfe in nfe_df.iterrows():
-                best_match = None
-                best_diff = float('inf')
+            # =================================================================
+            # PASSO 1: Casamento Exato (Valor Exato + Data Exata + Fuzzy se houver)
+            # =================================================================
+            from collections import defaultdict
+            bank_exact_map = defaultdict(list)
+            for idx_b, bank in bank_df.iterrows():
+                val_b = float(bank.get("valor", 0))
+                date_b = bank.get("date_parsed")
+                dt_key = date_b if pd.notna(date_b) else None
+                # Arredonda valor para evitar discrepâncias float
+                bank_exact_map[(round(val_b, 4), dt_key)].append(idx_b)
 
-                for idx_b, bank in bank_df.iterrows():
+            for idx_n, nfe in nfe_df.iterrows():
+                val_n = float(nfe.get("valor", 0))
+                date_n = nfe.get("date_parsed")
+                dt_key = date_n if pd.notna(date_n) else None
+
+                candidates = bank_exact_map.get((round(val_n, 4), dt_key), [])
+                best_idx_b = None
+
+                for idx_b in candidates:
                     if idx_b in matched_banks:
                         continue
+                    bank = bank_df.iloc[idx_b]
 
-                    # 1. Tolerância de valor
-                    val_n = float(nfe['valor'])
-                    val_b = float(bank['valor'])
-                    diff = abs(val_n - val_b)
-                    
-                    if diff <= tolerance:
-                        # 2. Tolerância de data opcional
-                        date_n = pd.to_datetime(nfe.get("data"), errors='coerce')
-                        date_b = pd.to_datetime(bank.get("data"), errors='coerce')
+                    # Checagem de descrição/cliente
+                    desc_match = True
+                    if fuzzy_threshold > 0:
+                        cliente = str(nfe.get("cliente", "")).strip().lower()
+                        desc_b = str(bank.get("descricao", "")).strip().lower()
+                        if cliente and desc_b:
+                            try:
+                                from fuzzywuzzy import fuzz
+                                score = fuzz.token_sort_ratio(cliente, desc_b)
+                                if score < fuzzy_threshold:
+                                    desc_match = False
+                            except ImportError:
+                                if cliente not in desc_b and desc_b not in cliente:
+                                    desc_match = False
+
+                    if desc_match:
+                        best_idx_b = idx_b
+                        break
+
+                if best_idx_b is not None:
+                    matched_nfe.add(idx_n)
+                    matched_banks.add(best_idx_b)
+                    bank = bank_df.iloc[best_idx_b]
+                    matched.append({
+                        "status": "CONCILIADO",
+                        "nfe_numero": nfe['numero'],
+                        "nfe_serie": nfe.get('serie', ''),
+                        "cliente": nfe['cliente'],
+                        "data_nfe": nfe['data'],
+                        "valor_nfe": nfe['valor'],
+                        "data_pagamento": bank['data'].strftime('%Y-%m-%d') if hasattr(bank['data'], "strftime") and pd.notna(bank['data']) else str(bank['data']),
+                        "valor_pago": bank['valor'],
+                        "descricao_banco": bank.get('descricao', ''),
+                        "origem_match": "EXATO"
+                    })
+
+            # =================================================================
+            # PASSO 2: Casamento por Tolerância (Valor Tolerância + Janela de Datas + Fuzzy)
+            # =================================================================
+            unmatched_bank_indices = [idx for idx in range(len(bank_df)) if idx not in matched_banks]
+            if unmatched_bank_indices:
+                bank_unmatched_sub = bank_df.iloc[unmatched_bank_indices].copy()
+                bank_unmatched_sub['original_idx'] = unmatched_bank_indices
+                bank_unmatched_sub = bank_unmatched_sub.sort_values('valor')
+
+                bank_vals = bank_unmatched_sub['valor'].values
+                bank_sub_indices = bank_unmatched_sub['original_idx'].values
+
+                for idx_n, nfe in nfe_df.iterrows():
+                    if idx_n in matched_nfe:
+                        continue
+
+                    val_n = float(nfe.get("valor", 0))
+                    date_n = nfe.get("date_parsed")
+
+                    # Busca binária O(log M)
+                    left_idx = bisect.bisect_left(bank_vals, val_n - tolerance)
+                    right_idx = bisect.bisect_right(bank_vals, val_n + tolerance)
+
+                    best_idx_b = None
+                    best_diff = float('inf')
+
+                    for idx_in_sub in range(left_idx, right_idx):
+                        idx_b = bank_sub_indices[idx_in_sub]
+                        if idx_b in matched_banks:
+                            continue
+
+                        bank = bank_df.iloc[idx_b]
+                        date_b = bank.get("date_parsed")
+                        val_b = float(bank.get("valor", 0))
+                        diff = abs(val_n - val_b)
+
+                        # Checagem de data
                         date_match = True
-                        
                         if pd.notna(date_n) and pd.notna(date_b):
                             date_diff = abs((date_n - date_b).days)
                             if date_diff > date_tolerance_days:
                                 date_match = False
-                        
-                        # 3. Fuzzy match de cliente/banco opcional
+
+                        if not date_match:
+                            continue
+
+                        # Checagem de descrição/cliente
                         desc_match = True
                         if fuzzy_threshold > 0:
                             cliente = str(nfe.get("cliente", "")).strip().lower()
@@ -277,27 +546,113 @@ class Conciliador:
                                 except ImportError:
                                     if cliente not in desc_b and desc_b not in cliente:
                                         desc_match = False
-                        
-                        if date_match and desc_match:
+
+                        if desc_match:
                             if diff < best_diff:
-                                best_match = (idx_b, bank)
+                                best_idx_b = idx_b
                                 best_diff = diff
 
-                if best_match:
-                    idx_b, bank = best_match
-                    matched_banks.add(idx_b)
-                    matched.append({
-                        "status": "CONCILIADO",
-                        "nfe_numero": nfe['numero'],
-                        "nfe_serie": nfe.get('serie', ''),
-                        "cliente": nfe['cliente'],
-                        "data_nfe": nfe['data'],
-                        "valor_nfe": nfe['valor'],
-                        "data_pagamento": bank['data'].strftime('%Y-%m-%d') if hasattr(bank['data'], "strftime") else str(bank['data']),
-                        "valor_pago": bank['valor'],
-                        "descricao_banco": bank.get('descricao', '')
-                    })
-                else:
+                    if best_idx_b is not None:
+                        matched_nfe.add(idx_n)
+                        matched_banks.add(best_idx_b)
+                        bank = bank_df.iloc[best_idx_b]
+                        matched.append({
+                            "status": "CONCILIADO",
+                            "nfe_numero": nfe['numero'],
+                            "nfe_serie": nfe.get('serie', ''),
+                            "cliente": nfe['cliente'],
+                            "data_nfe": nfe['data'],
+                            "valor_nfe": nfe['valor'],
+                            "data_pagamento": bank['data'].strftime('%Y-%m-%d') if hasattr(bank['data'], "strftime") and pd.notna(bank['data']) else str(bank['data']),
+                            "valor_pago": bank['valor'],
+                            "descricao_banco": bank.get('descricao', ''),
+                            "origem_match": "TOLERANCIA"
+                        })
+
+            # =================================================================
+            # PASSO 3: Fallback de Valor (Valor Tolerância apenas + Fuzzy, ignorando data)
+            # =================================================================
+            unmatched_bank_indices = [idx for idx in range(len(bank_df)) if idx not in matched_banks]
+            if unmatched_bank_indices:
+                bank_unmatched_sub = bank_df.iloc[unmatched_bank_indices].copy()
+                bank_unmatched_sub['original_idx'] = unmatched_bank_indices
+                bank_unmatched_sub = bank_unmatched_sub.sort_values('valor')
+
+                bank_vals = bank_unmatched_sub['valor'].values
+                bank_sub_indices = bank_unmatched_sub['original_idx'].values
+
+                for idx_n, nfe in nfe_df.iterrows():
+                    if idx_n in matched_nfe:
+                        continue
+
+                    val_n = float(nfe.get("valor", 0))
+                    date_n = nfe.get("date_parsed")
+
+                    # Busca binária O(log M)
+                    left_idx = bisect.bisect_left(bank_vals, val_n - tolerance)
+                    right_idx = bisect.bisect_right(bank_vals, val_n + tolerance)
+
+                    best_idx_b = None
+                    best_diff = float('inf')
+
+                    for idx_in_sub in range(left_idx, right_idx):
+                        idx_b = bank_sub_indices[idx_in_sub]
+                        if idx_b in matched_banks:
+                            continue
+
+                        bank = bank_df.iloc[idx_b]
+                        val_b = float(bank.get("valor", 0))
+                        date_b = bank.get("date_parsed")
+                        diff = abs(val_n - val_b)
+
+                        # Se ambas as datas estão preenchidas e a diferença excede a tolerância, não casar!
+                        if pd.notna(date_n) and pd.notna(date_b):
+                            if abs((date_n - date_b).days) > date_tolerance_days:
+                                continue
+
+                        # Checagem de descrição/cliente
+                        desc_match = True
+                        if fuzzy_threshold > 0:
+                            cliente = str(nfe.get("cliente", "")).strip().lower()
+                            desc_b = str(bank.get("descricao", "")).strip().lower()
+                            if cliente and desc_b:
+                                try:
+                                    from fuzzywuzzy import fuzz
+                                    score = fuzz.token_sort_ratio(cliente, desc_b)
+                                    if score < fuzzy_threshold:
+                                        desc_match = False
+                                except ImportError:
+                                    if cliente not in desc_b and desc_b not in cliente:
+                                        desc_match = False
+
+                        if desc_match:
+                            if diff < best_diff:
+                                best_idx_b = idx_b
+                                best_diff = diff
+
+                    if best_idx_b is not None:
+                        matched_nfe.add(idx_n)
+                        matched_banks.add(best_idx_b)
+                        bank = bank_df.iloc[best_idx_b]
+                        matched.append({
+                            "status": "CONCILIADO",
+                            "nfe_numero": nfe['numero'],
+                            "nfe_serie": nfe.get('serie', ''),
+                            "cliente": nfe['cliente'],
+                            "data_nfe": nfe['data'],
+                            "valor_nfe": nfe['valor'],
+                            "data_pagamento": bank['data'].strftime('%Y-%m-%d') if hasattr(bank['data'], "strftime") and pd.notna(bank['data']) else str(bank['data']),
+                            "valor_pago": bank['valor'],
+                            "descricao_banco": bank.get('descricao', ''),
+                            "origem_match": "FALLBACK_VALOR"
+                        })
+
+            # =================================================================
+            # CONSTRUÇÃO DOS NÃO CONCILIADOS E GERAÇÃO DO DATAFRAME DE RESULTADO
+            # =================================================================
+            unmatched_nfe = []
+            for idx_n, nfe in nfe_df.iterrows():
+                if idx_n not in matched_nfe:
                     unmatched_nfe.append({
                         "status": "PENDENTE (não pago)",
                         "nfe_numero": nfe['numero'],
@@ -307,7 +662,8 @@ class Conciliador:
                         "valor_nfe": nfe['valor'],
                         "data_pagamento": "-",
                         "valor_pago": 0.0,
-                        "descricao_banco": "Sem correspondente no extrato"
+                        "descricao_banco": "Sem correspondente no extrato",
+                        "origem_match": "-"
                     })
 
             unmatched_bank = []
@@ -320,11 +676,13 @@ class Conciliador:
                         "cliente": "-",
                         "data_nfe": "-",
                         "valor_nfe": 0.0,
-                        "data_pagamento": bank['data'].strftime('%Y-%m-%d') if hasattr(bank['data'], "strftime") else str(bank['data']),
+                        "data_pagamento": bank['data'].strftime('%Y-%m-%d') if hasattr(bank['data'], "strftime") and pd.notna(bank['data']) else str(bank['data']),
                         "valor_pago": bank['valor'],
-                        "descricao_banco": bank.get('descricao', '')
+                        "descricao_banco": bank.get('descricao', ''),
+                        "origem_match": "-"
                     })
 
+            # Combina tudo em um único DataFrame de saída
             result_df = pd.DataFrame(matched + unmatched_nfe + unmatched_bank)
             
             # Exportação estilizada premium
@@ -347,6 +705,35 @@ class Conciliador:
                 "unmatched_bank": len(unmatched_bank),
                 "output_path": output_path
             }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # ========================================================================
+    # MODO NF-e + VENDAS: XML ↔ Planilha de Vendas (usando ExtratorNFe internamente)
+    # ========================================================================
+    def reconcile_nfe_vendas(
+        self,
+        xml_folder: str,
+        sales_file: str,
+        output_path: str,
+        tolerance: float = 0.01,
+        chave: str = "auto",
+        visual_theme: str = "classic_blue"
+    ) -> Dict:
+        """Cruza XMLs de NF-e com planilha de vendas do marketplace (reusa motor ExtratorNFe)"""
+        try:
+            from src.tools.extrator_nfe.extrator_nfe_v1 import ExtratorNFe
+            extrator = ExtratorNFe(log_callback=self.log_callback)
+            result = extrator.cruzar_com_planilha(
+                xml_source=xml_folder,
+                planilha_path=sales_file,
+                chave=chave,
+                tolerancia_valor=tolerance,
+                output_path=output_path,
+            )
+            if result.get("success"):
+                result["mode"] = "nfe_vendas"
+            return result
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -504,8 +891,6 @@ class Conciliador:
 
     def _normalize_columns_sales(self, df: pd.DataFrame) -> pd.DataFrame:
         df = self._normalize_columns(df, "sales")
-        if 'date' in df.columns:
-            df['data'] = pd.to_datetime(df['date'], errors='coerce').dt.strftime('%Y-%m-%d')
         return df
 
     def _parse_ofx(self, file_path: Path) -> Optional[pd.DataFrame]:

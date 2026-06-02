@@ -2,9 +2,12 @@
 Dashboard Page - Main grid of tools
 """
 import customtkinter as ctk
+import logging
 import sys
 import os
 import threading
+
+log = logging.getLogger(__name__)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
@@ -15,7 +18,7 @@ class DashboardPage(ctk.CTkFrame):
         super().__init__(master, fg_color=config.Colors.BACKGROUND)
 
         if not user_data:
-            print("[DASHBOARD] Erro: Dados de usuário ausentes. Redirecionando...")
+            log.error("Dados de usuário ausentes. Redirecionando...")
             if on_logout: on_logout()
             return
 
@@ -28,6 +31,8 @@ class DashboardPage(ctk.CTkFrame):
         self.on_settings = on_settings
 
         self._update_banner = None
+        self._tool_usage_labels: dict[str, ctk.CTkLabel] = {}
+        self._after_ids: list = []
         self._setup_ui()
         self._check_update_on_entry()
 
@@ -136,6 +141,16 @@ class DashboardPage(ctk.CTkFrame):
 
         # Atualizar com dados reais
         self._update_impact_stats()
+        self._auto_refresh_stats()
+
+    def _auto_refresh_stats(self):
+        """Auto-refresh das stats a cada 10s"""
+        if not hasattr(self, 'winfo_exists') or not self.winfo_exists():
+            return
+        self._update_impact_stats()
+        self._update_tool_cards_stats()
+        aid = self.after(10000, self._auto_refresh_stats)
+        self._after_ids.append(aid)
 
     def _update_impact_stats(self):
         if not self.execution_tracker or not self.user_data:
@@ -163,6 +178,50 @@ class DashboardPage(ctk.CTkFrame):
         self.lines_label.configure(text=f"{current_lines}{max_lines_text}")
         self.tasks_label.configure(text=f"{current_execs}{max_execs_text}")
         self.hours_label.configure(text=f"{stats.get('total_hours', 0.0):.1f}h")
+
+    def _update_tool_cards_stats(self):
+        if not self.execution_tracker or not self.user_data or not self._tool_usage_labels:
+            return
+        user_id = self.user_data.get("id")
+        user_plan = self.user_data.get("plan", "gratis")
+        stats = self.execution_tracker.get_user_stats(user_id)
+        stats_by_tool = (stats or {}).get("by_tool", {})
+        plan_limits = config.PLAN_LIMITS.get(self._cached_plan_type, config.PLAN_LIMITS[config.PlanType.GRATIS])
+        tools = list(config.TOOLS.items())
+        for tool_key, tool_info in tools:
+            lbl = self._tool_usage_labels.get(tool_key)
+            if not lbl or not lbl.winfo_exists():
+                continue
+            tool_stats = stats_by_tool.get(tool_key, {"execs": 0, "lines": 0})
+            tool_limit_info = plan_limits.get("tools_limit", {}).get(tool_key, {})
+            limit_text = ""
+            if user_plan == "gratis":
+                max_execs = tool_limit_info.get("max_execs")
+                max_per_exec = tool_limit_info.get("max_per_exec")
+                if tool_key in ["consolidador", "categorizador"]:
+                    if max_execs and max_per_exec:
+                        limit_text = f"📊 {tool_stats['lines']}/{max_per_exec} linhas\n⚡ {tool_stats['execs']}/{max_execs} execuções"
+                    elif max_execs:
+                        limit_text = f"⚡ {tool_stats['execs']}/{max_execs} execuções"
+                    elif max_per_exec:
+                        limit_text = f"📊 {tool_stats['lines']}/{max_per_exec} linhas"
+                elif tool_key == "orcamentos":
+                    if max_execs and max_per_exec:
+                        limit_text = f"📄 {tool_stats['lines']}/{max_per_exec} documentos\n⚡ {tool_stats['execs']}/{max_execs} execuções"
+                    elif max_execs:
+                        limit_text = f"⚡ {tool_stats['execs']}/{max_execs} execuções"
+                    elif max_per_exec:
+                        limit_text = f"📄 {tool_stats['lines']}/{max_per_exec} documentos"
+                elif tool_key == "minerador":
+                    if max_execs and max_per_exec:
+                        limit_text = f"🔗 {tool_stats['lines']}/{max_per_exec} links\n⚡ {tool_stats['execs']}/{max_execs} execuções"
+                    else:
+                        limit_text = f"⚡ {tool_stats['execs']}/{max_execs} execuções"
+                elif tool_key == "conciliador":
+                    limit_text = f"⚡ {tool_stats['execs']}/{max_execs} execuções"
+            else:
+                limit_text = "✨ Uso Ilimitado (PRO)"
+            lbl.configure(text=limit_text)
 
     def _create_tools_grid(self):
         # Container principal (sem scroll)
@@ -283,6 +342,7 @@ class DashboardPage(ctk.CTkFrame):
             text_color=config.Colors.PRIMARY if user_plan == "gratis" else "#10B981"
         )
         usage_lbl.pack(pady=5)
+        self._tool_usage_labels[tool_key] = usage_lbl
         # --------------------------
 
         desc = ctk.CTkLabel(
@@ -386,7 +446,9 @@ class DashboardPage(ctk.CTkFrame):
             "data_sanitizer": "🧹",
             "conversor_ocr": "📷",
             "gerador_laudos": "⚖️",
-            "comissoes": "💵"
+            "comissoes": "💵",
+            "classificador_ncm": "🔢",
+            "precificador_canal": "📱"
         }
         return icons.get(tool_key, "🔧")
 
@@ -403,7 +465,7 @@ class DashboardPage(ctk.CTkFrame):
                     try:
                         self.sync_manager.sync_now()
                     except Exception as e:
-                        print(f"Erro na sincronização automática: {e}")
+                        log.error("Erro na sincronização automática: %s", e)
                 threading.Thread(target=async_sync, daemon=True).start()
 
     # ==================== SISTEMA DE ATUALIZAÇÃO ====================
@@ -424,7 +486,8 @@ class DashboardPage(ctk.CTkFrame):
             # Se ainda não chegou, tenta de novo por alguns segundos
             self._poll_attempts += 1
             if self._poll_attempts < 10: # Tenta por 5 segundos (500ms * 10)
-                self.after(500, poll_cache)
+                aid = self.after(500, poll_cache)
+                self._after_ids.append(aid)
         
         poll_cache()
 
@@ -504,7 +567,8 @@ class DashboardPage(ctk.CTkFrame):
         ).grid(row=0, column=3, padx=(5, 20), pady=15)
 
         # Auto-dismiss após 30 segundos
-        self.after(30000, self._dismiss_banner)
+        aid = self.after(30000, self._dismiss_banner)
+        self._after_ids.append(aid)
 
     def _dismiss_banner(self):
         try:
@@ -518,6 +582,15 @@ class DashboardPage(ctk.CTkFrame):
             except Exception:
                 pass
             self._update_banner = None
+
+    def destroy(self):
+        for aid in self._after_ids:
+            try:
+                self.after_cancel(aid)
+            except Exception:
+                pass
+        self._after_ids.clear()
+        super().destroy()
 
     def _start_silent_update(self, update_info):
         """Baixa e instala a atualização silenciosamente"""

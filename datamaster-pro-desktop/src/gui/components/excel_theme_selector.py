@@ -19,7 +19,7 @@ class ExcelThemeSelector(ctk.CTkFrame):
         self.user_plan = self.user_data.get("plan", "gratis")
         
         # Criar validador de plano
-        self._validator = PlanLimitValidator(self.user_plan)
+        self._validator = PlanLimitValidator(self.user_plan, data_expiracao=self.user_data.get("data_expiracao"))
 
         lbl = ctk.CTkLabel(
             self,

@@ -14,11 +14,15 @@ import logging
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
 
+from src.core.circuit_breaker import get_circuit_breaker, CircuitBreakerError
+from src.core.feature_flags import is_feature_enabled
+from src.core.apm import PerformanceMonitor
+from src.utils.network import retry, RateLimiter
+
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
-handler = logging.FileHandler(os.path.join(config.LOGS_DIR, "sync.log"), encoding="utf-8")
-handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
-log.addHandler(handler)
+
+# Rate limiter para chamadas Supabase
+_supabase_limiter = RateLimiter(max_calls=30, period=60)
 
 
 class SyncManager:
@@ -29,27 +33,34 @@ class SyncManager:
         self._sync_lock = threading.Lock()
         self.last_sync = None
         self._on_sync_complete = on_sync_complete
-        self._supabase = None
-        self._supabase_token = None
+        self._c = None
+        self._ct = None
 
-    def _get_supabase_client(self, access_token: str = None):
-        """Retorna cliente Supabase cacheado com timeout, recria apenas se token mudar"""
+    def _get_client(self, access_token: str = None):
+        """Retorna cliente cacheado, recria se token mudar"""
         from supabase import create_client
-        if self._supabase is None or (access_token and access_token != self._supabase_token):
-            self._supabase = create_client(
-                config.SUPABASE_URL, config.SUPABASE_ANON_KEY
+        if self._c is None or (access_token and access_token != self._ct):
+            self._c = create_client(
+                config._u0, config._r1()
             )
-            self._supabase_token = access_token
+            self._ct = access_token
             if access_token:
-                self._supabase.postgrest.auth(access_token)
-        return self._supabase
+                self._c.postgrest.auth(access_token)
+        return self._c
 
     def set_on_sync_complete(self, callback):
         self._on_sync_complete = callback
 
+    def _get_conn(self):
+        """Retorna conexão SQLite com WAL + busy_timeout para evitar database is locked"""
+        conn = sqlite3.connect(config.DB_PATH, timeout=5)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
+
     def _init_queue_table(self):
         """Cria tabela de fila de sincronização"""
-        conn = sqlite3.connect(config.DB_PATH)
+        conn = self._get_conn()
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -88,7 +99,7 @@ class SyncManager:
         """
         Adiciona operação à fila de sincronização com metadados explícitos
         """
-        conn = sqlite3.connect(config.DB_PATH)
+        conn = self._get_conn()
         cursor = conn.cursor()
 
         usuario_id = data.get("usuario_id") or data.get("user_id")
@@ -108,7 +119,7 @@ class SyncManager:
 
     def get_pending_items(self, limit: int = 50) -> List[Dict]:
         """Retorna itens pendentes na fila"""
-        conn = sqlite3.connect(config.DB_PATH)
+        conn = self._get_conn()
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -137,7 +148,7 @@ class SyncManager:
 
     def mark_synced(self, queue_id: int):
         """Marca item como sincronizado"""
-        conn = sqlite3.connect(config.DB_PATH)
+        conn = self._get_conn()
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -151,7 +162,7 @@ class SyncManager:
 
     def mark_failed(self, queue_id: int):
         """Marca item como falhou e incrementa retry"""
-        conn = sqlite3.connect(config.DB_PATH)
+        conn = self._get_conn()
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -165,7 +176,7 @@ class SyncManager:
 
     def get_queue_stats(self) -> Dict:
         """Retorna estatísticas da fila"""
-        conn = sqlite3.connect(config.DB_PATH)
+        conn = self._get_conn()
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -188,45 +199,71 @@ class SyncManager:
         from src.utils.network import check_internet_connection
         return check_internet_connection()
 
-    def _authenticate(self, supabase, access_token: str) -> bool:
-        """Autentica client Supabase com token ou re-login com credenciais salvas."""
+    def _authenticate(self, client, access_token: str) -> bool:
+        """Autentica client com token ou re-login com credenciais salvas."""
         if access_token:
             try:
-                supabase.postgrest.auth(access_token)
-                supabase.auth.get_user()
+                client.postgrest.auth(access_token)
+                client.auth.get_user()
                 log.debug("Token existente ainda válido")
                 return True
             except Exception:
                 log.warning("Token expirado, tentando re-login com credenciais salvas...")
 
-        try:
-            creds = self.storage.get_stored_credentials()
-            if creds:
-                login = supabase.auth.sign_in_with_password({
-                    "email": creds["email"],
-                    "password": creds["password"]
-                })
-                if login.session:
-                    new_token = login.session.access_token
-                    supabase.postgrest.auth(new_token)
-                    log.info("Re-login automático realizado com sucesso")
-                    return True
-        except Exception as e:
-            log.error(f"Re-login automático falhou: {e}")
+        # Tenta re-login com credenciais (refresh token) salvas
+        for tentativa in range(2):
+            try:
+                creds = self.storage.get_stored_credentials()
+                if creds and creds.get("refresh_token"):
+                    login = client.auth.refresh_session(creds["refresh_token"])
+                    if login and login.user:
+                        new_token = login.session.access_token
+                        new_refresh = login.session.refresh_token
+                        client.postgrest.auth(new_token)
+                        # Atualiza o token salvo localmente
+                        user_data = self.storage.get_saved_session()
+                        if user_data:
+                            user_data["session_token"] = new_token
+                            user_data["refresh_token"] = new_refresh
+                            user_data["expires_at"] = (datetime.now() + timedelta(days=90)).isoformat()
+                            self.storage.save_user_session(user_data)
+                        log.info("Re-login automático realizado com sucesso via refresh_token")
+                        return True
+                else:
+                    log.error("Nenhum refresh_token salvo encontrado para re-login")
+                    return False
+            except Exception as e:
+                error_msg = str(e)
+                # Refresh token inválido — limpar sessão local e não tentar novamente
+                if "Refresh Token Not Found" in error_msg or "Invalid Refresh Token" in error_msg:
+                    log.warning("Refresh token inválido/expirado, limpando sessão local")
+                    self.storage.clear_session()
+                    return False
+                log.error(f"Re-login automático falhou (tentativa {tentativa+1}): {e}")
+                if tentativa == 0:
+                    time.sleep(1)
         return False
 
     def sync_now(self) -> Dict:
         """
         Executa sincronização imediata (upload + download)
         """
+        apm = PerformanceMonitor.get_instance()
+        sync_span = apm.start("sync_now")
+
         with self._sync_lock:
             if self.is_syncing:
+                log.warning("sync_now ignorado: já está em andamento")
+                apm.end(sync_span, "skipped")
                 return {"success": False, "error": "Em andamento"}
             if not self.check_connection():
+                log.warning("sync_now ignorado: sem conexão")
+                apm.end(sync_span, "no_connection")
                 return {"success": False, "error": "Sem conexão", "offline": True}
 
             now = time.time()
             if getattr(self, '_last_sync_time', 0) > now - 10:
+                log.warning("sync_now ignorado: cooldown de 10s")
                 return {"success": False, "error": "Cooldown de 10s entre sincronizações"}
             self._last_sync_time = now
 
@@ -234,19 +271,27 @@ class SyncManager:
 
         results = {"synced": 0, "failed": 0}
 
+        # Circuit breaker para proteger contra falhas do Supabase
+        cb = get_circuit_breaker("supabase", failure_threshold=5, recovery_timeout=60)
+
         try:
             access_token = self.storage.get_token()
-            supabase = self._get_supabase_client(access_token)
-            if not self._authenticate(supabase, access_token):
+            log.debug(f"sync_now: token obtido: {'sim' if access_token else 'não'}")
+            _c = self._get_client(access_token)
+
+            if not self._authenticate(_c, access_token):
                 log.error("Falha na autenticação — sync abortado")
                 return {"success": False, "error": "Falha na autenticação"}
 
             # ── 1. UPLOAD ─────────────────────────────────────────────
+            upload_span = apm.start("sync_upload")
             pending = self.get_pending_items()
+            log.info(f"sync_now: {len(pending)} itens pendentes na fila")
             if pending:
                 for item in pending:
                     try:
                         data = item["data"]
+                        log.debug(f"sync_now: enviando item {item['id']}: ferramenta={data.get('ferramenta') or data.get('tool_name')}")
                         mapped_data = {
                             "usuario_id": data.get("usuario_id") or data.get("user_id"),
                             "ferramenta": data.get("ferramenta") or data.get("tool_name"),
@@ -257,30 +302,54 @@ class SyncManager:
                             "created_at": data.get("created_at")
                         }
 
-                        supabase.table("execucoes").upsert(mapped_data, on_conflict="usuario_id,created_at").execute()
+                        cb.call(
+                            lambda: _c.table("execucoes").upsert(mapped_data, on_conflict="usuario_id,created_at").execute()
+                        )
                         self.mark_synced(item["id"])
                         results["synced"] += 1
+                        log.info(f"sync_now: item {item['id']} sincronizado com sucesso")
                     except Exception as e:
+                        log.error(f"sync_now: erro ao sincronizar item {item['id']}: {e}")
                         self.mark_failed(item["id"])
                         results["failed"] += 1
+            apm.end(upload_span, "ok" if results["failed"] == 0 else "partial")
 
-                if results["synced"] > 0:
-                    user_id = self.storage.get_user_data().get("id")
-                    if user_id:
-                        import requests
-                        requests.post(f"{config.SUPABASE_URL}/functions/v1/sync-background",
-                                     headers={"Authorization": f"Bearer {config.SUPABASE_ANON_KEY}"},
-                                     json={"usuario_id": user_id}, timeout=5)
+            if results["synced"] > 0:
+                user_data = self.storage.get_user_data()
+                user_id = user_data.get("id") if user_data else None
+                if user_id:
+                    import requests
+                    requests.post(f"{config._u0}/functions/v1/sync-background",
+                                 headers={"Authorization": f"Bearer {config._r1()}"},
+                                 json={"usuario_id": user_id}, timeout=5)
 
             # ── 2. DOWNLOAD do Supabase para SQLite local ─────────────
+            download_span = apm.start("sync_download")
             user_data = self.storage.get_user_data()
             if user_data and user_data.get("id"):
-                remote = supabase.table("execucoes").select("*").eq("usuario_id", user_data["id"]).order("created_at", desc=True).limit(2000).execute()
-                remote_records = remote.data or []
-                self.storage.replace_user_executions(user_data["id"], remote_records)
-                log.info(f"Sync download: {len(remote_records)} registros espelhados no SQLite local")
+                try:
+                    remote = cb.call(
+                        lambda: _c.table("execucoes").select("*").eq("usuario_id", user_data["id"]).order("created_at", desc=True).limit(2000).execute()
+                    )
+                    remote_records = remote.data or []
+                    self.storage.replace_user_executions(user_data["id"], remote_records)
+                    log.info(f"Sync download: {len(remote_records)} registros de execuções espelhados")
+                except CircuitBreakerError:
+                    log.warning("Sync download bloqueado pelo circuit breaker")
+                except Exception as e:
+                    log.error(f"Sync download erro: {e}")
+            apm.end(download_span, "ok")
 
-            # ── 3. LIMPEZA da fila de sync ────────────────────────────
+            # ── 3. SCHEDULED TASKS sync (upload + download) ──────────
+            scheduled_span = apm.start("sync_scheduled_tasks")
+            try:
+                self._upload_scheduled_tasks(_c, cb)
+                self._download_scheduled_tasks(_c, cb)
+            except CircuitBreakerError:
+                log.warning("Scheduled tasks sync bloqueado pelo circuit breaker")
+            apm.end(scheduled_span, "ok")
+
+            # ── 4. LIMPEZA da fila de sync ────────────────────────────
             self._cleanup_queue()
 
             with self._sync_lock:
@@ -291,11 +360,12 @@ class SyncManager:
             with self._sync_lock:
                 self.is_syncing = False
 
+        apm.end(sync_span, "ok" if results["failed"] == 0 else "partial")
         return {"success": results["failed"] == 0, "synced": results["synced"]}
 
     def _cleanup_queue(self):
         """Remove itens sincronizados e falhas permanentes da fila"""
-        conn = sqlite3.connect(config.DB_PATH)
+        conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM sync_queue WHERE status = 'synced'")
         cursor.execute("DELETE FROM sync_queue WHERE status = 'failed' AND retry_count >= 3")
@@ -305,8 +375,80 @@ class SyncManager:
         if removed > 0:
             log.info(f"Limpou {removed} itens da fila de sync")
 
-    def sync_theme_to_supabase(self, theme: str):
-        """Sincroniza o tema selecionado com o Supabase"""
+    def _upload_scheduled_tasks(self, client, cb=None) -> int:
+        """Envia tarefas agendadas locais para o servidor"""
+        user_data = self.storage.get_user_data()
+        if not user_data or not user_data.get("id"):
+            return 0
+
+        local_tasks = self.storage.get_all_scheduled_tasks(user_data["id"])
+        synced = 0
+
+        for task in local_tasks:
+            try:
+                upsert_fn = lambda t=task: client.table("scheduled_tasks").upsert({
+                    "task_id": t["task_id"],
+                    "user_id": t["user_id"],
+                    "tool_name": t["tool_name"],
+                    "tool_action": t["tool_action"],
+                    "task_name": t.get("task_name"),
+                    "input_files": json.dumps(t.get("input_files", [])),
+                    "schedule_frequency": t["schedule_frequency"],
+                    "cron_expression": t.get("cron_expression"),
+                    "time_of_day": t.get("time_of_day"),
+                    "day_of_week": t.get("day_of_week"),
+                    "day_of_month": t.get("day_of_month"),
+                    "enabled": t.get("enabled", True),
+                    "last_run": t.get("last_run"),
+                    "next_run": t.get("next_run"),
+                    "execution_count": t.get("execution_count", 0),
+                    "last_status": t.get("last_status"),
+                    "last_error": t.get("last_error"),
+                    "config": json.dumps(t.get("config")) if t.get("config") else None,
+                }, on_conflict="task_id").execute()
+
+                if cb:
+                    cb.call(upsert_fn)
+                else:
+                    upsert_fn()
+                synced += 1
+            except Exception as e:
+                log.error(f"Erro ao sincronizar tarefa {task['task_id']}: {e}")
+
+        if synced:
+            log.info(f"Scheduled tasks upload: {synced} tarefas sincronizadas")
+        return synced
+
+    def _download_scheduled_tasks(self, client, cb=None):
+        """Baixa tarefas agendadas do servidor para o SQLite local"""
+        user_data = self.storage.get_user_data()
+        if not user_data or not user_data.get("id"):
+            return
+
+        try:
+            download_fn = lambda: (
+                client.table("scheduled_tasks")
+                .select("*")
+                .eq("user_id", user_data["id"])
+                .execute()
+            )
+
+            if cb:
+                remote = cb.call(download_fn)
+            else:
+                remote = download_fn()
+
+            remote_tasks = remote.data or []
+            if remote_tasks:
+                self.storage.replace_scheduled_tasks_for_user(user_data["id"], remote_tasks)
+                log.info(f"Scheduled tasks download: {len(remote_tasks)} registros espelhados")
+        except CircuitBreakerError:
+            log.warning("Scheduled tasks download bloqueado pelo circuit breaker")
+        except Exception as e:
+            log.error(f"Erro ao baixar scheduled_tasks: {e}")
+
+    def sync_theme(self, theme: str):
+        """Sincroniza o tema selecionado com o servidor"""
         try:
             user_data = self.storage.get_user_data()
             if not user_data or not user_data.get("id"):
@@ -314,16 +456,16 @@ class SyncManager:
             
             access_token = self.storage.get_token()
             from supabase import create_client
-            supabase = create_client(config.SUPABASE_URL, config.SUPABASE_ANON_KEY)
+            _c = create_client(config._u0, config._r1())
             if access_token: 
-                supabase.postgrest.auth(access_token)
+                _c.postgrest.auth(access_token)
             
-            supabase.table("usuarios").update({
+            _c.table("usuarios").update({
                 "preferencias_tema": theme,
                 "updated_at": datetime.now().isoformat()
             }).eq("id", user_data["id"]).execute()
             
-            log.info(f"Tema '{theme}' sincronizado com Supabase")
+            log.info(f"Tema '{theme}' sincronizado")
         except Exception as e:
             log.error(f"Erro ao sincronizar tema: {e}")
 
@@ -334,17 +476,15 @@ class ExecutionTracker:
     def __init__(self, storage_manager, sync_manager: SyncManager):
         self.storage = storage_manager
         self.sync = sync_manager
-        self._stats_cache = {}
-        self._stats_cache_lock = threading.Lock()
-        self._cache_ttl = 30
+        from src.core.memory_cache import get_cache
+        self._cache = get_cache()
         self.sync.set_on_sync_complete(self._on_sync_done)
 
     def _on_sync_done(self):
         self.invalidate_stats_cache()
 
     def invalidate_stats_cache(self):
-        with self._stats_cache_lock:
-            self._stats_cache.clear()
+        self._cache.clear(prefix="user_stats:")
         log.debug("Stats cache invalidated after sync")
 
     def track_execution(self, tool_name: str, user_id: str, input_files: List[str],
@@ -353,6 +493,8 @@ class ExecutionTracker:
         """
         Registra uma execução e agenda sincronização
         """
+        apm = PerformanceMonitor.get_instance()
+        span = apm.start("track_execution", {"tool": tool_name})
         execution_data = {
             "usuario_id": user_id,
             "ferramenta": tool_name,
@@ -375,6 +517,8 @@ class ExecutionTracker:
         # Notificação desktop
         self._notify_user(tool_name, rows_processed, hours_saved)
 
+        self.invalidate_stats_cache()
+        apm.end(span, "ok")
         return execution_data
 
     def _notify_user(self, tool_name: str, rows: int, hours: float):
@@ -410,24 +554,21 @@ class ExecutionTracker:
 
     def get_user_stats(self, user_id: str, start_date: datetime = None) -> Dict:
         """Busca estatísticas - Prioridade Supabase (Online)"""
-        cache_key = f"{user_id}_{start_date.isoformat() if start_date else 'none'}"
-        now = datetime.now()
+        cache_key = f"user_stats:{user_id}_{start_date.isoformat() if start_date else 'none'}"
 
-        with self._stats_cache_lock:
-            if cache_key in self._stats_cache:
-                cached = self._stats_cache[cache_key]
-                if (now - cached['time']).total_seconds() < self._cache_ttl:
-                    return cached['data']
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return cached
 
         result = None
 
         if self.sync.check_connection():
             try:
                 token = self.storage.get_token()
-                supabase = self.sync._get_supabase_client(token)
+                _c = self.sync._get_client(token)
 
                 start_iso = start_date.isoformat() if start_date else (datetime.now() - timedelta(days=30)).isoformat()
-                res = supabase.table("execucoes").select("*").eq("usuario_id", user_id).gte("created_at", start_iso).execute()
+                res = _c.table("execucoes").select("*").eq("usuario_id", user_id).gte("created_at", start_iso).execute()
 
                 if res.data:
                     stats_by_tool = {}
@@ -481,9 +622,26 @@ class ExecutionTracker:
                 result["by_tool"][tool_key]["lines"] = result["by_tool"][tool_key].get("lines", 0)
                 result["by_tool"][tool_key]["execs"] = result["by_tool"][tool_key].get("execs", 0)
 
-        with self._stats_cache_lock:
-            self._stats_cache[cache_key] = {"data": result, "time": now}
+        if result:
+            self._cache.set(cache_key, result, ttl=30)
         return result
+
+    def _is_plan_expired(self, user_data: Dict) -> bool:
+        """Verifica se o plano PRO/Enterprise está expirado pela data_expiracao"""
+        plan = (user_data or {}).get("plan", "gratis")
+        if plan == "gratis":
+            return False
+
+        data_expiracao = (user_data or {}).get("data_expiracao")
+        if not data_expiracao:
+            return False
+
+        try:
+            exp_date = datetime.fromisoformat(data_expiracao.replace("Z", "+00:00").replace(" ", "T"))
+            agora = datetime.now(exp_date.tzinfo) if exp_date.tzinfo else datetime.now()
+            return exp_date <= agora
+        except Exception:
+            return False
 
     def check_limit(self, user_id: str, plan_name: str, tool_key: str = None, rows_to_process: int = 0) -> Dict:
         """
@@ -498,7 +656,14 @@ class ExecutionTracker:
         plan_type = config.PlanType[plan_name.upper()] if plan_name.upper() in config.PlanType.__members__ else config.PlanType.GRATIS
         plan_info = config.PLAN_LIMITS.get(plan_type)
 
-        # Se for PRO ou Enterprise, liberado
+        # Verificar expiração do plano
+        if self._is_plan_expired(user_data):
+            return {
+                "allowed": False,
+                "error": "Seu plano PRO expirou. Renove sua assinatura para continuar usando todos os recursos.\n\nAcesse: https://data-master-pro.vercel.app/planos"
+            }
+
+        # Se for PRO ou Enterprise e não expirado, liberado
         if plan_type != config.PlanType.GRATIS:
             return {"allowed": True, "max": None}
 

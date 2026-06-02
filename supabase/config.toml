@@ -1,0 +1,8 @@
+[functions]
+enabled = true
+
+[functions.keep-alive]
+enabled = true
+schedule = "0 8 */6 * *"
+verify_jwt = false
+import_map = "./import_map.json"

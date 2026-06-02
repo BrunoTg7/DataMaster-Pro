@@ -6,7 +6,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.utils.encryption import encrypt_data, decrypt_data, _derive_key
+from src.utils.encryption import encrypt_data, decrypt_data, _derive_key, DecryptionError
 
 class TestEncryption:
     """Testes unitários para o módulo de criptografia."""
@@ -60,10 +60,10 @@ class TestEncryption:
         key2 = "chave_errada"
         
         encrypted = encrypt_data(original, key1)
-        decrypted = decrypt_data(encrypted, key2)
-        
-        assert decrypted == ""  # A implementação retorna "" em caso de erro
+        with pytest.raises(DecryptionError):
+            decrypt_data(encrypted, key2)
 
     def test_decryption_invalid_data(self):
         """Tentar descriptografar dados malformados ou não encriptados deve falhar."""
-        assert decrypt_data("nao_sou_criptografado", "minha_chave") == ""
+        with pytest.raises(DecryptionError):
+            decrypt_data("nao_sou_criptografado", "minha_chave")

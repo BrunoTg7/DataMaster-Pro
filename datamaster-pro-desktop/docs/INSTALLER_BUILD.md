@@ -72,6 +72,8 @@ Principais dependências:
 # 2. Construir usando PyInstaller
 pyinstaller datamaster.spec --clean --onedir
 
+pyinstaller datamaster.spec --clean --noconfirm
+
 # instalador
 cd "c:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop" ; & "C:\Program Files (x86)\NSIS\makensis.exe" "installer.nsi"
 # Saída esperada:

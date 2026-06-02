@@ -2,9 +2,13 @@
 Gerador de Laudos de Conformidade v2.0
 Gera PDFs profissionais com cruzamento de dados do Conciliador e Consolidador
 Template dinâmico com personalização de cabeçalho, cores e rodapé
+
+Performance: algoritmo O(N log M) via busca binária (bisect) após ordenação
+por valor — substitui o loop aninhado quadrático O(N × M) anterior.
 """
 from typing import List, Dict, Optional
 from pathlib import Path
+import bisect
 import pandas as pd
 from datetime import datetime
 
@@ -220,35 +224,83 @@ class GeradorLaudos:
             return pd.read_csv(file_path, encoding='utf-8')
 
     def _match_data(self, extrato_df: pd.DataFrame, notas_df: pd.DataFrame) -> List[Dict]:
-        """Cruza dados do extrato com notas fiscais"""
-        results = []
+        """Cruza dados do extrato com notas fiscais usando busca binária O(N log M).
 
-        for _, extrato_row in extrato_df.iterrows():
-            value = extrato_row.get('valor', extrato_row.get('Value', 0))
-            date = extrato_row.get('data', extrato_row.get('date', 'N/A'))
-            desc = extrato_row.get('descricao', extrato_row.get('description', extrato_row.get('histórico', 'N/A')))
+        Estratégia:
+        1. Pré-processa notas_df: converte valores para float e ordena por valor.
+        2. Para cada lançamento do extrato, usa bisect para localizar em O(log M)
+           o ponto de inserção do valor-alvo na lista ordenada.
+        3. Verifica apenas os candidatos dentro da janela de tolerância (±1 R$),
+           que na prática são pouquíssimos registros — tornando o custo total O(N log M).
 
-            matched = False
+        Complexidade: O((N + M) log M) — vs O(N × M) do loop aninhado anterior.
+        """
+        results: List[Dict] = []
 
-            for _, nota_row in notas_df.iterrows():
-                nota_value = nota_row.get('valor', nota_row.get('Value', 0))
+        # ── Pré-processamento das notas ──────────────────────────────────────
+        # Colunas de valor/NF aceitas (fallback gracioso)
+        val_cols_nota = [c for c in ['valor', 'Value', 'VALOR', 'value'] if c in notas_df.columns]
+        nf_cols = [c for c in ['numero', 'nfe', 'NFE', 'NF', 'numero_nf'] if c in notas_df.columns]
 
-                if abs(float(value) - float(nota_value)) < 1:
-                    results.append({
-                        "date": str(date),
-                        "description": str(desc)[:40],
-                        "value": float(value),
-                        "nf": str(nota_row.get('numero', nota_row.get('nfe', 'N/A'))),
-                        "status": "Conforme"
-                    })
-                    matched = True
-                    break
+        val_col_nota = val_cols_nota[0] if val_cols_nota else notas_df.columns[0]
+        nf_col = nf_cols[0] if nf_cols else None
 
-            if not matched:
+        notas_df = notas_df.copy()
+        notas_df['_valor_float'] = pd.to_numeric(notas_df[val_col_nota], errors='coerce').fillna(0.0)
+        notas_sorted = notas_df.sort_values('_valor_float').reset_index(drop=True)
+
+        # Vetores para busca rápida
+        sorted_values: List[float] = notas_sorted['_valor_float'].tolist()
+        sorted_nf: List[str] = (
+            notas_sorted[nf_col].astype(str).tolist()
+            if nf_col else ['N/A'] * len(notas_sorted)
+        )
+
+        TOLERANCE = 1.0  # Margem de ±1 real
+
+        # ── Colunas do extrato ───────────────────────────────────────────────
+        val_cols_ext = [c for c in ['valor', 'Value', 'VALOR', 'value'] if c in extrato_df.columns]
+        dat_cols = [c for c in ['data', 'date', 'DATA', 'Date'] if c in extrato_df.columns]
+        desc_cols = [c for c in ['descricao', 'description', 'histórico', 'DESCRICAO'] if c in extrato_df.columns]
+
+        val_col_ext = val_cols_ext[0] if val_cols_ext else extrato_df.columns[0]
+        dat_col = dat_cols[0] if dat_cols else None
+        desc_col = desc_cols[0] if desc_cols else None
+
+        extrato_df = extrato_df.copy()
+        extrato_df['_valor_float'] = pd.to_numeric(extrato_df[val_col_ext], errors='coerce').fillna(0.0)
+
+        # ── Cruzamento O(N log M) ────────────────────────────────────────────
+        for _, row in extrato_df.iterrows():
+            value: float = row['_valor_float']
+            date = str(row[dat_col]) if dat_col else 'N/A'
+            desc = str(row[desc_col])[:40] if desc_col else 'N/A'
+
+            # Ponto de inserção do limite inferior na lista ordenada
+            lo = bisect.bisect_left(sorted_values, value - TOLERANCE)
+
+            matched_nf: Optional[str] = None
+
+            # Varredura apenas da janela estreita (value-TOL .. value+TOL)
+            i = lo
+            while i < len(sorted_values) and sorted_values[i] <= value + TOLERANCE:
+                matched_nf = sorted_nf[i]
+                break  # Primeiro match dentro da tolerância é suficiente
+                i += 1  # noqa: unreachable — mantido para futura lógica multi-match
+
+            if matched_nf is not None:
                 results.append({
-                    "date": str(date),
-                    "description": str(desc)[:40],
-                    "value": float(value),
+                    "date": date,
+                    "description": desc,
+                    "value": value,
+                    "nf": matched_nf,
+                    "status": "Conforme"
+                })
+            else:
+                results.append({
+                    "date": date,
+                    "description": desc,
+                    "value": value,
                     "nf": "N/A",
                     "status": "Pendente"
                 })

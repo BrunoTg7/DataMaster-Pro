@@ -17,6 +17,7 @@ Correções v4.1:
 - Fallback de título via page.title() quando todos os seletores falham
 """
 import asyncio
+import logging
 import re
 import random
 import os
@@ -28,6 +29,8 @@ from pathlib import Path
 from typing import List, Dict, Optional, Any, Callable
 from urllib.parse import urlparse
 import config
+
+log = logging.getLogger(__name__)
 from src.utils.user_agents import UserAgentProvider
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -383,8 +386,8 @@ class Minerador:
         self,
         progress_callback: Optional[Callable] = None,
         log_callback: Optional[Callable] = None,
-        max_concurrency: int = 3,
-        scraperapi_key: Optional[str] = None,
+        max_concurrency: int = 5,
+        _p0: Optional[str] = None,
         max_retries: int = 2,
     ):
         self.progress_callback = progress_callback
@@ -392,13 +395,16 @@ class Minerador:
         self.max_concurrency = max_concurrency
         self.max_retries = max_retries
         self._semaphore: Optional[asyncio.Semaphore] = None
-        self._scraperapi_key = scraperapi_key
+        self._p0 = _p0
 
     # ── Logging ──────────────────────────────────────────────────────────────
     def _log(self, message: str):
-        print(f"[Minerador] {message}", flush=True)
+        log.info(message)
         if self.log_callback:
             self.log_callback(message)
+
+    def _net_ref(self) -> str:
+        return getattr(config, "_r1", lambda: "")()
 
     # ─────────────────────────────────────────────────────────────────────────
     # API PÚBLICA SÍNCRONA
@@ -409,6 +415,7 @@ class Minerador:
         marketplace: str = "generico",
         custom_selectors: Optional[Dict[str, str]] = None,
         visual_theme: str = "classic_blue",
+        max_successful: Optional[int] = None,
     ) -> Dict:
         """Minera dados de uma lista de URLs.
 
@@ -417,6 +424,7 @@ class Minerador:
             marketplace: Chave do Selector Registry ('mercadolivre', 'amazon', 'shopee', 'magalu', 'generico').
             custom_selectors: Dict com seletores CSS personalizados. Chaves: 'title', 'price', 'availability', 'rating', 'seller'.
             visual_theme: Tema do Excel de saída.
+            max_successful: Se definido, para ao atingir N preços confirmados (falhas não contam).
 
         Returns:
             {success, results, errors, total, collected}
@@ -424,7 +432,7 @@ class Minerador:
         try:
             loop = asyncio.new_event_loop()
             result = loop.run_until_complete(
-                self._mine_async(urls, marketplace, custom_selectors or {})
+                self._mine_async(urls, marketplace, custom_selectors or {}, max_successful=max_successful)
             )
             loop.close()
             return result
@@ -544,11 +552,70 @@ class Minerador:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def _extract_urls_from_file(self, file_path: str) -> List[str]:
+        """Extrai apenas a lista de URLs de um arquivo CSV/Excel/TXT.
+        Usado por minerador_page para passar as URLs direto ao mine_from_links.
+        """
+        _STRIP_CHARS = ' "\''
+
+        def _find_url_col(values_2d):
+            for ci in range(len(values_2d[0]) if values_2d else 0):
+                sample = [str(row[ci]) for row in values_2d[:10] if ci < len(row) and row[ci]]
+                if any(v.strip(_STRIP_CHARS).startswith("http") for v in sample):
+                    return ci
+            return None
+
+        try:
+            file_path_str = str(file_path)
+
+            if file_path_str.endswith(".txt"):
+                encodings = ["utf-8", "latin-1", "cp1252", "iso-8859-1"]
+                content_lines = None
+                for enc in encodings:
+                    try:
+                        with open(file_path, "r", encoding=enc) as f:
+                            content_lines = f.readlines()
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                if content_lines is None:
+                    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                        content_lines = f.readlines()
+                lines = [ln.strip() for ln in content_lines if ln.strip()]
+                import csv as _csv
+                if any("," in ln for ln in lines[:5]):
+                    reader = _csv.reader(lines)
+                    rows = list(reader)
+                    data_rows = rows[1:] if len(rows) > 1 else rows
+                    url_col_idx = _find_url_col(data_rows)
+                    if url_col_idx is not None:
+                        return [
+                            r[url_col_idx].strip(_STRIP_CHARS)
+                            for r in data_rows
+                            if url_col_idx < len(r) and r[url_col_idx].strip()
+                        ]
+                    return [r[0].strip(_STRIP_CHARS) for r in data_rows if r and r[0].strip()]
+                return lines
+
+            df = (
+                pd.read_csv(file_path)
+                if file_path_str.endswith(".csv")
+                else pd.read_excel(file_path)
+            )
+            for col in df.columns:
+                sample = df[col].dropna().astype(str).head(10).tolist()
+                if any(v.strip(_STRIP_CHARS).startswith("http") for v in sample):
+                    return df[col].dropna().astype(str).str.strip().tolist()
+            return []
+        except Exception as e:
+            self._log(f"[_extract_urls_from_file] Erro: {e}")
+            return []
+
     def _merge_original_metadata(self, result: Dict, metadata: Dict):
-        """Merge dados originais do arquivo nos resultados da mineração."""
+        """Merge dados originais do arquivo nos resultados + erros da mineração."""
         if not result.get("success") or not metadata:
             return result
-        for res in result.get("results", []):
+        for res in result.get("results", []) + result.get("errors", []):
             url = res.get("url", "")
             if url in metadata:
                 for k, v in metadata[url].items():
@@ -588,6 +655,7 @@ class Minerador:
         urls: List[str],
         marketplace: str,
         custom_selectors: Dict[str, str],
+        max_successful: Optional[int] = None,
     ) -> Dict:
         """Núcleo assíncrono com controle de concorrência."""
         self._semaphore = asyncio.Semaphore(self.max_concurrency)
@@ -595,6 +663,8 @@ class Minerador:
         errors: List[Dict] = []
         total = len(urls)
         self._log(f"🚀 Iniciando extração de {total} links... (marketplace: {marketplace}, concorrência: {self.max_concurrency})")
+        if max_successful is not None:
+            self._log(f"🎯 Meta: {max_successful} preços confirmados (falhas não contam no saldo)")
 
         # Valida e filtra URLs inválidas
         validated_urls = []
@@ -612,10 +682,10 @@ class Minerador:
             return {"success": True, "results": [], "errors": [], "total": 0, "collected": 0}
         total = len(urls)
 
-        # Avisa antes de começar se ScraperAPI não está configurada
-        api_key = self._scraperapi_key or getattr(config, "SCRAPERAPI_KEY", None)
-        if not api_key:
-            self._log("⚠ SCRAPERAPI_KEY não configurada — fallback desativado. Sites com anti-bot podem falhar.")
+        # Verifica proxy externo
+        _k0 = self._p0 or self._net_ref()
+        if not _k0:
+            self._log("⚠ Serviço de proxy não disponível — fallback desativado. Sites com anti-bot podem falhar.")
 
         try:
             from playwright.async_api import async_playwright
@@ -651,25 +721,79 @@ class Minerador:
                 )
                 await context.add_init_script(_STEALTH_SCRIPT)
 
-                tasks = [
-                    self._process_url(context, url, marketplace, custom_selectors)
+                pending_tasks = {
+                    asyncio.create_task(
+                        self._process_url(context, url, marketplace, custom_selectors)
+                    ): url
                     for url in urls
-                ]
+                }
 
                 completed = 0
-                for coro in asyncio.as_completed(tasks):
-                    res = await coro
-                    if res.get("success"):
-                        results.append(res)
-                    else:
-                        errors.append(res)
-                    completed += 1
-                    if self.progress_callback:
-                        self.progress_callback(completed, total, int(completed / total * 100))
-                    preco = res.get("preco", 0)
-                    titulo = res.get("titulo", "?")[:35]
-                    status = "✓" if res.get("success") and preco > 0 else ("⚠" if res.get("success") else "✗")
-                    self._log(f"[{completed}/{total}] {status} R${preco:<8} {titulo}")
+                confirmed = 0
+
+                while pending_tasks and (max_successful is None or confirmed < max_successful):
+                    done, _ = await asyncio.wait(
+                        pending_tasks.keys(),
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for task in done:
+                        url = pending_tasks.pop(task)
+                        try:
+                            res = task.result()
+                        except asyncio.CancelledError:
+                            errors.append({
+                                "url": url,
+                                "success": False,
+                                "error": "Cancelado (meta atingida)",
+                                "titulo": "Não processado",
+                                "preco": 0,
+                                "preco_raw": "",
+                                "disponibilidade": "N/D",
+                                "avaliacao": "N/D",
+                                "marketplace": "N/D",
+                            })
+                            continue
+                        except Exception as e:
+                            errors.append({"url": url, "error": str(e)[:120], "success": False})
+                            completed += 1
+                            self._log(f"[{completed}/{total}] ✗ ERRO: {str(e)[:60]}")
+                            if self.progress_callback:
+                                self.progress_callback(completed, total, int(completed / total * 100))
+                            continue
+
+                        has_price = res.get("success") and res.get("preco", 0) > 0
+                        if has_price:
+                            confirmed += 1
+
+                        if res.get("success"):
+                            results.append(res)
+                        else:
+                            errors.append(res)
+                        completed += 1
+                        if self.progress_callback:
+                            self.progress_callback(completed, total, int(completed / total * 100))
+                        preco = res.get("preco", 0)
+                        titulo = res.get("titulo", "?")[:35]
+                        status = "✓" if has_price else ("⚠" if res.get("success") else "✗")
+                        meta_msg = f" [{confirmed}/{max_successful} confirmados]" if max_successful else ""
+                        self._log(f"[{completed}/{total}]{meta_msg} {status} R${preco:<8} {titulo}")
+
+                    if max_successful is not None and confirmed >= max_successful and pending_tasks:
+                        self._log(f"🎯 Meta de {max_successful} preços confirmados atingida! Cancelando {len(pending_tasks)} tarefas restantes...")
+                        for task, url in pending_tasks.items():
+                            task.cancel()
+                            errors.append({
+                                "url": url,
+                                "success": False,
+                                "error": "Cancelado (meta atingida)",
+                                "titulo": "Não processado",
+                                "preco": 0,
+                                "preco_raw": "",
+                                "disponibilidade": "N/D",
+                                "avaliacao": "N/D",
+                                "marketplace": "N/D",
+                            })
+                        pending_tasks.clear()
 
                 await browser.close()
 
@@ -727,25 +851,28 @@ class Minerador:
                         "Referer": "https://www.google.com/",
                     })
 
-                    navigate_timeout = 60_000 if marketplace in ("shopee", "magalu") else 45_000
+                    # domcontentloaded é suficiente para extrair preço — networkidle
+                    # esperava pixels/analytics/ads terminarem (até 45 s desnecessários)
+                    navigate_timeout = 25_000 if marketplace in ("shopee", "magalu") else 18_000
                     try:
-                        await page.goto(url, wait_until="networkidle", timeout=navigate_timeout)
+                        await page.goto(url, wait_until="domcontentloaded", timeout=navigate_timeout)
                     except Exception:
-                        self._log(f"  ⚠ [tentativa {attempt}] networkidle timeout, tentando domcontentloaded...")
-                        try:
-                            await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-                        except Exception:
-                            self._log(f"  ⚠ [tentativa {attempt}] domcontentloaded também falhou, aguardando load...")
-                            await page.goto(url, wait_until="load", timeout=30_000)
+                        self._log(f"  ⚠ [tentativa {attempt}] domcontentloaded timeout, aguardando load...")
+                        await page.goto(url, wait_until="load", timeout=15_000)
 
-                    # Aguarda JS renderizar após navegação
-                    wait_time = random.randint(2500, 4000) if marketplace in ("shopee", "magalu") else random.randint(1500, 3000)
+                    # Espera mínima para JS inicial renderizar
+                    wait_time = random.randint(1200, 2000) if marketplace in ("shopee", "magalu") else random.randint(600, 1200)
                     await page.wait_for_timeout(wait_time)
-                    await self._organic_scroll(page)
-                    # Pausa extra para SPAs carregarem dados assíncronos
-                    await page.wait_for_timeout(random.randint(1000, 2000))
 
+                    # Tenta extração rápida primeiro (JSON-LD/meta não precisam de scroll)
                     data = await self._extract_data(page, marketplace, custom_selectors)
+                    has_price_fast = data.get("preco", 0) > 0
+
+                    if not has_price_fast:
+                        # Scroll só se extração rápida falhou (lazy-load de preço)
+                        await self._organic_scroll(page)
+                        await page.wait_for_timeout(random.randint(400, 800))
+                        data = await self._extract_data(page, marketplace, custom_selectors)
                     data["url"] = url
                     data["coletado_em"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     data["success"] = True
@@ -763,7 +890,7 @@ class Minerador:
 
                     if attempt < self.max_retries:
                         self._log(f"  ⚠ [tentativa {attempt}/{self.max_retries}] preço={has_price} título='{title_text[:40]}' → aguardando e tentando novamente...")
-                        await page.wait_for_timeout(random.randint(2000, 4000))
+                        await page.wait_for_timeout(random.randint(800, 1500))
                         continue
 
                     # Esgotou retries — tenta ScraperAPI
@@ -774,7 +901,7 @@ class Minerador:
                     err_msg = str(e)[:120]
                     self._log(f"  ⚠ Exceção Playwright [tentativa {attempt}]: {err_msg}")
                     if attempt < self.max_retries:
-                        await asyncio.sleep(random.uniform(1.5, 3.0))
+                        await asyncio.sleep(random.uniform(0.5, 1.2))
                         continue
                     self._log(f"  ⚠ Esgotou tentativas com erro → tentando ScraperAPI...")
                     break
@@ -790,7 +917,7 @@ class Minerador:
                 page = None
 
             # ── Fallback ScraperAPI ───────────────────────────────────────────
-            fallback = self._fallback_scraperapi(url, marketplace, custom_selectors)
+            fallback = self._ext_fetch(url, marketplace, custom_selectors)
             if fallback:
                 fb_price = fallback.get("preco", 0)
                 fb_title = fallback.get("titulo", "")
@@ -1012,31 +1139,30 @@ class Minerador:
         }
 
     async def _organic_scroll(self, page):
-        """Simula scroll humano não-linear com pausas aleatórias."""
+        """Scroll mínimo para revelar preços lazy-loaded (só chamado quando necessário)."""
         try:
-            scroll_steps = random.randint(2, 5)
+            scroll_steps = random.randint(2, 3)
             for _ in range(scroll_steps):
-                delta = random.randint(200, 600)
+                delta = random.randint(300, 700)
                 await page.mouse.wheel(0, delta)
-                await page.wait_for_timeout(random.randint(300, 900))
-            # Pausa extra antes de coletar dados
-            await page.wait_for_timeout(random.randint(800, 2000))
+                await page.wait_for_timeout(random.randint(150, 350))
+            await page.wait_for_timeout(random.randint(300, 600))
         except Exception:
             pass
 
     # ─────────────────────────────────────────────────────────────────────────
-    # FALLBACK VIA SCRAPERAPI
+    # FETCH EXTERNO
     # ─────────────────────────────────────────────────────────────────────────
-    def _fallback_scraperapi(
+    def _ext_fetch(
         self,
         url: str,
         marketplace: str,
         custom_selectors: Dict[str, str],
     ) -> Optional[Dict]:
-        """Fallback síncrono via ScraperAPI quando Playwright falha."""
-        api_key = self._scraperapi_key or getattr(config, "SCRAPERAPI_KEY", None)
-        if not api_key:
-            self._log("  ✗ SCRAPERAPI_KEY não configurada no .env — fallback desativado")
+        """Fallback síncrono via serviço externo quando Playwright falha."""
+        _k0 = self._p0 or self._net_ref()
+        if not _k0:
+            self._log("  ✗ Serviço de proxy não configurado — fallback desativado")
             return None
 
         try:
@@ -1044,13 +1170,14 @@ class Minerador:
             from bs4 import BeautifulSoup
             import json
 
-            api_url = f"http://api.scraperapi.com/?api_key={api_key}&url={url}&render=true"
-            resp = requests.get(api_url, timeout=60)
+            _u = f"http://api.scraperapi.com/?api_key={_k0}&url={url}&render=true"
+            resp = requests.get(_u, timeout=60)
             if resp.status_code == 401:
-                self._log(f"  ✗ ScraperAPI: chave inválida ou expirada (HTTP 401). Verifique SCRAPERAPI_KEY no .env")
+                self._log(f"  ✗ Proxy retornou HTTP 401 para {url[:120]} — credencial inválida")
                 return None
             if resp.status_code != 200:
-                self._log(f"  ✗ ScraperAPI retornou HTTP {resp.status_code} para {url[:120]}")
+                self._log(f"  ✗ Proxy retornou HTTP {resp.status_code} para {url[:120]}")
+                return None
                 return None
 
             soup = BeautifulSoup(resp.text, "html.parser")

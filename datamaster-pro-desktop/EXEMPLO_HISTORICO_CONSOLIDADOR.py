@@ -178,5 +178,5 @@ Após integração, o usuário pode:
 
 Histórico é salvo automaticamente em: .execution_history/consolidador/
 
-TEMPLATE REUTILIZÁVEL PARA TODAS AS 13 FERRAMENTAS!
+TEMPLATE REUTILIZÁVEL PARA TODAS AS 15 ferramentas!
 """

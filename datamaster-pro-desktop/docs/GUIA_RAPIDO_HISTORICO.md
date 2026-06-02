@@ -270,7 +270,7 @@ R: Nenhum limite, mas está em JSON. Para muita data, considere arquivar.
 
 ## Próximas Implementações
 
-1. Integrar com as 13 ferramentas
+1. Integrar com as 15 ferramentas
 2. Testar modal com histórico real
 3. Testar download de arquivos
 4. Adicionar filtros no histórico

@@ -12,30 +12,26 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.extrator_reviews.extrator_reviews_v2 import ExtratorReviews
 from src.gui.components.result_viewer_modal import ResultViewerButton
-from src.utils.task_helper import TaskHelper
 from src.gui.helpers.execution_helper import ExecutionHelper
-from src.core.tasks.global_executor import global_executor
+from src.core.tasks.task_executor import task_executor
 
 
 
 class ExtratorReviewsPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
         self.extrator = ExtratorReviews(
-            api_key=config.SCRAPERAPI_KEY,
+            _p0=config._r1(),
             progress_callback=self._update_progress,
             log_callback=self._log_from_thread
         )
         self.execution = ExecutionHelper("extrator_reviews", "Extrator de Reviews", user_id)
         super().__init__(master, "extrator_reviews", "Extrator de Reviews", on_back, execution_tracker, user_id)
         self._check_task_state()
-        self.task_helper = TaskHelper("extrator_reviews")
         self.urls = []
         self._last_result_text = ""
 
     def _check_task_state(self):
-        from src.core.storage.storage_manager import StorageManager
-        storage = StorageManager()
-        last_task = storage.get_last_task_by_tool("extrator_reviews")
+        last_task = self._tool_service.get_last_task_by_tool("extrator_reviews")
         
         if not last_task:
             return
@@ -167,22 +163,15 @@ class ExtratorReviewsPage(ToolPage):
         self.viewer_btn.pack(pady=(0, 15))
 
     def _run_analysis(self):
-        task_id, error = self.task_helper.start_task({})
-        if error:
-            messagebox.showwarning("Aviso", error)
-            return
-
         text = self.text_area.get("1.0", "end").strip()
         if not text:
             messagebox.showwarning("Aviso", "Por favor, insira pelo menos uma URL de produto")
-            self.task_helper.cancel()
             return
 
         self.urls = [line.strip() for line in text.split('\n') if line.strip()]
 
         if not self.urls:
             messagebox.showwarning("Aviso", "Nenhuma URL válida encontrada")
-            self.task_helper.cancel()
             return
 
         from src.tools.minerador.minerador_v2 import validate_url
@@ -194,7 +183,6 @@ class ExtratorReviewsPage(ToolPage):
             messagebox.showwarning("URLs Inválidas", msg)
         self.urls = [u for u in self.urls if validate_url(u)]
         if not self.urls:
-            self.task_helper.cancel()
             return
 
         self.action_btn.configure(state="disabled")
@@ -211,7 +199,7 @@ class ExtratorReviewsPage(ToolPage):
             return result
         def on_complete(result):
             self.after(0, lambda: self._show_results(result))
-        global_executor.submit(
+        task_executor.submit(
             execute_func=execute_func,
             on_complete=on_complete,
             tool_name="extrator_reviews",
@@ -294,5 +282,3 @@ Analisados com sucesso: {result.get('analyzed', 0)}
                 self.progress_label.configure(text=f"Analisando... {value}%")
         except Exception:
             pass
-        self.task_helper.update_progress(value, 100, value)
-        self.task_helper.add_log(f"Analisando... {value}%")

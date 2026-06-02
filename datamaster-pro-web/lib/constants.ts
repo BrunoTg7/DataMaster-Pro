@@ -46,7 +46,7 @@ export const TOOLS = [
     icon: 'scan',
     minPlan: 'free',
     features: ['Extração Automática', 'Reconhecimento de Imagem', 'Exportação Estruturada'],
-    status: 'Atualização 1.5'
+    status: 'Atualização 2.0'
   },
   {
     id: 'validador',
@@ -73,7 +73,7 @@ export const TOOLS = [
     icon: 'calculator',
     minPlan: 'free',
     features: ['Taxas de Marketplace', 'Cálculo de Impostos', 'Margem Líquida'],
-    status: 'Atualização 1.5'
+    status: 'Atualização 2.0'
   },
   {
     id: 'comissoes',
@@ -91,7 +91,7 @@ export const TOOLS = [
     icon: 'wand2',
     minPlan: 'pro',
     features: ['Padronização', 'Remoção de Anomalias', 'Limpeza Inteligente'],
-    status: 'Atualização 1.5'
+    status: 'Atualização 2.0'
   },
   {
     id: 'reviews',
@@ -109,7 +109,25 @@ export const TOOLS = [
     icon: 'clipboard-list',
     minPlan: 'pro',
     features: ['Templates Customizáveis', 'Geração em Lote', 'Exportação PDF'],
-    status: 'Atualização 1.5'
+    status: 'Atualização 2.0'
+  },
+  {
+    id: 'classificador_ncm',
+    name: 'Classificador NCM',
+    description: 'Classifica produtos com códigos NCM e CEST corretos via fuzzy matching.',
+    icon: 'tag',
+    minPlan: 'pro',
+    features: ['Fuzzy Matching NCM/CEST', 'Planilha em Massa', 'Sugestão Automática'],
+    status: 'Atualização 2.0'
+  },
+  {
+    id: 'precificador_canal',
+    name: 'Precificador de Canal',
+    description: 'Calcula preços por marketplace (ML, Shopee, Amazon, Magalu) garantindo margem líquida.',
+    icon: 'calculator',
+    minPlan: 'pro',
+    features: ['Simulador Impostos', 'Cálculo Reverso', 'Margem Líquida'],
+    status: 'Atualização 2.0'
   }
 ] as const
 

@@ -8,6 +8,7 @@ import re
 import random
 import os
 import sys
+import requests
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
@@ -63,6 +64,36 @@ class ValidadorLinks:
         if self.log_callback:
             self.log_callback(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
 
+    async def _quick_head_check(self, url: str) -> Optional[Dict]:
+        """HEAD request rápido antes de instanciar o navegador.
+        Retorna dict com status se for conclusivo (erro 4xx/5xx), None se precisar do Playwright."""
+        try:
+            def _sync_head():
+                try:
+                    resp = requests.head(url, timeout=10, allow_redirects=True,
+                                         headers={"User-Agent": "Mozilla/5.0"})
+                    return resp.status_code
+                except requests.ConnectionError:
+                    return -1
+                except requests.Timeout:
+                    return -2
+                except Exception:
+                    return -3
+
+            status = await asyncio.to_thread(_sync_head)
+
+            if status == -1:
+                return {"status_type": "broken", "message": "DNS ou conexão recusada (HEAD)"}
+            if status == -2:
+                return {"status_type": "broken", "message": "Timeout no HEAD preliminar"}
+            if status >= 400:
+                if status in (403, 429):
+                    return {"status_type": "restricted", "message": f"Acesso negado (Status {status})"}
+                return {"status_type": "broken", "message": f"Erro HTTP {status} (HEAD)"}
+        except Exception:
+            pass
+        return None
+
     async def _init_browser(self):
         """Inicializa o navegador com configurações anti-bot"""
         from playwright.async_api import async_playwright
@@ -94,13 +125,19 @@ class ValidadorLinks:
         result = {
             "url": url,
             "status_code": 0,
-            "status_type": "unknown", 
+            "status_type": "unknown",
             "title": "N/A",
             "is_product": False,
             "available": False,
             "message": "",
             "response_time": 0
         }
+
+        # HEAD check rápido — evita abrir navegador para links quebrados
+        head_result = await self._quick_head_check(url)
+        if head_result:
+            result.update(head_result)
+            return result
 
         async with self.semaphore:
             page = None

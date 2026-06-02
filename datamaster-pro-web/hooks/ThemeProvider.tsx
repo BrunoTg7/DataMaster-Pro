@@ -18,9 +18,7 @@ export function useThemeContext() {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  console.log('[ThemeProvider] Renderizando...')
   const themeValues = useTheme()
-  console.log('[ThemeProvider] Theme values:', themeValues)
   
   return (
     <ThemeContext.Provider value={themeValues}>

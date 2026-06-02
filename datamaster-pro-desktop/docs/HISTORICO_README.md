@@ -46,7 +46,7 @@
    - Estrutura JSON
 
 9. **`MAPA_INTEGRACAO_HISTORICO.md`**
-   - Instruções para cada uma das 13 ferramentas
+   - Instruções para cada uma das 15 ferramentas
    - Template genérico
    - Checklist
 
@@ -272,7 +272,7 @@ Após integração em uma ferramenta, verificar:
 
 Restam:
 
-- Integrar nas 13 ferramentas (segue template simples)
+- Integrar nas 15 ferramentas (segue template simples)
 - Testar com dados reais
 - Validar UX com usuários
 

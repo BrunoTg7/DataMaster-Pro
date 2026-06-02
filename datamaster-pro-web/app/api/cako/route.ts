@@ -2,16 +2,19 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
   try {
-    const authHeader = request.headers.get('authorization') || request.headers.get('x-cakto-signature')
     const expectedSecret = process.env.CAKTO_WEBHOOK_SECRET
 
-    if (expectedSecret && authHeader !== expectedSecret && authHeader !== `Bearer ${expectedSecret}`) {
-      console.warn('Webhook Unauthorized: Invalid signature')
+    if (!expectedSecret || expectedSecret === 'your-webhook-secret') {
+      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+    }
+
+    const authHeader = request.headers.get('authorization') || request.headers.get('x-cakto-signature')
+
+    if (authHeader !== expectedSecret && authHeader !== `Bearer ${expectedSecret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const payload = await request.json()
-    console.log('Cakto webhook received:', JSON.stringify(payload))
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -44,13 +47,12 @@ export async function POST(request: Request) {
 
     const { data: userData, error: userError } = await supabase
       .from('usuarios')
-      .select('id, email, plano_tipo')
+      .select('id')
       .eq('email', email)
       .single()
 
     if (userError || !userData) {
-      console.log(`User not found for email: ${email}`)
-      return NextResponse.json({ message: 'User not found', email }, { status: 200 })
+      return NextResponse.json({ message: 'Processed' }, { status: 200 })
     }
 
     let planType = 'gratis'
@@ -79,8 +81,7 @@ export async function POST(request: Request) {
       .eq('id', userData.id)
 
     if (updateError) {
-      console.error('Error updating user plan:', updateError)
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 
     await supabase
@@ -95,10 +96,9 @@ export async function POST(request: Request) {
         metadata: JSON.stringify(payload.data || {})
       })
 
-    return NextResponse.json({ success: true, user_id: userData.id, plan: planType }, { status: 200 })
+    return NextResponse.json({ message: 'Processed' }, { status: 200 })
 
-  } catch (error: any) {
-    console.error('Error processing webhook:', error)
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 })
+  } catch {
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }

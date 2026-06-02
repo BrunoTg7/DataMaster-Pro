@@ -1,27 +1,27 @@
 'use client'
 
+import { TOOLS } from '@/lib/constants'
+import { supabase } from '@/lib/supabase/client'
 import { motion } from 'framer-motion'
 import {
-  GitMerge,
-  Tags,
-  FileText,
-  Globe,
-  CheckCircle,
-  Lock,
   ArrowUpRight,
-  Scan,
-  Link as LinkIcon,
-  LineChart,
   Calculator,
-  Percent,
-  Wand2,
+  CheckCircle,
+  ClipboardList,
+  FileText,
+  GitMerge,
+  Globe,
+  LineChart,
+  Link as LinkIcon,
+  Lock,
   MessageSquare,
-  ClipboardList
+  Percent,
+  Scan,
+  Tags,
+  Wand2
 } from 'lucide-react'
-import { TOOLS } from '@/lib/constants'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase/client'
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   'git-merge': GitMerge,
@@ -43,9 +43,9 @@ export function ToolsSection() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setIsLoggedIn(!!data.session)
-    })
+    supabase.auth.getSession().then(({ data, error }) => {
+      setIsLoggedIn(!error && !!data.session)
+    }).catch(() => setIsLoggedIn(false))
   }, [])
 
   return (
@@ -73,7 +73,7 @@ export function ToolsSection() {
             </span>
           </h2>
           <p className="text-lg text-surface-600 max-w-2xl mx-auto leading-relaxed">
-            5/13 ferramentas poderosas já disponíveis que transformam horas de trabalho manual em minutos de automação.
+            5/15 ferramentas poderosas já disponíveis que transformam horas de trabalho manual em minutos de automação.
           </p>
         </motion.div>
 

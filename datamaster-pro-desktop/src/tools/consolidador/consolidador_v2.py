@@ -3,12 +3,16 @@ Consolidador v3.0 Pro - Otimizado para máxima eficiência, multi-formato e visu
 Une múltiplas planilhas em estrutura única com performance extrema e estética de ponta.
 Suporta XLSX, XLS, CSV, TXT (delimitado por tabulação) e JSON.
 """
+import logging
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Iterator
 from pathlib import Path
 from datetime import datetime
 import os
+import itertools
+
+log = logging.getLogger(__name__)
 
 # Imports openpyxl para formatação avançada
 from openpyxl import Workbook
@@ -16,11 +20,36 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 
+MAX_PREMIUM_ROWS = 50_000
+
 
 class Consolidador:
     """Motor profissional de consolidação de arquivos de dados de qualquer área"""
     
     FORMATS = {".xlsx", ".xls", ".csv", ".txt", ".json"}
+
+    CHUNK_SIZE = 10_000
+
+    def _read_excel_chunked(self, path: Path, sheet_name: str) -> Iterator[pd.DataFrame]:
+        """Lê uma planilha Excel em chunks usando openpyxl read_only, reduzindo pico de memória."""
+        import openpyxl
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        try:
+            ws = wb[sheet_name]
+        except KeyError:
+            wb.close()
+            return
+
+        rows_iter = ws.iter_rows(values_only=True)
+        headers = [str(c) if c is not None else "" for c in next(rows_iter)]
+
+        while True:
+            chunk = list(itertools.islice(rows_iter, self.CHUNK_SIZE))
+            if not chunk:
+                break
+            df = pd.DataFrame(chunk, columns=headers)
+            yield df
+        wb.close()
     
     # Paletas de cores elegantes para exportação profissional do Excel
     THEMES = {
@@ -91,8 +120,10 @@ class Consolidador:
             {success: bool, total_rows: int, total_files: int, output_path: str, error?: str}
         """
         if not input_files:
+            log.error("Nenhum arquivo de entrada selecionado.")
             return {"success": False, "error": "Nenhum arquivo de entrada selecionado."}
         
+        log.info("Iniciando consolidação de %d arquivo(s)...", len(input_files))
         dataframes = []
         rows_added = 0
         file_diagnostics = []
@@ -187,7 +218,9 @@ class Consolidador:
                     df["_source_file"] = path.name
                     
                     # Harmonização de tipos
+                    antes = len(df)
                     df = self._clean_and_harmonize(df)
+                    log.info("  %s -> %d linhas, %d colunas", path.name, len(df), len(df.columns))
                     
                     dataframes.append(df)
                     rows_added += len(df)
@@ -199,10 +232,13 @@ class Consolidador:
                 })
                 
             except Exception as e:
+                import traceback
+                log.error("  %s: %s", path.name, e, exc_info=True)
                 file_diagnostics.append({"file": path.name, "status": "Erro", "details": str(e)})
                 continue
         
         if not dataframes:
+            log.error("Nenhum dado válido pôde ser lido dos arquivos fornecidos.")
             return {"success": False, "error": "Nenhum dado válido pôde ser lido dos arquivos fornecidos."}
         
         try:
@@ -226,6 +262,7 @@ class Consolidador:
                     
             elif merge_strategy == "join":
                 if not join_key:
+                    log.error("Coluna chave (Join Key) não informada.")
                     return {"success": False, "error": "A coluna chave (Join Key) deve ser informada para cruzar planilhas."}
                 
                 # Verificar se a chave existe no primeiro dataframe
@@ -235,6 +272,7 @@ class Consolidador:
                 if join_key in result.columns:
                     result[join_key] = result[join_key].astype(str).str.strip().str.lower()
                 else:
+                    log.error("Coluna chave '%s' não encontrada no primeiro arquivo.", join_key)
                     return {"success": False, "error": f"Coluna chave '{join_key}' não encontrada no primeiro arquivo."}
                 
                 for idx, next_df in enumerate(dataframes[1:], start=1):
@@ -272,9 +310,30 @@ class Consolidador:
                 result = result.drop_duplicates(subset=subset_cols)
                 duplicates_removed = initial_rows - len(result)
             
-            # 3. Exportar usando openpyxl com Formatação Comercial Premium (WOW Factor)
-            self._save_premium_excel(result, output_path, visual_theme, file_diagnostics, duplicates_removed)
+            # 3. Ordenar por colunas de data (se houver)
+            date_cols = [c for c in result.columns
+                         if c not in {"_source_file", "_source_sheet"}
+                         and pd.api.types.is_datetime64_any_dtype(result[c])]
+            if date_cols:
+                log.debug("Ordenando por coluna de data: '%s'", date_cols[0])
+                result = result.sort_values(by=date_cols[0], na_position='first').reset_index(drop=True)
+            else:
+                log.debug("Nenhuma coluna de data detectada para ordenação")
             
+            # 4. Exportar usando openpyxl com Formatação Comercial Premium (WOW Factor)
+            try:
+                if len(result) > MAX_PREMIUM_ROWS:
+                    log.warning("Planilha grande (%d linhas). Usando modo otimizado para evitar OOM.", len(result))
+                self._save_premium_excel(result, output_path, visual_theme, file_diagnostics, duplicates_removed)
+            except PermissionError:
+                base, ext = os.path.splitext(output_path)
+                import time
+                alt_path = f"{base}_{int(time.time())}{ext}"
+                log.warning("Arquivo ocupado, salvando como: %s", os.path.basename(alt_path))
+                self._save_premium_excel(result, alt_path, visual_theme, file_diagnostics, duplicates_removed)
+                output_path = alt_path
+            
+            log.info("Concluído: %d registros em %d arquivo(s) -> %s", len(result), len(dataframes), output_path)
             return {
                 "success": True,
                 "total_rows": len(result),
@@ -284,6 +343,7 @@ class Consolidador:
             }
             
         except Exception as e:
+            log.error("Erro: %s", e)
             return {"success": False, "error": f"Erro na consolidação de dados: {str(e)}"}
             
     def preview(self, file_path: str, rows: int = 5) -> Optional[pd.DataFrame]:
@@ -317,15 +377,22 @@ class Consolidador:
             return None
 
         
+    def _is_string_col(self, series: pd.Series) -> bool:
+        """Retorna True se a coluna for de texto (object ou StringDtype)"""
+        return series.dtype == 'object' or pd.api.types.is_string_dtype(series)
+
     def _clean_and_harmonize(self, df: pd.DataFrame) -> pd.DataFrame:
         """Limpa dados inconsistentes e harmoniza tipos comuns (moeda, data, número)"""
         df = df.copy()
         for col in df.columns:
             if col in {"_source_file", "_source_sheet"}:
                 continue
+            
+            col_lower = col.lower()
+            col_is_date_name = any(kw in col_lower for kw in ["data", "date", "dt_", "venc", "emissao", "criacao", "atualizacao", "competencia", "periodo", "mes", "ano"])
                 
             # Converter colunas textuais que representam dinheiro ou números com vírgula
-            if df[col].dtype == 'object':
+            if self._is_string_col(df[col]):
                 sample = df[col].dropna().head(50).astype(str)
                 if sample.empty:
                     continue
@@ -358,17 +425,63 @@ class Consolidador:
                         pass
             
             # Converter datas
-            if df[col].dtype == 'object':
+            if self._is_string_col(df[col]):
                 sample = df[col].dropna().head(20).astype(str)
                 if not sample.empty:
-                    # Checar padrão comum de data (DD/MM/AAAA ou AAAA-MM-DD)
-                    date_pat = r'^\d{1,4}[-/]\d{1,2}[-/]\d{1,4}'
-                    date_match_count = sum(1 for val in sample if pd.Series([val]).str.match(date_pat).iloc[0])
                     
-                    if date_match_count / len(sample) >= 0.7:
+                    # Checar padrões comuns de data
+                    date_pat = r'^\d{1,4}[-/]\d{1,2}[-/]\d{1,4}'         # 10/01/2004 ou 2004-01-10
+                    date_pt_pat = r'^\d{1,2}[-/](Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[-/]\d{4}'  # 10/jan/2005
+                    date_mon_dd = r'^(Jan|Fev|Mar|Abr|Mai|Jun|Jul|Ago|Set|Out|Nov|Dez)[-/]\d{1,2}$'          # jan/10
+                    date_dd_mm = r'^\d{1,2}[-/]\d{1,2}$'                  # 10/01 (sem ano)
+                    
+                    date_match_count = sum(
+                        1 for val in sample
+                        if pd.Series([val]).str.match(date_pat).iloc[0]
+                        or pd.Series([val]).str.match(date_pt_pat, case=False).iloc[0]
+                        or pd.Series([val]).str.match(date_mon_dd, case=False).iloc[0]
+                        or pd.Series([val]).str.match(date_dd_mm).iloc[0]
+                    )
+                    
+                    threshold = 0.5 if col_is_date_name else 0.7
+                    ratio = date_match_count / len(sample)
+                    
+                    if ratio >= threshold:
+                        log.debug("Coluna '%s' detectada como data (match=%.0f%%, threshold=%.0f%%)", col, ratio * 100, threshold * 100)
                         try:
-                            # Forçar conversão limpa de data
-                            df[col] = pd.to_datetime(df[col], errors='coerce', dayfirst=True)
+                            MESES_PT = {
+                                "jan":1,"fev":2,"mar":3,"abr":4,"mai":5,"jun":6,
+                                "jul":7,"ago":8,"set":9,"out":10,"nov":11,"dez":12
+                            }
+                            now = datetime.now()
+                            def parse_pt_date(val):
+                                if pd.isna(val):
+                                    return pd.NaT
+                                s = str(val).strip()
+                                import re
+                                # DD/Mes/AAAA
+                                m = re.match(r'^(\d{1,2})[-/]([A-Za-z]{3})[-/](\d{4})$', s, re.I)
+                                if m:
+                                    dia, mes_str, ano = m.group(1), m.group(2).lower(), m.group(3)
+                                    mes = MESES_PT.get(mes_str)
+                                    if mes:
+                                        return datetime(int(ano), mes, int(dia))
+                                # Mes/DD (sem ano)
+                                m = re.match(r'^([A-Za-z]{3})[-/](\d{1,2})$', s, re.I)
+                                if m:
+                                    mes_str, dia = m.group(1).lower(), m.group(2)
+                                    mes = MESES_PT.get(mes_str)
+                                    if mes:
+                                        return datetime(now.year, mes, int(dia))
+                                # DD/MM (sem ano)
+                                m = re.match(r'^(\d{1,2})[-/](\d{1,2})$', s)
+                                if m:
+                                    return datetime(now.year, int(m.group(2)), int(m.group(1)))
+                                try:
+                                    return pd.to_datetime(s, dayfirst=True, errors='coerce')
+                                except Exception:
+                                    return pd.NaT
+                            df[col] = pd.to_datetime(df[col].apply(parse_pt_date), errors='coerce')
                         except Exception:
                             pass
         return df
@@ -417,188 +530,211 @@ class Consolidador:
         return aligned_dfs
 
     def _save_premium_excel(
-        self, 
-        df: pd.DataFrame, 
-        output_path: str, 
-        theme_name: str, 
+        self,
+        df: pd.DataFrame,
+        output_path: str,
+        theme_name: str,
         diagnostics: List[Dict],
         duplicates_removed: int
     ):
         """Salva a planilha aplicando uma estética visual de ponta e painel de diagnóstico"""
         theme = self.THEMES.get(theme_name, self.THEMES["classic_blue"])
-        wb = Workbook()
-        
-        # ----------------- ABA 1: RESUMO DA CONSOLIDAÇÃO -----------------
-        ws_resumo = wb.active
-        ws_resumo.title = "📊 Resumo"
-        ws_resumo.views.sheetView[0].showGridLines = True
-        
-        # Fontes e Cores do Resumo
-        title_font = Font(name="Segoe UI", size=16, bold=True, color="FFFFFF")
-        section_font = Font(name="Segoe UI", size=12, bold=True, color=theme["header_fill"])
+
+        use_write_only = len(df) > MAX_PREMIUM_ROWS
+        wb = Workbook(write_only=use_write_only)
+
+        # Fontes e Cores
         header_font = Font(name="Segoe UI", size=10, bold=True, color=theme["header_font_color"])
-        bold_font = Font(name="Segoe UI", size=10, bold=True)
         regular_font = Font(name="Segoe UI", size=10)
-        
+        bold_font = Font(name="Segoe UI", size=10, bold=True)
+        section_font = Font(name="Segoe UI", size=12, bold=True, color=theme["header_fill"])
+        title_font = Font(name="Segoe UI", size=16, bold=True, color="FFFFFF")
+
         header_fill = PatternFill(start_color=theme["header_fill"], end_color=theme["header_fill"], fill_type="solid")
         accent_fill = PatternFill(start_color=theme["accent_fill"], end_color=theme["accent_fill"], fill_type="solid")
         zebra_fill = PatternFill(start_color=theme["zebra_fill"], end_color=theme["zebra_fill"], fill_type="solid")
         white_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
-        
+
         thin_border = Border(
             left=Side(style='thin', color=theme["border_color"]),
             right=Side(style='thin', color=theme["border_color"]),
             top=Side(style='thin', color=theme["border_color"]),
             bottom=Side(style='thin', color=theme["border_color"])
         )
-        
-        # Cabeçalho Principal do Resumo
-        ws_resumo.merge_cells("A1:D2")
-        title_cell = ws_resumo["A1"]
-        title_cell.value = "  RELATÓRIO DE CONSOLIDAÇÃO PREMIUM"
-        title_cell.font = title_font
-        title_cell.fill = header_fill
-        title_cell.alignment = Alignment(vertical="center", horizontal="left")
-        
-        # Preencher fundo das células mescladas para consistência de cor
-        for row in range(1, 3):
-            for col in range(1, 5):
-                ws_resumo.cell(row=row, column=col).fill = header_fill
-                
-        # Sessão 1: Informações Gerais
-        ws_resumo["A4"] = "Estatísticas Gerais"
-        ws_resumo["A4"].font = section_font
-        
-        stats = [
-            ("Data da Execução", datetime.now().strftime("%d/%m/%Y %H:%M:%S")),
-            ("Arquivos Processados", len([d for d in diagnostics if d["status"] == "Sucesso"])),
-            ("Total de Registros Consolidados", len(df)),
-            ("Total de Colunas Estruturadas", len([c for c in df.columns if c not in {"_source_file", "_source_sheet"}])),
-            ("Duplicatas Removidas", duplicates_removed),
-            ("Estilo Visual Aplicado", theme_name.replace("_", " ").title())
-        ]
-        
-        row_idx = 5
-        for key, val in stats:
-            ws_resumo.cell(row=row_idx, column=1, value=key).font = bold_font
-            ws_resumo.cell(row=row_idx, column=1).border = thin_border
-            ws_resumo.cell(row=row_idx, column=1).fill = zebra_fill
-            
-            ws_resumo.cell(row=row_idx, column=2, value=val).font = regular_font
-            ws_resumo.cell(row=row_idx, column=2).border = thin_border
-            ws_resumo.cell(row=row_idx, column=2).fill = white_fill
-            row_idx += 1
-            
-        # Sessão 2: Diagnóstico por Arquivo
-        ws_resumo.cell(row=row_idx+1, column=1, value="Histórico de Importação").font = section_font
-        
-        headers_diag = ["Nome do Arquivo", "Status", "Informação / Log"]
-        diag_row = row_idx + 2
-        
-        for col_idx, h in enumerate(headers_diag, start=1):
-            cell = ws_resumo.cell(row=diag_row, column=col_idx, value=h)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = Alignment(horizontal="center")
-            cell.border = thin_border
-            
-        ws_resumo.merge_cells(start_row=diag_row, start_column=3, end_row=diag_row, end_column=4)
-        
-        diag_row += 1
-        for item in diagnostics:
-            ws_resumo.cell(row=diag_row, column=1, value=item["file"]).font = regular_font
-            ws_resumo.cell(row=diag_row, column=1).border = thin_border
-            
-            status_cell = ws_resumo.cell(row=diag_row, column=2, value=item["status"])
-            status_cell.font = bold_font
-            status_cell.alignment = Alignment(horizontal="center")
-            status_cell.border = thin_border
-            
-            # Cores de status
-            if item["status"] == "Sucesso":
-                status_cell.fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid") # Verde Claro
-            else:
-                status_cell.fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid") # Vermelho/Laranja Claro
-                
-            ws_resumo.cell(row=diag_row, column=3, value=item["details"]).font = regular_font
-            ws_resumo.cell(row=diag_row, column=3).border = thin_border
+
+        # ----------------- ABA 1: RESUMO DA CONSOLIDAÇÃO -----------------
+        if use_write_only:
+            ws_resumo = wb.create_sheet(title="📊 Resumo")
+            ws_resumo.append(["RELATÓRIO DE CONSOLIDAÇÃO PREMIUM"])
+            ws_resumo.append([""])
+            ws_resumo.append([f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"])
+            ws_resumo.append([f"Arquivos: {len([d for d in diagnostics if d['status'] == 'Sucesso'])}"])
+            ws_resumo.append([f"Registros: {len(df)}"])
+            ws_resumo.append([f"Duplicatas removidas: {duplicates_removed}"])
+            ws_resumo.append([""])
+            ws_resumo.append(["⚠ Modo otimizado: formatação reduzida para grandes volumes"])
+        else:
+            ws_resumo = wb.active
+            ws_resumo.title = "📊 Resumo"
+            ws_resumo.views.sheetView[0].showGridLines = True
+
+            # Cabeçalho Principal do Resumo
+            ws_resumo.merge_cells("A1:D2")
+            title_cell = ws_resumo["A1"]
+            title_cell.value = "  RELATÓRIO DE CONSOLIDAÇÃO PREMIUM"
+            title_cell.font = title_font
+            title_cell.fill = header_fill
+            title_cell.alignment = Alignment(vertical="center", horizontal="left")
+
+            for row in range(1, 3):
+                for col in range(1, 5):
+                    ws_resumo.cell(row=row, column=col).fill = header_fill
+
+            ws_resumo["A4"] = "Estatísticas Gerais"
+            ws_resumo["A4"].font = section_font
+
+            stats = [
+                ("Data da Execução", datetime.now().strftime("%d/%m/%Y %H:%M:%S")),
+                ("Arquivos Processados", len([d for d in diagnostics if d["status"] == "Sucesso"])),
+                ("Total de Registros Consolidados", len(df)),
+                ("Total de Colunas Estruturadas", len([c for c in df.columns if c not in {"_source_file", "_source_sheet"}])),
+                ("Duplicatas Removidas", duplicates_removed),
+                ("Estilo Visual Aplicado", theme_name.replace("_", " ").title())
+            ]
+
+            row_idx = 5
+            for key, val in stats:
+                ws_resumo.cell(row=row_idx, column=1, value=key).font = bold_font
+                ws_resumo.cell(row=row_idx, column=1).border = thin_border
+                ws_resumo.cell(row=row_idx, column=1).fill = zebra_fill
+                ws_resumo.cell(row=row_idx, column=2, value=val).font = regular_font
+                ws_resumo.cell(row=row_idx, column=2).border = thin_border
+                ws_resumo.cell(row=row_idx, column=2).fill = white_fill
+                row_idx += 1
+
+            ws_resumo.cell(row=row_idx+1, column=1, value="Histórico de Importação").font = section_font
+
+            headers_diag = ["Nome do Arquivo", "Status", "Informação / Log"]
+            diag_row = row_idx + 2
+
+            for col_idx, h in enumerate(headers_diag, start=1):
+                cell = ws_resumo.cell(row=diag_row, column=col_idx, value=h)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal="center")
+                cell.border = thin_border
+
             ws_resumo.merge_cells(start_row=diag_row, start_column=3, end_row=diag_row, end_column=4)
-            ws_resumo.cell(row=diag_row, column=4).border = thin_border
+
             diag_row += 1
+            for item in diagnostics:
+                ws_resumo.cell(row=diag_row, column=1, value=item["file"]).font = regular_font
+                ws_resumo.cell(row=diag_row, column=1).border = thin_border
+                status_cell = ws_resumo.cell(row=diag_row, column=2, value=item["status"])
+                status_cell.font = bold_font
+                status_cell.alignment = Alignment(horizontal="center")
+                status_cell.border = thin_border
+                if item["status"] == "Sucesso":
+                    status_cell.fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+                else:
+                    status_cell.fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
+                ws_resumo.cell(row=diag_row, column=3, value=item["details"]).font = regular_font
+                ws_resumo.cell(row=diag_row, column=3).border = thin_border
+                ws_resumo.merge_cells(start_row=diag_row, start_column=3, end_row=diag_row, end_column=4)
+                ws_resumo.cell(row=diag_row, column=4).border = thin_border
+                diag_row += 1
 
         # ----------------- ABA 2: DADOS CONSOLIDADOS -----------------
         ws_dados = wb.create_sheet(title="Planilha Consolidada")
-        ws_dados.views.sheetView[0].showGridLines = True
-        ws_dados.freeze_panes = "A2" # Fixar primeira linha de cabeçalho
-        
-        # Colunas com nomes limpos no Excel final (mover _source_file e _source_sheet para o final)
+
         core_cols = [c for c in df.columns if c not in {"_source_file", "_source_sheet"}]
         meta_cols = [c for c in df.columns if c in {"_source_file", "_source_sheet"}]
         ordered_cols = core_cols + meta_cols
-        
         df_ordered = df[ordered_cols]
-        
-        # Escrever Cabeçalho dos Dados
-        for col_idx, col_name in enumerate(df_ordered.columns, start=1):
-            # Deixar nome das colunas internas mais amigáveis no Excel
-            display_name = col_name
-            if col_name == "_source_file":
-                display_name = "Arquivo Origem"
-            elif col_name == "_source_sheet":
-                display_name = "Aba Origem"
-                
-            cell = ws_dados.cell(row=1, column=col_idx, value=str(display_name).upper())
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = Alignment(horizontal="left", vertical="center")
-            cell.border = thin_border
-            
-        # Escrever Registros dos Dados
-        row_idx = 2
-        for r in df_ordered.values:
-            # Alternar cor de linha para efeito zebra
-            row_fill = zebra_fill if row_idx % 2 == 0 else white_fill
-            
-            for col_idx, val in enumerate(r, start=1):
-                cell = ws_dados.cell(row=row_idx, column=col_idx)
-                
-                # Tratar valores vazios ou NaN
-                if pd.isna(val):
-                    cell.value = ""
-                else:
-                    cell.value = val
-                    
-                cell.font = regular_font
-                cell.fill = row_fill
+
+        if use_write_only:
+            header_row = []
+            for col_name in df_ordered.columns:
+                display_name = col_name
+                if col_name == "_source_file":
+                    display_name = "Arquivo Origem"
+                elif col_name == "_source_sheet":
+                    display_name = "Aba Origem"
+                header_row.append(str(display_name).upper())
+            ws_dados.append(header_row)
+            for r in df_ordered.values:
+                cleaned = []
+                for val in r:
+                    try:
+                        if pd.isna(val):
+                            cleaned.append(None)
+                        elif isinstance(val, pd.Timestamp):
+                            cleaned.append(val.to_pydatetime())
+                        else:
+                            cleaned.append(val)
+                    except Exception:
+                        cleaned.append(None)
+                ws_dados.append(cleaned)
+        else:
+            ws_dados.views.sheetView[0].showGridLines = True
+            ws_dados.freeze_panes = "A2"
+
+            for col_idx, col_name in enumerate(df_ordered.columns, start=1):
+                display_name = col_name
+                if col_name == "_source_file":
+                    display_name = "Arquivo Origem"
+                elif col_name == "_source_sheet":
+                    display_name = "Aba Origem"
+                cell = ws_dados.cell(row=1, column=col_idx, value=str(display_name).upper())
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal="left", vertical="center")
                 cell.border = thin_border
-                
-                # Formatação de Célula Conforme Tipo de Dado
-                if isinstance(val, (int, float)):
-                    # Verificar se parece moeda pelo nome da coluna
-                    col_name = df_ordered.columns[col_idx-1].lower()
-                    if any(term in col_name for term in ["valor", "preco", "preço", "total", "custo", "faturamento", "receita", "comissao", "comissão"]):
-                        cell.number_format = "R$ #,##0.00"
-                    elif any(term in col_name for term in ["percent", "%", "taxa", "margem"]):
-                        # Se for taxa e estiver maior que 1, dividir por 100 para representação correta
-                        if val > 1.0:
-                            cell.value = val / 100.0
-                        cell.number_format = "0.0%"
+
+            row_idx = 2
+            for r in df_ordered.values:
+                row_fill = zebra_fill if row_idx % 2 == 0 else white_fill
+                for col_idx, val in enumerate(r, start=1):
+                    cell = ws_dados.cell(row=row_idx, column=col_idx)
+                    try:
+                        is_missing = pd.isna(val)
+                    except (TypeError, ValueError):
+                        is_missing = False
+                    if is_missing:
+                        cell.value = ""
+                    elif isinstance(val, pd.Timestamp):
+                        cell.value = val.to_pydatetime()
                     else:
-                        cell.number_format = "#,##0"
-                elif isinstance(val, datetime) or hasattr(val, "strftime"):
-                    cell.number_format = "yyyy-mm-dd"
-                    
-            row_idx += 1
-            
-        # Redimensionamento Automático das Colunas
-        for ws in [ws_resumo, ws_dados]:
-            for col in ws.columns:
-                max_len = 0
-                for cell in col:
-                    if cell.value:
-                        max_len = max(max_len, len(str(cell.value)))
-                col_letter = get_column_letter(col[0].column)
-                ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
-                
-        # Salvar o workbook
+                        cell.value = val
+                    cell.font = regular_font
+                    cell.fill = row_fill
+                    cell.border = thin_border
+                    col_name = df_ordered.columns[col_idx-1].lower()
+                    if isinstance(val, (pd.Timestamp, datetime)):
+                        cell.number_format = "DD/MMM/YYYY"
+                    elif isinstance(val, (int, float)) and not isinstance(val, bool):
+                        if any(term in col_name for term in ["valor", "preco", "preço", "total", "custo", "faturamento", "receita", "comissao", "comissão"]):
+                            cell.number_format = "R$ #,##0.00"
+                        elif any(term in col_name for term in ["percent", "%", "taxa", "margem"]):
+                            if val > 1.0:
+                                cell.value = val / 100.0
+                            cell.number_format = "0.0%"
+                        elif any(term in col_name for term in ["qtd", "quant", "numero", "num", "id", "cod", "codigo"]):
+                            cell.number_format = "#,##0"
+                        elif isinstance(val, float):
+                            cell.number_format = "#,##0.00"
+                        else:
+                            cell.number_format = "#,##0"
+                row_idx += 1
+
+            # Redimensionamento Automático das Colunas
+            for ws in [ws_resumo, ws_dados]:
+                for col in ws.columns:
+                    max_len = 0
+                    for cell in col:
+                        if cell.value:
+                            max_len = max(max_len, len(str(cell.value)))
+                    col_letter = get_column_letter(col[0].column)
+                    ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
         wb.save(output_path)

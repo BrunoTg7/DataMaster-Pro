@@ -8,7 +8,7 @@ from src.gui.pages.tool_page import ToolPage
 from src.tools.consolidador.consolidador_v2 import Consolidador
 from src.utils.task_helper import TaskHelper
 from src.gui.helpers.execution_helper import ExecutionHelper
-from src.core.tasks.global_executor import global_executor
+from src.core.tasks.task_executor import task_executor
 
 
 class ConsolidadorPage(ToolPage):
@@ -198,6 +198,31 @@ class ConsolidadorPage(ToolPage):
             text_color=config.Colors.TEXT_PRIMARY
         )
         lbl_theme.pack(anchor="w", pady=(5, 5))
+        
+        # Verificar se é usuário FREE
+        user_plan = self.user_data.get("plan", "gratis").lower() if self.user_data else "gratis"
+        is_free_user = user_plan == "gratis"
+        
+        if is_free_user:
+            # Mostrar aviso para FREE users
+            aviso_frame = ctk.CTkFrame(right_options, fg_color="transparent")
+            aviso_frame.pack(anchor="w", pady=(0, 5))
+            
+            aviso_label = ctk.CTkLabel(
+                aviso_frame,
+                text="🔒 Tema único no plano Grátis (Azul Corporativo)",
+                font=ctk.CTkFont(size=10),
+                text_color="#F59E0B"
+            )
+            aviso_label.pack(anchor="w")
+            
+            upgrade_label = ctk.CTkLabel(
+                aviso_frame,
+                text="Upgrade para PRO para acessar 3 temas adicionais →",
+                font=ctk.CTkFont(size=9),
+                text_color=config.Colors.TEXT_SECONDARY
+            )
+            upgrade_label.pack(anchor="w")
 
         self.visual_theme_menu = ctk.CTkOptionMenu(
             right_options,
@@ -209,6 +234,10 @@ class ConsolidadorPage(ToolPage):
         )
         self.visual_theme_menu.set("Azul Corporativo")
         self.visual_theme_menu.pack(anchor="w", pady=(0, 15))
+        
+        # Desabilitar menu para FREE users
+        if is_free_user:
+            self.visual_theme_menu.configure(state="disabled")
 
         self.action_btn = self._create_action_button(content, "Consolidar Arquivos", self._run_consolidate)
 
@@ -242,25 +271,70 @@ class ConsolidadorPage(ToolPage):
             widget.destroy()
 
         if self.uploaded_files:
+            header_frame = ctk.CTkFrame(self.file_list_frame, fg_color="transparent")
+            header_frame.pack(fill="x")
+
             lbl = ctk.CTkLabel(
-                self.file_list_frame,
+                header_frame,
                 text=f"Arquivos Selecionados: {len(self.uploaded_files)}",
                 font=ctk.CTkFont(size=12, weight="bold"),
                 text_color=config.Colors.TEXT_PRIMARY
             )
-            lbl.pack(anchor="w")
+            lbl.pack(side="left")
+
+            clear_all_btn = ctk.CTkButton(
+                header_frame,
+                text="Limpar todos",
+                width=90,
+                height=24,
+                font=ctk.CTkFont(size=10),
+                fg_color="transparent",
+                hover_color="#e74c3c",
+                text_color="#e74c3c",
+                border_width=1,
+                border_color="#e74c3c",
+                corner_radius=4,
+                command=self._clear_all_files
+            )
+            clear_all_btn.pack(side="right")
 
             scroll = ctk.CTkScrollableFrame(self.file_list_frame, fg_color=config.Colors.CARD, height=100)
             scroll.pack(fill="x", pady=5)
 
-            for f in self.uploaded_files:
+            for i, f in enumerate(self.uploaded_files):
+                file_row = ctk.CTkFrame(scroll, fg_color="transparent")
+                file_row.pack(fill="x", padx=10, pady=2)
+
                 file_lbl = ctk.CTkLabel(
-                    scroll,
+                    file_row,
                     text=f"📄 {os.path.basename(f)} ({os.path.dirname(f)[:50]}...)",
                     font=ctk.CTkFont(size=11),
                     text_color=config.Colors.TEXT_SECONDARY
                 )
-                file_lbl.pack(anchor="w", padx=10, pady=2)
+                file_lbl.pack(side="left")
+
+                remove_btn = ctk.CTkButton(
+                    file_row,
+                    text="✕",
+                    width=20,
+                    height=18,
+                    font=ctk.CTkFont(size=8, weight="bold"),
+                    fg_color="transparent",
+                    hover_color="#e74c3c",
+                    text_color="#a0a0a0",
+                    corner_radius=3,
+                    command=lambda idx=i: self._remove_file_at(idx)
+                )
+                remove_btn.pack(side="right", padx=(4, 0))
+
+    def _clear_all_files(self):
+        self.uploaded_files = []
+        self._update_file_list()
+
+    def _remove_file_at(self, index):
+        if 0 <= index < len(self.uploaded_files):
+            del self.uploaded_files[index]
+            self._update_file_list()
 
     def _on_strategy_change(self, value):
         if value == "join":
@@ -286,26 +360,15 @@ class ConsolidadorPage(ToolPage):
             self._safe_status("Erro: Informe a coluna chave para realizar o cruzamento.")
             return
 
-        total_lines = 0
-        try:
-            import pandas as pd
-            for f in self.uploaded_files:
-                try:
-                    suffix = os.path.splitext(f)[1].lower()
-                    if suffix == '.csv':
-                        df = pd.read_csv(f, nrows=1000)
-                        total_lines += len(df) * 2
-                    elif suffix in ['.xlsx', '.xls']:
-                        df = pd.read_excel(f, nrows=1000)
-                        total_lines += len(df) * 2
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-        allowed_rows = self.start_execution(rows_to_process=total_lines)
-        if allowed_rows == 0:
+        # Para evitar travamento da interface (Main Thread), não efetuamos leitura pandas sincrona
+        # Verificamos apenas os limites de uso (Hit limits). O corte real de linhas será 
+        # imposto diretamente no background pelo Consolidador.
+        can_execute = self.start_execution(rows_to_process=0)
+        if not can_execute:
             return
+
+        user_plan = self.user_data.get("plan", "gratis").lower() if self.user_data else "gratis"
+        max_allowed_rows = 600 if user_plan == "gratis" else 1000000
 
         output_path = self._create_output_path("consolidado.xlsx")
         if not output_path:
@@ -336,13 +399,6 @@ class ConsolidadorPage(ToolPage):
 
         self._safe_status("⏳ Consolidando e formatando planilhas...")
 
-        task_id, error = self.task_helper.start_task({})
-        if error:
-            from tkinter import messagebox
-            messagebox.showwarning("Aviso", error)
-            return
-        self._task_id = task_id
-
         extra = dict(
             output_path=output_path,
             rows_processed=0,
@@ -356,7 +412,7 @@ class ConsolidadorPage(ToolPage):
                 files,
                 output_path,
                 merge_strategy=strategy,
-                max_rows=allowed_rows,
+                max_rows=max_allowed_rows,
                 sheet_selection=sheet_selection,
                 enable_fuzzy_mapping=fuzzy,
                 join_key=join_key,
@@ -368,7 +424,7 @@ class ConsolidadorPage(ToolPage):
         def on_complete(result):
             self.after(0, lambda: self._on_consolidate_done(result, extra, output_path, files))
 
-        g_task_id, g_err = global_executor.submit(
+        g_task_id, g_err = task_executor.submit(
             tool_name="consolidador",
             tool_display_name="Consolidador",
             execute_func=execute,

@@ -78,17 +78,17 @@ class ExecutionLog:
 class ROIManager:
     """
     Gerencia logs de execução e cálculo de ROI
-    Suporta armazenamento local (SQLite) e sincronização com cloud (Supabase)
+    Suporta armazenamento local (SQLite) e sincronização com cloud
     """
     
-    def __init__(self, storage_manager=None, supabase_client=None):
+    def __init__(self, storage_manager=None, cloud_client=None):
         """
         Args:
             storage_manager: Gerenciador de storage local (SQLite)
-            supabase_client: Cliente Supabase para sync
+            cloud_client: Cliente cloud para sync
         """
         self._storage = storage_manager
-        self._supabase = supabase_client
+        self._cloud = cloud_client
         self._pending_syncs: List[ExecutionLog] = []
     
     def log_execution(self, 
@@ -226,14 +226,13 @@ class ROIManager:
         Returns:
             True se sincronização bem-sucedida
         """
-        if not self._supabase or not self._pending_syncs:
-            return True  # Sem Supabase é ok, logs estão localmente
+        if not self._cloud or not self._pending_syncs:
+            return True  # Sem cloud é ok, logs estão localmente
         
         try:
             logs_to_sync = [log.to_dict() for log in self._pending_syncs]
             
-            # Inserir na tabela do Supabase
-            self._supabase.table("execution_logs").insert(logs_to_sync).execute()
+            self._cloud.table("execution_logs").insert(logs_to_sync).execute()
             
             logger.info(f"{len(logs_to_sync)} logs sincronizados com cloud")
             self._pending_syncs.clear()
@@ -245,14 +244,14 @@ class ROIManager:
     
     def get_cloud_logs(self, user_id: str) -> Optional[List[ExecutionLog]]:
         """
-        Recupera logs do Supabase
+        Recupera logs do cloud
         """
-        if not self._supabase:
+        if not self._cloud:
             return None
         
         try:
             response = (
-                self._supabase.table("execution_logs")
+                self._cloud.table("execution_logs")
                 .select("*")
                 .eq("user_id", user_id)
                 .order("timestamp", desc=True)
@@ -270,11 +269,11 @@ class ROIManager:
 _roi_manager_instance: Optional[ROIManager] = None
 
 
-def get_roi_manager(storage_manager=None, supabase_client=None) -> ROIManager:
+def get_roi_manager(storage_manager=None, cloud_client=None) -> ROIManager:
     """Factory para obter instância do ROI Manager"""
     global _roi_manager_instance
     
     if _roi_manager_instance is None:
-        _roi_manager_instance = ROIManager(storage_manager, supabase_client)
+        _roi_manager_instance = ROIManager(storage_manager, cloud_client)
     
     return _roi_manager_instance

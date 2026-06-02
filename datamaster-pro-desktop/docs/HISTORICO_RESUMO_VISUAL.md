@@ -261,7 +261,7 @@ self.execution.register_generated_file(output_file)
 - ✅ ExecutionHistoryModal (UI)
 - ✅ HistoryButton (botão)
 - ✅ ExecutionHelper (integração)
-- ⏳ Integração nas 13 ferramentas (em progresso)
+- ⏳ Integração nas 15 ferramentas (em progresso)
 
 ---
 

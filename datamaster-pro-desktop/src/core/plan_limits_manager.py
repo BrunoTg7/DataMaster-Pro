@@ -1,85 +1,83 @@
 """
 Plan Limits Manager - Verifica e valida limites de plano
+Usa definições centralizadas de config.py para evitar contradições.
 """
 from typing import Dict, Optional, Tuple
 from enum import Enum
 import logging
+from datetime import datetime
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import config
 
 logger = logging.getLogger(__name__)
 
 
 class PlanType(str, Enum):
-    """Tipos de plano disponíveis"""
+    """Tipos de plano disponíveis - espelha config.PlanType"""
     GRATIS = "gratis"
     PRO = "pro"
     ENTERPRISE = "enterprise"
 
 
 class PlanLimits:
-    """Definição dos limites por plano"""
+    """Definição dos limites por plano - importa de config.py como fonte única"""
     
-    LIMITS = {
-        PlanType.GRATIS: {
-            "max_concurrent_tasks": 1,
-            "max_file_size_mb": 5,
-            "max_configs_per_tool": 3,
-            "supports_scheduling": False,
-            "supports_background_execution": False,
-            "watermark": True,
-            "available_themes": ["classic_blue"],
-            "roi_logging": "local_only",
-            "max_daily_executions": 15,
-        },
-        PlanType.PRO: {
-            "max_concurrent_tasks": 2,
-            "max_file_size_mb": 100,
-            "max_configs_per_tool": 20,
-            "supports_scheduling": True,
-            "supports_background_execution": False,
-            "watermark": False,
-            "available_themes": ["classic_blue", "emerald_green", "modern_orange", "slate_gray"],
-            "roi_logging": "local_and_cloud",
-            "max_daily_executions": None,  # Ilimitado
-        },
-        PlanType.ENTERPRISE: {
-            "max_concurrent_tasks": 2,
-            "max_file_size_mb": 100,
-            "max_configs_per_tool": 999,  # Praticamente ilimitado
-            "supports_scheduling": True,
-            "supports_background_execution": True,
-            "watermark": False,
-            "available_themes": ["classic_blue", "emerald_green", "modern_orange", "slate_gray"],
-            "roi_logging": "local_and_cloud",
-            "max_daily_executions": None,
-        },
-    }
-
     @classmethod
     def get_limit(cls, plan: str, limit_key: str) -> any:
         """Obtém um limite específico para um plano"""
         try:
-            plan_type = PlanType(plan)
-            return cls.LIMITS[plan_type].get(limit_key)
+            plan_type = config.PlanType[plan.upper()] if plan.upper() in config.PlanType.__members__ else config.PlanType.GRATIS
+            plan_data = config.PLAN_LIMITS.get(plan_type, {})
+            return plan_data.get(limit_key)
         except (ValueError, KeyError):
-            # Se plano inválido, retornar limites mais restritivos (FREE)
-            return cls.LIMITS[PlanType.GRATIS].get(limit_key)
+            return config.PLAN_LIMITS.get(config.PlanType.GRATIS, {}).get(limit_key)
 
     @classmethod
     def get_all_limits(cls, plan: str) -> Dict:
         """Obtém todos os limites para um plano"""
         try:
-            plan_type = PlanType(plan)
-            return cls.LIMITS[plan_type].copy()
-        except ValueError:
-            return cls.LIMITS[PlanType.GRATIS].copy()
+            plan_type = config.PlanType[plan.upper()] if plan.upper() in config.PlanType.__members__ else config.PlanType.GRATIS
+            return config.PLAN_LIMITS.get(plan_type, config.PLAN_LIMITS.get(config.PlanType.GRATIS, {})).copy()
+        except (ValueError, KeyError):
+            return config.PLAN_LIMITS.get(config.PlanType.GRATIS, {}).copy()
 
 
 class PlanLimitValidator:
     """Valida se ações estão dentro dos limites do plano"""
 
-    def __init__(self, user_plan: str):
+    def __init__(self, user_plan: str, data_expiracao: str = None):
         self.user_plan = user_plan
+        self.data_expiracao = data_expiracao
         self.limits = PlanLimits.get_all_limits(user_plan)
+
+    def is_expired(self) -> bool:
+        """
+        Verifica se o plano (PRO/Enterprise) está com data de expiração vencida.
+        Planos GRATIS nunca expiram.
+        """
+        if self.user_plan == config.PlanType.GRATIS.value:
+            return False
+        if not self.data_expiracao:
+            return False
+        try:
+            exp_date = datetime.fromisoformat(self.data_expiracao.replace("Z", "+00:00").replace(" ", "T"))
+            agora = datetime.now(exp_date.tzinfo) if exp_date.tzinfo else datetime.now()
+            return exp_date <= agora
+        except Exception:
+            return False
+
+    def _check_expired(self) -> Tuple[bool, Optional[str]]:
+        """Retorna erro se o plano estiver expirado"""
+        if self.is_expired():
+            return False, (
+                "Seu plano PRO expirou. "
+                "Renove sua assinatura para continuar usando todos os recursos.\n\n"
+                "Acesse: https://data-master-pro.vercel.app/planos"
+            )
+        return True, None
 
     def can_start_concurrent_task(self, current_running_tasks: int) -> Tuple[bool, Optional[str]]:
         """
@@ -88,14 +86,18 @@ class PlanLimitValidator:
         Returns:
             (can_start, error_message)
         """
-        max_tasks = self.limits["max_concurrent_tasks"]
+        ok, err = self._check_expired()
+        if not ok:
+            return False, err
+
+        max_tasks = self.limits.get("max_concurrent_tasks", 1)
         
         if current_running_tasks >= max_tasks:
             message = (
                 f"Limite de {max_tasks} tarefa(s) simultânea(s) atingido. "
                 f"Aguarde a conclusão da(s) tarefa(s) anterior(es)."
             )
-            if self.user_plan == PlanType.GRATIS:
+            if self.user_plan == config.PlanType.GRATIS.value:
                 message += "\n\nUpgrade para PRO para executar 2 tarefas simultâneas."
             return False, message
         
@@ -111,7 +113,11 @@ class PlanLimitValidator:
         Returns:
             (is_valid, error_message)
         """
-        max_size_mb = self.limits["max_file_size_mb"]
+        ok, err = self._check_expired()
+        if not ok:
+            return False, err
+
+        max_size_mb = self.limits.get("max_file_size_mb", 5)
         file_size_mb = file_size_bytes / (1024 * 1024)
         
         if file_size_mb > max_size_mb:
@@ -119,7 +125,7 @@ class PlanLimitValidator:
                 f"Arquivo muito grande ({file_size_mb:.1f}MB). "
                 f"Máximo permitido: {max_size_mb}MB"
             )
-            if self.user_plan == PlanType.GRATIS:
+            if self.user_plan == config.PlanType.GRATIS.value:
                 message += "\n\nUpgrade para PRO para processar arquivos até 100MB."
             return False, message
         
@@ -135,7 +141,11 @@ class PlanLimitValidator:
         Returns:
             (has_access, error_message)
         """
-        available_themes = self.limits["available_themes"]
+        ok, err = self._check_expired()
+        if not ok:
+            return False, err
+
+        available_themes = self.limits.get("available_themes", ["classic_blue"])
         
         if theme_key not in available_themes:
             message = (
@@ -153,7 +163,11 @@ class PlanLimitValidator:
         Returns:
             (supports_scheduling, error_message)
         """
-        supports = self.limits["supports_scheduling"]
+        ok, err = self._check_expired()
+        if not ok:
+            return False, err
+
+        supports = self.limits.get("supports_scheduling", False)
         
         if not supports:
             message = (
@@ -174,7 +188,11 @@ class PlanLimitValidator:
         Returns:
             (can_add, error_message)
         """
-        max_configs = self.limits["max_configs_per_tool"]
+        ok, err = self._check_expired()
+        if not ok:
+            return False, err
+
+        max_configs = self.limits.get("max_configs_per_tool", 3)
         
         if current_configs >= max_configs:
             message = (
@@ -187,35 +205,34 @@ class PlanLimitValidator:
 
     def get_watermark_enabled(self) -> bool:
         """Retorna se marca d'água deve ser aplicada"""
-        return self.limits["watermark"]
+        return self.limits.get("watermark", True)
 
     def get_roi_sync_mode(self) -> str:
         """Retorna modo de sincronização de logs ROI"""
-        return self.limits["roi_logging"]
+        return self.limits.get("roi_logging", "local_only")
 
     def supports_background_execution(self) -> bool:
         """Verifica se plano suporta execução em background"""
-        return self.limits["supports_background_execution"]
+        return self.limits.get("supports_background_execution", False)
 
 
 # Singleton para uso global
 _validator_instance: Optional[PlanLimitValidator] = None
 
 
-def get_plan_validator(user_plan: str = None) -> PlanLimitValidator:
+def get_plan_validator(user_plan: str = None, data_expiracao: str = None) -> PlanLimitValidator:
     """Factory para obter instância do validador"""
     global _validator_instance
     
     if user_plan:
-        _validator_instance = PlanLimitValidator(user_plan)
+        _validator_instance = PlanLimitValidator(user_plan, data_expiracao)
     elif _validator_instance is None:
-        # Default to FREE se nenhum plano especificado
-        _validator_instance = PlanLimitValidator(PlanType.GRATIS)
+        _validator_instance = PlanLimitValidator(config.PlanType.GRATIS.value)
     
     return _validator_instance
 
 
-def update_plan_validator(user_plan: str) -> None:
-    """Atualiza o validador com novo plano"""
+def update_plan_validator(user_plan: str, data_expiracao: str = None) -> None:
+    """Atualiza o validador com novo plano e data de expiração"""
     global _validator_instance
-    _validator_instance = PlanLimitValidator(user_plan)
+    _validator_instance = PlanLimitValidator(user_plan, data_expiracao)

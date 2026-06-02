@@ -14,7 +14,7 @@ from src.tools.categorizador.categorizador_v2 import Categorizador
 from src.gui.components.result_viewer_modal import ResultViewerButton
 from src.utils.task_helper import TaskHelper
 from src.gui.helpers.execution_helper import ExecutionHelper
-from src.core.tasks.global_executor import global_executor
+from src.core.tasks.task_executor import task_executor
 
 
 class CategoryBar(ctk.CTkFrame):
@@ -331,9 +331,7 @@ class CategorizadorPage(ToolPage):
         self.task_helper = TaskHelper("categorizador")
 
     def _check_task_state(self):
-        from src.core.storage.storage_manager import StorageManager
-        storage = StorageManager()
-        last_task = storage.get_last_task_by_tool("categorizador")
+        last_task = self._tool_service.get_last_task_by_tool("categorizador")
         
         if not last_task:
             return
@@ -390,13 +388,31 @@ class CategorizadorPage(ToolPage):
             self._select_input_file
         )
 
+        self.file_frame = ctk.CTkFrame(content, fg_color="transparent")
+        self.file_frame.pack(pady=5)
+
         self.file_label = ctk.CTkLabel(
-            self.input_section,
+            self.file_frame,
             text="",
             font=ctk.CTkFont(size=11),
             text_color=config.Colors.TEXT_SECONDARY
         )
-        self.file_label.pack(pady=5)
+        self.file_label.pack(side="left")
+
+        self.file_clear_btn = ctk.CTkButton(
+            self.file_frame,
+            text="✕",
+            width=24,
+            height=20,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color="transparent",
+            hover_color="#e74c3c",
+            text_color="#a0a0a0",
+            corner_radius=3,
+            command=self._clear_input_file
+        )
+        self.file_clear_btn.pack(side="left", padx=(6, 0))
+        self.file_clear_btn.pack_forget()
 
         # Configurações de Mapeamento de Coluna e Área de Negócio
         options_frame = ctk.CTkFrame(content, fg_color=config.Colors.CARD, corner_radius=12)
@@ -458,6 +474,31 @@ class CategorizadorPage(ToolPage):
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=config.Colors.TEXT_PRIMARY
         ).pack(anchor="w", pady=(0, 5))
+        
+        # Verificar se é usuário FREE
+        user_plan = self.user_data.get("plan", "gratis").lower() if self.user_data else "gratis"
+        is_free_user = user_plan == "gratis"
+        
+        if is_free_user:
+            # Mostrar aviso para FREE users
+            aviso_frame = ctk.CTkFrame(right, fg_color="transparent")
+            aviso_frame.pack(anchor="w", pady=(0, 5))
+            
+            aviso_label = ctk.CTkLabel(
+                aviso_frame,
+                text="🔒 Tema único no plano Grátis (Azul Corporativo)",
+                font=ctk.CTkFont(size=10),
+                text_color="#F59E0B"
+            )
+            aviso_label.pack(anchor="w")
+            
+            upgrade_label = ctk.CTkLabel(
+                aviso_frame,
+                text="Upgrade para PRO para acessar 3 temas adicionais →",
+                font=ctk.CTkFont(size=9),
+                text_color=config.Colors.TEXT_SECONDARY
+            )
+            upgrade_label.pack(anchor="w")
 
         self.visual_theme_menu = ctk.CTkOptionMenu(
             right,
@@ -469,6 +510,10 @@ class CategorizadorPage(ToolPage):
         )
         self.visual_theme_menu.set("Azul Corporativo")
         self.visual_theme_menu.pack(anchor="w")
+        
+        # Desabilitar menu para FREE users
+        if is_free_user:
+            self.visual_theme_menu.configure(state="disabled")
 
 
         # Painel de Descoberta Automática de Categorias
@@ -637,10 +682,16 @@ class CategorizadorPage(ToolPage):
                 except Exception:
                     pass
 
+    def _clear_input_file(self):
+        self.input_file = ""
+        self.file_label.configure(text="")
+        self.file_clear_btn.pack_forget()
+
     def _select_input_file(self, files=None):
         if files:
             self.input_file = files[0]
             self.file_label.configure(text=f"✓ {os.path.basename(self.input_file)}")
+            self.file_clear_btn.pack(side="left", padx=(6, 0))
         else:
             files = self._browse_files([
                 ("Arquivos de Dados", "*.xlsx *.xls *.csv"),
@@ -650,6 +701,7 @@ class CategorizadorPage(ToolPage):
             if files:
                 self.input_file = files[0]
                 self.file_label.configure(text=f"✓ {os.path.basename(self.input_file)}")
+                self.file_clear_btn.pack(side="left", padx=(6, 0))
 
     def _run_auto_discovery(self):
         if not self.input_file:
@@ -721,14 +773,7 @@ class CategorizadorPage(ToolPage):
         if not output_path:
             return
 
-        task_id, error = self.task_helper.start_task({})
-        if error:
-            from tkinter import messagebox
-            messagebox.showwarning("Aviso", error)
-            return
-
         if not self.start_execution():
-            self.task_helper.cancel()
             return
 
         try:
@@ -757,7 +802,7 @@ class CategorizadorPage(ToolPage):
         def on_complete(result):
             self.after(0, lambda: self._on_categorize_done(result, output_path))
 
-        g_id, g_err = global_executor.submit(
+        g_id, g_err = task_executor.submit(
             tool_name="categorizador",
             tool_display_name="Categorizador",
             execute_func=execute,
@@ -780,8 +825,7 @@ class CategorizadorPage(ToolPage):
             self._finalize_execution(result, output_path, rows, {"registros": rows})
             suggestions = result.get("others_suggestions", [])
             self._show_result_dashboard(result, suggestions)
-            self.input_file = ""
-            self.file_label.configure(text="")
+            self._clear_input_file()
         else:
             self._finalize_execution(result, output_path, rows)
             from tkinter import messagebox

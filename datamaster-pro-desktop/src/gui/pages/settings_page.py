@@ -5,6 +5,7 @@ import customtkinter as ctk
 from tkinter import filedialog
 import os
 import sys
+import webbrowser
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
 from src.core.auth.auth_manager import AuthManager
@@ -150,8 +151,8 @@ class SettingsPage(ctk.CTkFrame):
             btn_frame,
             text="📂 Alterar Diretório",
             command=self._change_output_dir,
-            fg_color=config.Colors.CARD,
-            hover_color=config.Colors.BORDER
+           fg_color=config.Colors.PRIMARY,
+            hover_color=config.Colors.PRIMARY_HOVER
         ).grid(row=0, column=0, padx=5)
         
         ctk.CTkButton(
@@ -225,11 +226,19 @@ class SettingsPage(ctk.CTkFrame):
         
         ctk.CTkButton(
             btn_frame,
+            text="💳 Gerenciar Plano",
+            command=self._manage_plan,
+            fg_color=config.Colors.PRIMARY,
+            hover_color=config.Colors.PRIMARY_HOVER
+        ).grid(row=0, column=0, padx=5)
+        
+        ctk.CTkButton(
+            btn_frame,
             text="🚪 Sair da Conta",
             command=self._logout,
             fg_color="#dc2626",
             hover_color="#b91c1c"
-        ).grid(row=0, column=0, padx=5)
+        ).grid(row=0, column=1, padx=5)
     
     def about_frame(self, parent):
         frame = ctk.CTkFrame(
@@ -279,7 +288,7 @@ class SettingsPage(ctk.CTkFrame):
         self.storage_manager.save_theme(theme)
         
         if self.sync_manager:
-            self.sync_manager.sync_theme_to_supabase(theme)
+            self.sync_manager.sync_theme(theme)
         
         if self.on_theme_changed:
             self.on_theme_changed()
@@ -302,6 +311,10 @@ class SettingsPage(ctk.CTkFrame):
     def _logout(self):
         if messagebox.askyesno("Sair", "Deseja sair da conta?"):
             self.on_logout()
+    
+    def _manage_plan(self):
+        """Abre o site de gerenciamento de planos no navegador"""
+        webbrowser.open("https://data-master-pro.vercel.app/")
     
     def _check_updates(self):
         is_online = check_internet_connection()

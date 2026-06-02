@@ -1,16 +1,88 @@
 """
-Categorizador v3.0 Pro - Otimizado para máxima velocidade, flexibilidade e multi-setorial
+Categorizador v3.1 Pro - Otimizado para máxima velocidade, flexibilidade e multi-setorial
 Classifica transações ou qualquer tipo de dado de texto por categorias usando
 regras inteligentes de palavras-chave, exclusões negativas, Regex e autodescoberta offline.
 """
 import pandas as pd
 import json
 import re
+import unicodedata
 from datetime import datetime
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Sequence
 from pathlib import Path
 from collections import Counter
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import numpy as np
+import os
 from src.utils.excel_styler import save_premium_excel
+
+
+def _classify_worker(chunk: Sequence[str], categories: Dict) -> List[str]:
+    """Worker de classificação para execução paralela com ProcessPoolExecutor.
+    Função de módulo (picklable) que processa um chunk de textos."""
+    results = []
+    for text in chunk:
+        results.append(_classify_single(text, categories))
+    return results
+
+
+def _classify_single(text: str, categories: Dict) -> str:
+    """Classifica uma única string com word boundaries, normalização e prioridades."""
+    norm_text = _normalize_text(text)
+    if not norm_text:
+        return "outros"
+    best_match = "outros"
+    highest_priority = -1
+
+    for cat, data in categories.items():
+        if cat == "outros":
+            continue
+        priority = data.get("priority", 1)
+        if priority <= highest_priority:
+            continue
+
+        matched = False
+
+        for pattern in data.get("regex", []):
+            try:
+                if re.search(pattern, norm_text):
+                    matched = True
+                    break
+            except Exception:
+                continue
+
+        if not matched:
+            for kw in data.get("keywords", []):
+                norm_kw = _normalize_text(kw)
+                if not norm_kw:
+                    continue
+                escaped = re.escape(norm_kw)
+                if re.search(rf"\b{escaped}\b", norm_text):
+                    has_negative = False
+                    for neg in data.get("negative_keywords", []):
+                        norm_neg = _normalize_text(neg)
+                        if norm_neg and re.search(rf"\b{re.escape(norm_neg)}\b", norm_text):
+                            has_negative = True
+                            break
+                    if not has_negative:
+                        matched = True
+                        break
+
+        if matched:
+            highest_priority = priority
+            best_match = cat
+
+    return best_match
+
+
+def _normalize_text(text: str) -> str:
+    """Remove acentos, padroniza para lowercase, colapsa espaços."""
+    if not text:
+        return ""
+    text = str(text).lower().strip()
+    text = "".join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
+    text = re.sub(r'\s+', ' ', text)
+    return text
 
 
 class Categorizador:
@@ -37,6 +109,10 @@ class Categorizador:
             "despesas_pessoal": {"keywords": ["salario", "folha", "fgts", "pro labore", "rescisao", "vale transporte", "ferias", "13o", "plr"], "priority": 7},
             "despesas_marketing": {"keywords": ["facebook ads", "google ads", "instagram ads", "agencia", "anuncio", "trafego", "panfleto", "propaganda"], "priority": 6},
             "despesas_operacionais": {"keywords": ["aluguel escritorio", "energia eletrica", "internet", "contador", "contabilidade", "hospedagem site", "aws", "licenca software"], "priority": 5},
+            "alimentacao": {"keywords": ["restaurante", "supermercado", "mercado", "padaria", "lanchonete", "pizzaria", "hamburger", "açougue", "ifood", "uber eats", "rappi", "delivery", "cafe", "cafeteria", "sorveteria", "conveniencia", "hortifruti", "mercearia"], "priority": 8},
+            "combustivel_e_transporte": {"keywords": ["posto shell", "posto ipiranga", "posto petrobras", "posto br", "combustivel", "gasolina", "etanol", "diesel", "abastecimento", "uber", "99app", "táxi", "passagem aérea", "estacionamento", "pedágio"], "priority": 9},
+            "software_e_saas": {"keywords": ["apple store", "app store", "google play", "netflix", "spotify", "amazon prime", "openai", "github", "adobe", "canva", "notion", "zoom", "slack"], "priority": 9},
+            "infraestrutura_cloud": {"keywords": ["aws", "amazon aws", "amazon web services", "google cloud", "azure", "gcp", "digitalocean", "heroku", "cloudflare", "hostgator", "locaweb", "umbler", "servidor", "vps"], "negative_keywords": ["amazon.com.br"], "priority": 9},
             "outros": {"keywords": [], "priority": 0}
         },
         "ecommerce": {
@@ -245,7 +321,33 @@ class Categorizador:
             description_column = matched_col
                 
             # Classificar
-            df[category_column] = df[description_column].apply(lambda x: self._classify(str(x)))
+            # Remove coluna legada se existir
+            if "CATEGORIA_SUGERIDA" in df.columns:
+                df.drop(columns=["CATEGORIA_SUGERIDA"], inplace=True)
+
+            descriptions = df[description_column].astype(str).tolist()
+            num_cpus = os.cpu_count() or 4
+            chunk_size = max(1, len(descriptions) // (num_cpus * 2))
+
+            if len(descriptions) > chunk_size and num_cpus > 1:
+                chunks = []
+                offsets = []
+                for i in range(0, len(descriptions), chunk_size):
+                    chunks.append(descriptions[i:i+chunk_size])
+                    offsets.append(i)
+                categories_snapshot = dict(self.categories)
+                results = [None] * len(descriptions)
+                with ProcessPoolExecutor(max_workers=num_cpus) as executor:
+                    futures = {executor.submit(_classify_worker, chunk, categories_snapshot): offset
+                               for chunk, offset in zip(chunks, offsets)}
+                    for future in as_completed(futures):
+                        offset = futures[future]
+                        chunk_results = future.result()
+                        for j, cat in enumerate(chunk_results):
+                            results[offset + j] = cat
+                df[category_column] = results
+            else:
+                df[category_column] = [self._classify(str(x)) for x in descriptions]
             
             # Métricas
             counts = df[category_column].value_counts().to_dict()
@@ -255,12 +357,14 @@ class Categorizador:
 
             proc_time = round(time.time() - start_time, 2)
 
-            # Salvar de volta respeitando formato
+            # Evitar sobrescrita de arquivos existentes
+            final_path = self._get_unique_filepath(output_path)
+
             if output_path.endswith('.csv'):
-                df.to_csv(output_path, index=False)
+                df.to_csv(final_path, index=False)
             else:
                 save_premium_excel(
-                    df, output_path,
+                    df, final_path,
                     theme_name=visual_theme,
                     title="CATEGORIZADOR - CLASSIFICAÇÃO DE DADOS",
                     stats=[
@@ -303,60 +407,32 @@ class Categorizador:
                 "processing_time": proc_time,
                 "estimated_time_saved": estimated_minutes_saved,
                 "others_suggestions": suggestions,
-                "output_path": output_path
+                "output_path": final_path
             }
             
         except Exception as e:
             return {"success": False, "error": f"Erro na execução da categorização: {str(e)}"}
             
+    def _normalize_text(self, text: str) -> str:
+        return _normalize_text(text)
+
+    def _get_unique_filepath(self, base_path: str) -> str:
+        """Retorna caminho com sufixo numérico se o arquivo já existir"""
+        path = Path(base_path)
+        if not path.exists():
+            return str(path)
+        stem = path.stem
+        suffix = path.suffix
+        parent = path.parent
+        counter = 1
+        while True:
+            new_path = parent / f"{stem} ({counter}){suffix}"
+            if not new_path.exists():
+                return str(new_path)
+            counter += 1
+
     def _classify(self, text: str) -> str:
-        """Classifica uma única string baseando-se em Regex, Keywords e prioridades das categorias"""
-        text = text.lower()
-        best_match = "outros"
-        highest_priority = -1
-        
-        for cat, data in self.categories.items():
-            if cat == "outros":
-                continue
-                
-            priority = data.get("priority", 1)
-            
-            # Se for prioridade menor do que o melhor match que já temos, podemos ignorar a checagem
-            if priority <= highest_priority:
-                continue
-                
-            matched = False
-            
-            # 1. Checar Regex se houver
-            for pattern in data.get("regex", []):
-                try:
-                    if re.search(pattern, text, re.IGNORECASE):
-                        matched = True
-                        break
-                except Exception:
-                    continue
-            
-            # 2. Checar Keywords se não deu match via Regex
-            if not matched:
-                for kw in data.get("keywords", []):
-                    if kw in text:
-                        # Checar se não tem alguma palavra-chave negativa que anula o match
-                        has_negative = False
-                        for neg in data.get("negative_keywords", []):
-                            if neg in text:
-                                has_negative = True
-                                break
-                                
-                        if not has_negative:
-                            matched = True
-                            break
-            
-            # Se deu match e a prioridade é maior, atualiza o melhor match
-            if matched:
-                highest_priority = priority
-                best_match = cat
-                
-        return best_match
+        return _classify_single(str(text) if text else "", self.categories)
 
     def _classify_row(self, text: str) -> str:
         """Alias para compatibilidade de testes legados"""

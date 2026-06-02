@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
-from src.core.tasks.task_manager import task_manager
+from src.core.tasks.task_executor import task_executor
 from src.core.storage.storage_manager import StorageManager
 
 

@@ -6,7 +6,7 @@
 
 ; ==================== DEFINIÇÕES ====================
 !define APP_NAME "DataMaster Pro"
-!define APP_VERSION "1.4.0" ; <--- Mude aqui para atualizar o nome do instalador
+!define APP_VERSION "1.5.0" ; <--- Mude aqui para atualizar o nome do instalador
 !define EXE_NAME "DataMaster Pro.exe"
 !define COMPANY "DataMaster"
 !define ICON_PATH "assets\datamaster.ico"

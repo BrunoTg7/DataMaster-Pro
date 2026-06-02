@@ -1,11 +1,11 @@
 'use client'
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Menu, X, LayoutDashboard, LogOut } from 'lucide-react'
-import { useState, useEffect, memo } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { User } from '@supabase/supabase-js'
+import { LayoutDashboard, LogOut, Menu, X } from 'lucide-react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { memo, useEffect, useState } from 'react'
 
 const navLinks = [
   { href: '/', label: 'Home' },
@@ -22,16 +22,30 @@ function HeaderComponent() {
   useEffect(() => {
     let mounted = true
     
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (mounted) {
-        setUser(session?.user ?? null)
+        if (error) {
+          console.warn('Session error:', error.message)
+          setUser(null)
+        } else {
+          setUser(session?.user ?? null)
+        }
+        setLoading(false)
+      }
+    }).catch(() => {
+      if (mounted) {
+        setUser(null)
         setLoading(false)
       }
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (mounted) {
-        setUser(session?.user ?? null)
+        if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+          setUser(session?.user ?? null)
+        } else {
+          setUser(session?.user ?? null)
+        }
         setLoading(false)
       }
     })
@@ -49,7 +63,7 @@ function HeaderComponent() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-surface-200/50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
           <Link href="/" className="flex items-center gap-2 group">
             <img

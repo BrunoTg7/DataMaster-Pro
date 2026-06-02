@@ -28,6 +28,7 @@ type UserData = {
   nome: string
   plano_tipo: 'gratis' | 'pro' | 'enterprise'
   created_at?: string
+  data_expiracao?: string
 }
 
 type ROIStats = {
@@ -54,7 +55,14 @@ export default function DashboardPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        console.warn('Session error:', sessionError.message)
+        await supabase.auth.signOut()
+        router.push('/auth/login')
+        return
+      }
 
       if (!session) {
         router.push('/auth/login')
@@ -126,14 +134,17 @@ export default function DashboardPage() {
     fetchData()
   }, [fetchData])
 
-  const calculateRenewalDate = (createdAt: string) => {
+  const calculateRenewalDate = (createdAt?: string, dataExpiracao?: string) => {
+    if (currentPlan !== 'gratis' && dataExpiracao) {
+      return new Date(dataExpiracao)
+    }
+
     if (!createdAt) return null
     const created = new Date(createdAt)
     const now = new Date()
 
     let renewal = new Date(now.getFullYear(), now.getMonth(), created.getDate())
 
-    // Se o dia não existe no mês atual (ex: 31 em Fev), pega o último dia
     const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
     if (created.getDate() > lastDayOfMonth) {
       renewal.setDate(lastDayOfMonth)
@@ -141,7 +152,6 @@ export default function DashboardPage() {
 
     if (renewal <= now) {
       renewal = new Date(now.getFullYear(), now.getMonth() + 1, created.getDate())
-      // Novamente valida o último dia para o próximo mês
       const nextMonthLastDay = new Date(now.getFullYear(), now.getMonth() + 2, 0).getDate()
       if (created.getDate() > nextMonthLastDay) {
         renewal.setDate(nextMonthLastDay)
@@ -395,14 +405,14 @@ export default function DashboardPage() {
                     <ChevronRight className="w-4 h-4" />
                   </Link>
 
-                  {user?.created_at && (
+                  {(user?.created_at || user?.data_expiracao) && (
                     <div className="p-4 rounded-2xl bg-primary-100/100 border border-primary-100/50 mt-2">
                       <div className="text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-1 flex items-center gap-2">
                         <Clock className="w-3 h-3" />
                         {currentPlan === 'gratis' ? 'Renovação do Limite' : 'Vencimento do Plano'}
                       </div>
                       <div className="text-sm font-bold text-primary-900">
-                        {calculateRenewalDate(user.created_at)?.toLocaleDateString('pt-BR')}
+                        {calculateRenewalDate(user.created_at, user.data_expiracao)?.toLocaleDateString('pt-BR')}
                       </div>
                     </div>
                   )}

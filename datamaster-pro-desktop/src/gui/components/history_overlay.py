@@ -7,7 +7,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
 from src.core.tasks.execution_history_manager import get_history_manager
-from src.core.tasks.global_executor import global_executor
+from src.core.tasks.task_executor import task_executor
 
 
 class HistoryOverlay(ctk.CTkFrame):
@@ -70,7 +70,17 @@ class HistoryOverlay(ctk.CTkFrame):
             text_color=config.Colors.TEXT_SECONDARY,
             anchor="w"
         )
-        self.stats_label.grid(row=1, column=0, sticky="ew", padx=25, pady=(0, 10))
+        self.stats_label.grid(row=1, column=0, sticky="ew", padx=25, pady=(0, 2))
+
+        from pathlib import Path
+        history_dir = Path(__file__).parent.parent.parent.parent / ".execution_history"
+        ctk.CTkLabel(
+            self.modal_card,
+            text=f"📁 {history_dir}",
+            font=ctk.CTkFont(family="Inter", size=8),
+            text_color=config.Colors.TEXT_SECONDARY,
+            anchor="w"
+        ).grid(row=1, column=0, sticky="ew", padx=25, pady=(0, 10))
 
     def _create_content(self):
         self.scroll = ctk.CTkScrollableFrame(
@@ -143,7 +153,7 @@ class HistoryOverlay(ctk.CTkFrame):
             ).pack(pady=30)
 
     def _get_running_tasks(self):
-        all_tasks = global_executor.get_tasks()
+        all_tasks = task_executor.get_tasks()
         return [
             t for t in all_tasks
             if t.get("tool_name") == self.tool_key
@@ -295,21 +305,21 @@ class HistoryOverlay(ctk.CTkFrame):
         ctk.CTkLabel(
             f,
             text=f"  📄 {name}{size_str}",
-            font=ctk.CTkFont(family="Inter", size=9),
+            font=ctk.CTkFont(family="Inter", size=10),
             text_color="#3498db"
         ).pack(side="left", fill="x", expand=True, anchor="w")
 
         ctk.CTkButton(
             f,
-            text="⬇",
-            width=26,
-            height=22,
-            fg_color="transparent",
-            hover_color=config.Colors.BORDER,
-            text_color="#3498db",
-            font=ctk.CTkFont(size=11),
+            text="⬇ Baixar",
+            width=90,
+            height=28,
+            fg_color=config.Colors.PRIMARY,
+            hover_color="#1a6bb0",
+            text_color="white",
+            font=ctk.CTkFont(size=11, weight="bold"),
             command=lambda fi=file_info: self._download_file(fi)
-        ).pack(side="right")
+        ).pack(side="right", padx=(4, 0))
 
     def _download_file(self, file_info):
         try:

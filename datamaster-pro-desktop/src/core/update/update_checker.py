@@ -17,23 +17,25 @@ class UpdateChecker:
     def __init__(self, current_version: str):
         self.current_version = current_version
         import config
-        self.supabase_url = config.SUPABASE_URL
-        self.supabase_key = config.SUPABASE_ANON_KEY
+        self._url = config._u0
+        self._key = config._r1()
 
     def check_for_updates(self) -> Dict:
         logger.info(f"Verificando atualizações... (Local: {self.current_version})")
 
-        if not self.supabase_url or not self.supabase_key:
+        if not self._url or not self._key:
             return {"has_update": False}
 
         try:
-            supabase = create_client(self.supabase_url, self.supabase_key)
-            response = supabase.table("check_updates").select("*").order("id", desc=True).limit(1).execute()
+            _c = create_client(self._url, self._key)
+            response = _c.table("check_updates").select("*").order("id", desc=True).limit(1).execute()
 
             if not response.data:
                 return {"has_update": False}
 
             latest_data = response.data[0]
+            if not isinstance(latest_data, dict):
+                return {"has_update": False}
             latest_version = latest_data.get("versao_disponivel", "")
             download_url = latest_data.get("url_download", "")
 

@@ -1,9 +1,14 @@
 # DataMaster Pro - Global Configuration
 
 import os
+import logging
 from enum import Enum
 import sys
 from dotenv import load_dotenv
+
+# Configurar logging básico para config
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+log = logging.getLogger(__name__)
 
 # Carrega .env se existir
 load_dotenv()
@@ -52,28 +57,21 @@ def _migrate_old_database():
         old_data_dir = os.path.join(os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)'), 'DataMaster Pro')
         old_db_path = os.path.join(old_data_dir, 'datamaster.db')
         
-        # Se banco antigo existe, fazer migração (mesmo que o novo exista)
         if os.path.exists(old_db_path):
             try:
                 import shutil
                 
-                # Se banco novo não existe, simplesmente copiar
                 if not os.path.exists(DB_PATH):
                     shutil.copy2(old_db_path, DB_PATH)
-                    print(f"✅ Banco de dados migrado: {DB_PATH}")
+                    log.info("Banco de dados migrado: %s", DB_PATH)
                 else:
-                    # Se banco novo JÁ existe, fazer merge (copiar apenas dados que não existem)
-                    # Vamos fazer backup e depois restaurar
                     import tempfile
                     with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as tmp:
                         tmp_path = tmp.name
                     
-                    # Copia antigo para temp
                     shutil.copy2(old_db_path, tmp_path)
                     
-                    # Merge dados (será feito no storage_manager.py)
-                    print(f"ℹ️  Sincronizando com banco antigo...")
-                    # Por enquanto, vamos substituir se o novo estiver vazio
+                    log.info("Sincronizando com banco antigo...")
                     import sqlite3
                     new_conn = sqlite3.connect(DB_PATH)
                     new_cursor = new_conn.cursor()
@@ -81,12 +79,10 @@ def _migrate_old_database():
                     has_session = new_cursor.fetchone()[0] > 0
                     new_conn.close()
                     
-                    # Se novo não tem sessão válida, restaurar a antiga
                     if not has_session:
                         shutil.copy2(old_db_path, DB_PATH)
-                        print(f"✅ Sessão restaurada do banco antigo")
+                        log.info("Sessão restaurada do banco antigo")
                 
-                # Copia pasta outputs se existir
                 old_outputs = os.path.join(old_data_dir, 'outputs')
                 if os.path.exists(old_outputs) and os.path.isdir(old_outputs):
                     for file in os.listdir(old_outputs):
@@ -96,11 +92,10 @@ def _migrate_old_database():
                             try:
                                 if not os.path.exists(dst):
                                     shutil.copy2(src, dst)
-                            except Exception as e:
-                                pass
-                    print(f"✅ Outputs sincronizados")
+                            except OSError as e:
+                                log.warning("Erro ao copiar output %s: %s", file, e)
+                    log.info("Outputs sincronizados")
                 
-                # Copia pasta logs se existir
                 old_logs = os.path.join(old_data_dir, 'logs')
                 if os.path.exists(old_logs) and os.path.isdir(old_logs):
                     for file in os.listdir(old_logs):
@@ -110,26 +105,48 @@ def _migrate_old_database():
                             try:
                                 if not os.path.exists(dst):
                                     shutil.copy2(src, dst)
-                            except Exception as e:
-                                pass
-                    print(f"✅ Logs sincronizados")
+                            except OSError as e:
+                                log.warning("Erro ao copiar log %s: %s", file, e)
+                    log.info("Logs sincronizados")
                     
             except Exception as e:
-                print(f"⚠️  Erro na migração: {e}")
+                log.error("Erro na migração de banco antigo: %s", e)
 
 # Executar migração IMEDIATAMENTE, antes de qualquer outra coisa
 _migrate_old_database()
 
-# ==================== SUPABASE ====================
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://aytpuefpisvmlxmqkbfm.supabase.co")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+# ==================== REDE INTERNA ====================
+_r0 = None
+
+def _r1() -> str:
+    global _r0
+    if _r0 is not None:
+        return _r0
+    try:
+        from src.utils._net._z import _f
+        _r0 = _f()
+    except Exception:
+        _r0 = ""
+    return _r0
+
+_g0 = None
+
+def _g1() -> str:
+    global _g0
+    if _g0 is not None:
+        return _g0
+    try:
+        from src.utils._net._z import _g
+        _g0 = _g()
+    except Exception:
+        _g0 = ""
+    return _g0
+
+# ==================== REDE ====================
+_u0 = os.getenv("SUPABASE_URL", "")
 
 # ==================== CRIPTOGRAFIA ====================
 ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", "")
-
-# ==================== SCRAPERAPI ====================
-SCRAPERAPI_KEY = os.getenv("SCRAPERAPI_KEY", "")
 
 # ==================== ESTADO DE SESSÃO ====================
 SESSION_UPDATE_CHECKED = False
@@ -137,14 +154,11 @@ LAST_UPDATE_DATA = None
 SESSION_BANNER_SHOWN = False
 
 # Validação
-if not SUPABASE_URL:
+if not _u0:
     raise ValueError(
-        "ERRO: SUPABASE_URL não foi carregado!\n"
+        "ERRO: URL não foi carregado!\n"
         "Verifique se o arquivo .env existe e contém SUPABASE_URL"
     )
-
-if not SUPABASE_ANON_KEY:
-    print("AVISO: SUPABASE_ANON_KEY não configurada no .env — autenticação e sincronia podem falhar.")
 
 # ==================== PLANOS E LIMITES ====================
 class PlanType(Enum):
@@ -156,18 +170,20 @@ PLAN_LIMITS = {
     PlanType.GRATIS: {
         "max_lines_month": 1200,
         "max_execs_month": 15,
-        "tools": ["consolidador", "categorizador", "orcamentos", "minerador", "conciliador", "conversor_ocr", "validador_links", "calculadora_lucratividade", "analista_tendencias", "comissoes"],
+        "tools": ["consolidador", "categorizador", "orcamentos", "minerador", "conciliador", "conversor_ocr", "validador_links", "calculadora_lucratividade", "analista_tendencias", "comissoes", "classificador_ncm", "precificador_canal"],
         "tools_limit": {
             "consolidador": {"max_per_exec": 600, "max_execs": 5},
             "categorizador": {"max_per_exec": 600, "max_execs": 5},
             "orcamentos": {"max_per_exec": 15, "max_execs": 3},
-            "minerador": {"max_per_exec": 15, "max_execs": 2},
+            "minerador": {"max_per_exec": 15, "max_total": 15, "max_execs": 2},
             "conciliador": {"max_execs": 2},
             "conversor_ocr": {"max_per_exec": 10, "max_execs": 3},
             "validador_links": {"max_per_exec": 20, "max_execs": 3},
             "calculadora_lucratividade": {"max_execs": 3},
             "analista_tendencias": {"max_per_exec": 5, "max_execs": 3},
             "comissoes": {"max_per_exec": 20, "max_execs": 3},
+            "classificador_ncm": {"max_per_exec": 100, "max_execs": 3},
+            "precificador_canal": {"max_per_exec": 100, "max_execs": 3},
         }
     },
     PlanType.PRO: {
@@ -259,6 +275,20 @@ TOOLS = {
         "icon": "percent",
         "status": "coming_soon",
         "features": ["Regras Variáveis", "Relatório p/ WhatsApp", "Dashboard Vendedor"]
+    },
+    "classificador_ncm": {
+        "name": "Classificador NCM",
+        "description": "Classifica produtos com códigos NCM e CEST corretos via fuzzy matching",
+        "icon": "tag",
+        "status": "coming_soon",
+        "features": ["Fuzzy Matching NCM/CEST", "Planilha em Massa", "Sugestão Automática"]
+    },
+    "precificador_canal": {
+        "name": "Precificador de Canal",
+        "description": "Calcula preços por marketplace (ML, Shopee, Amazon, Magalu) garantindo margem líquida",
+        "icon": "calculator",
+        "status": "coming_soon",
+        "features": ["Simulador Impostos", "Cálculo Reverso", "Margem Líquida"]
     }
 }
 

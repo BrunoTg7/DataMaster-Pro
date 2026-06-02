@@ -3,12 +3,15 @@ Extrator de Reviews Pro v3.2
 Motor com Análise de Sentimento Individual e Telemetria de Scroll.
 """
 import asyncio
+import logging
 import re
 import random
 import os
 import sys
 from typing import List, Dict, Optional, Any
 from datetime import datetime
+
+log = logging.getLogger(__name__)
 
 # Importa configurações globais
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
@@ -17,13 +20,13 @@ import config
 class ExtratorReviews:
     """Extrai e analisa reviews de produtos usando navegação dinâmica"""
 
-    def __init__(self, api_key: str = "", progress_callback=None, log_callback=None, max_concurrency: int = 2):
+    def __init__(self, _p0: str = "", progress_callback=None, log_callback=None, max_concurrency: int = 2):
         self.progress_callback = progress_callback
         self.log_callback = log_callback
         self.semaphore = asyncio.Semaphore(max_concurrency)
 
     def _log(self, message: str):
-        print(f"[Extrator] {message}", flush=True)
+        log.info(message)
         if self.log_callback:
             self.log_callback(message)
 

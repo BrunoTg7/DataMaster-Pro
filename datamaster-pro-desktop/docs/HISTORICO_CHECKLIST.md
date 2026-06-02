@@ -222,7 +222,7 @@ self.execution.register_generated_file(output_file)
 ### Fase 1: Integração (30 min)
 
 - Usar `MAPA_INTEGRACAO_HISTORICO.md`
-- Integrar em cada uma das 13 ferramentas
+- Integrar em cada uma das 15 ferramentas
 - Total: ~3 linhas de código por ferramenta
 
 ### Fase 2: Testes (15 min)

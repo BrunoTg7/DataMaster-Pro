@@ -8,6 +8,7 @@ import re
 from typing import Dict, List, Optional
 from datetime import datetime
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from src.utils.excel_styler import save_premium_excel
 
 
@@ -283,7 +284,7 @@ class Comissoes:
         logo_path: str = None,
         period: str = None
     ) -> Dict:
-        """Gera PDF individual profissional para cada vendedor"""
+        """Gera PDF individual profissional para cada vendedor com paralelismo"""
         try:
             os.makedirs(output_dir, exist_ok=True)
 
@@ -291,17 +292,25 @@ class Comissoes:
                 return {"success": False, "error": "Coluna 'vendedor' não encontrada"}
 
             vendedores = df['vendedor'].unique()
-            generated = []
+            generated = [None] * len(vendedores)
             total = len(vendedores)
 
-            for idx, vendedor in enumerate(vendedores):
+            def gerar(idx, vendedor):
                 vendor_df = df[df['vendedor'] == vendedor]
                 pdf_path = self._generate_single_pdf(
                     vendor_df, vendedor, output_dir, company_name, logo_path, period
                 )
-                generated.append(pdf_path)
                 self._log(f"📄 PDF gerado: {vendedor}")
-                self._progress(int(((idx + 1) / total) * 100))
+                return idx, pdf_path
+
+            with ThreadPoolExecutor(max_workers=min(os.cpu_count() or 4, total)) as executor:
+                futures = {executor.submit(gerar, i, v): i for i, v in enumerate(vendedores)}
+                for future in as_completed(futures):
+                    idx, pdf_path = future.result()
+                    generated[idx] = pdf_path
+                    self._progress(int(((sum(1 for g in generated if g is not None) / total) * 100)))
+
+            generated = [p for p in generated if p is not None]
 
             return {
                 "success": True,

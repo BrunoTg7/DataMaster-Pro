@@ -3,6 +3,7 @@ Calculadora de Lucratividade e Arbitragem v3.2 Pro
 Motor com Telemetria Avançada e Logs de Terminal em Tempo Real.
 """
 import asyncio
+import logging
 import re
 import random
 import os
@@ -10,6 +11,8 @@ import sys
 import json
 from typing import List, Dict, Optional, Any
 from datetime import datetime
+
+log = logging.getLogger(__name__)
 
 # Importa configurações globais
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
@@ -47,7 +50,7 @@ class CalculadoraLucratividade:
 
     def _log(self, message: str):
         """Log que sai no Terminal e na GUI simultaneamente"""
-        print(f"[Calculadora] {message}", flush=True)
+        log.info(message)
         if self.log_callback:
             self.log_callback(message)
 

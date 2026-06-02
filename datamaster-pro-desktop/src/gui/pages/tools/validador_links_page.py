@@ -12,9 +12,8 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.validador_links.validador_links_v2 import ValidadorLinks
 from src.gui.components.result_viewer_modal import ResultViewerButton
-from src.utils.task_helper import TaskHelper
 from src.gui.helpers.execution_helper import ExecutionHelper
-from src.core.tasks.global_executor import global_executor
+from src.core.tasks.task_executor import task_executor
 
 
 class ValidadorLinksPage(ToolPage):
@@ -25,14 +24,11 @@ class ValidadorLinksPage(ToolPage):
         self.execution = ExecutionHelper("validador_links", "Validador de Links", user_id)
         super().__init__(master, "validador_links", "Validador de Links", on_back, execution_tracker, user_id)
         self._check_task_state()
-        self.task_helper = TaskHelper("validador_links")
         self.urls = []
         self._last_result_text = ""
 
     def _check_task_state(self):
-        from src.core.storage.storage_manager import StorageManager
-        storage = StorageManager()
-        last_task = storage.get_last_task_by_tool("validador_links")
+        last_task = self._tool_service.get_last_task_by_tool("validador_links")
         
         if not last_task:
             return
@@ -104,13 +100,31 @@ class ValidadorLinksPage(ToolPage):
             self._select_file
         )
 
+        self.file_frame = ctk.CTkFrame(content, fg_color="transparent")
+        self.file_frame.pack(pady=5)
+
         self.file_label = ctk.CTkLabel(
-            content,
+            self.file_frame,
             text="",
             font=ctk.CTkFont(family="Inter", size=11),
             text_color=config.Colors.TEXT_SECONDARY
         )
-        self.file_label.pack(pady=5)
+        self.file_label.pack(side="left")
+
+        self.file_clear_btn = ctk.CTkButton(
+            self.file_frame,
+            text="✕",
+            width=24,
+            height=20,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color="transparent",
+            hover_color="#e74c3c",
+            text_color="#a0a0a0",
+            corner_radius=3,
+            command=self._clear_file
+        )
+        self.file_clear_btn.pack(side="left", padx=(6, 0))
+        self.file_clear_btn.pack_forget()
 
         self.action_btn = self._create_action_button(content, "Validar Links", self._run_validation)
 
@@ -163,6 +177,11 @@ class ValidadorLinksPage(ToolPage):
         )
         self.viewer_btn.pack(pady=(0, 15))
 
+    def _clear_file(self):
+        self.file_label.configure(text="")
+        self.file_clear_btn.pack_forget()
+        self.text_area.delete("1.0", "end")
+
     def _select_file(self):
         from tkinter import filedialog
         file_path = filedialog.askopenfilename(
@@ -171,6 +190,7 @@ class ValidadorLinksPage(ToolPage):
         )
         if file_path:
             self.file_label.configure(text=os.path.basename(file_path))
+            self.file_clear_btn.pack(side="left", padx=(6, 0))
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
@@ -180,22 +200,15 @@ class ValidadorLinksPage(ToolPage):
                 messagebox.showerror("Erro", f"Erro ao ler arquivo: {e}")
 
     def _run_validation(self):
-        task_id, error = self.task_helper.start_task({})
-        if error:
-            messagebox.showwarning("Aviso", error)
-            return
-
         text = self.text_area.get("1.0", "end").strip()
         if not text:
             messagebox.showwarning("Aviso", "Por favor, insira pelo menos uma URL")
-            self.task_helper.cancel()
             return
 
         self.urls = [line.strip() for line in text.split('\n') if line.strip()]
 
         if not self.urls:
             messagebox.showwarning("Aviso", "Nenhuma URL válida encontrada")
-            self.task_helper.cancel()
             return
 
         from src.tools.minerador.minerador_v2 import validate_url
@@ -207,7 +220,6 @@ class ValidadorLinksPage(ToolPage):
             messagebox.showwarning("URLs Inválidas", msg)
         self.urls = [u for u in self.urls if validate_url(u)]
         if not self.urls:
-            self.task_helper.cancel()
             return
 
         self.action_btn.configure(state="disabled")
@@ -224,7 +236,7 @@ class ValidadorLinksPage(ToolPage):
             return result
         def on_complete(result):
             self.after(0, lambda: self._show_results(result))
-        global_executor.submit(
+        task_executor.submit(
             execute_func=execute_func,
             on_complete=on_complete,
             tool_name="validador_links",

@@ -13,9 +13,8 @@ import config
 from src.gui.pages.tool_page import ToolPage
 from src.tools.analista_tendencias.analista_tendencias_v2 import AnalistaTendencias
 from src.gui.components.result_viewer_modal import ResultViewerButton
-from src.utils.task_helper import TaskHelper
 from src.gui.helpers.execution_helper import ExecutionHelper
-from src.core.tasks.global_executor import global_executor
+from src.core.tasks.task_executor import task_executor
 
 class AnalistaTendenciasPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
@@ -31,13 +30,10 @@ class AnalistaTendenciasPage(ToolPage):
         self.execution = ExecutionHelper("analista_tendencias", "Analista de Tendências", user_id)
         super().__init__(master, "analista_tendencias", "Analista de Tendências", on_back, execution_tracker, user_id)
         self._check_task_state()
-        self.task_helper = TaskHelper("analista_tendencias")
         self.results_for_copy = ""
 
     def _check_task_state(self):
-        from src.core.storage.storage_manager import StorageManager
-        storage = StorageManager()
-        last_task = storage.get_last_task_by_tool("analista_tendencias")
+        last_task = self._tool_service.get_last_task_by_tool("analista_tendencias")
         
         if not last_task:
             return
@@ -149,11 +145,6 @@ class AnalistaTendenciasPage(ToolPage):
         self.viewer_btn.pack(pady=(0, 15))
 
     def _run_analysis(self):
-        task_id, error = self.task_helper.start_task({})
-        if error:
-            messagebox.showwarning("Aviso", error)
-            return
-
         selected_name = self.niche_combo.get()
         niche_key = None
         for n in self.niches_disponiveis:
@@ -180,7 +171,7 @@ class AnalistaTendenciasPage(ToolPage):
             return result
         def on_complete(result):
             self.after(0, lambda: self._show_results(result))
-        global_executor.submit(
+        task_executor.submit(
             execute_func=execute_func,
             on_complete=on_complete,
             tool_name="analista_tendencias",
@@ -244,5 +235,3 @@ class AnalistaTendenciasPage(ToolPage):
                 self.progress_bar.set(value / 100)
         except Exception:
             pass
-        self.task_helper.update_progress(value, 100, value)
-        self.task_helper.add_log(f"Analisando... {value}%")

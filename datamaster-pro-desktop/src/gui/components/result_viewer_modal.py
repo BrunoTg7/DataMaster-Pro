@@ -150,6 +150,11 @@ class ResultViewerButton(ctk.CTkButton):
         result_text = self.get_result_callback()
         if not result_text or "aparecerão aqui" in result_text:
             return
-            
+
+        if hasattr(self.parent_page, '_close_active_overlay'):
+            self.parent_page._close_active_overlay()
+
         overlay = ResultViewerOverlay(self.parent_page, result_data=result_text)
         overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        if hasattr(self.parent_page, '_active_overlay'):
+            self.parent_page._active_overlay = overlay

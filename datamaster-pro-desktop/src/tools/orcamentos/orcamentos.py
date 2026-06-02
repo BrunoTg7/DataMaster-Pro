@@ -41,7 +41,6 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
-logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 log = logging.getLogger(__name__)
 
 
@@ -199,6 +198,7 @@ class GeradorOrcamentoPDF:
     def __init__(self, filename: str, config: Dict):
         self.filename = filename
         self.config = config
+        self.campos_ativos = config.get("campos_ativos", None) or []
 
         cor_hex = self.config.get("pdf_cor", "#d48214") or "#d48214"
         self.cor_primaria   = colors.HexColor(cor_hex)
@@ -248,9 +248,10 @@ class GeradorOrcamentoPDF:
 
     def _bloco_header(self, story: list):
         cfg = self.config
-        has_logo = cfg.get("logo_path") and os.path.exists(cfg["logo_path"])
+        ca = self.campos_ativos
+        mostrar_logo = cfg.get("logo_path") and os.path.exists(cfg["logo_path"]) and (not ca or "logo" in ca)
 
-        if has_logo:
+        if mostrar_logo:
             img = Image(cfg["logo_path"])
             aspect = img.drawHeight / img.drawWidth
             img.drawWidth = 32 * mm
@@ -263,18 +264,19 @@ class GeradorOrcamentoPDF:
             )
 
         info = []
-        if has_logo and cfg.get("empresa_nome"):
-            info.append(Paragraph(self._safe(cfg["empresa_nome"]).upper(), self.styles["Empresa_Nome"]))
-        if cfg.get("empresa_endereco"):
-            info.append(Paragraph(self._safe(cfg["empresa_endereco"]), self.styles["Empresa_Info"]))
+        if not ca or "empresa" in ca:
+            if mostrar_logo and cfg.get("empresa_nome"):
+                info.append(Paragraph(self._safe(cfg["empresa_nome"]).upper(), self.styles["Empresa_Nome"]))
+            if cfg.get("empresa_endereco"):
+                info.append(Paragraph(self._safe(cfg["empresa_endereco"]), self.styles["Empresa_Info"]))
 
-        contatos = []
-        if cfg.get("empresa_telefone"):
-            contatos.append(f"Tel: {self._safe(cfg['empresa_telefone'])}")
-        if cfg.get("empresa_email"):
-            contatos.append(f"E-mail: {self._safe(cfg['empresa_email'])}")
-        if contatos:
-            info.append(Paragraph("  |  ".join(contatos), self.styles["Empresa_Info"]))
+            contatos = []
+            if cfg.get("empresa_telefone"):
+                contatos.append(f"Tel: {self._safe(cfg['empresa_telefone'])}")
+            if cfg.get("empresa_email"):
+                contatos.append(f"E-mail: {self._safe(cfg['empresa_email'])}")
+            if contatos:
+                info.append(Paragraph("  |  ".join(contatos), self.styles["Empresa_Info"]))
 
         tbl = Table([[col_esq, info]], colWidths=[36 * mm, 144 * mm])
         tbl.setStyle(TableStyle([
@@ -581,13 +583,28 @@ class GeradorOrcamentoPDF:
         )
         story: list = []
 
-        self._bloco_header(story)
+        ca = self.campos_ativos
+
+        if not ca or "empresa" in ca or "logo" in ca:
+            self._bloco_header(story)
         self._bloco_titulo(story, dados_cliente)
-        self._bloco_destinatario(story, dados_cliente)
-        total = self._bloco_itens(story, itens)
-        self._bloco_totais(story, total, dados_cliente)
-        self._bloco_obs(story)
-        self._bloco_pagamento(story)
+
+        if not ca or "cliente" in ca:
+            self._bloco_destinatario(story, dados_cliente)
+
+        if not ca or "itens" in ca:
+            total = self._bloco_itens(story, itens)
+        else:
+            total = sum(i.get("subtotal", 0.0) for i in itens)
+
+        if not ca or "total" in ca:
+            self._bloco_totais(story, total, dados_cliente)
+
+        if not ca or "obs" in ca:
+            self._bloco_obs(story)
+
+        if not ca or "pagamento" in ca:
+            self._bloco_pagamento(story)
 
         doc.build(story)
         log.info("PDF gerado: %s", self.filename)
@@ -807,8 +824,9 @@ class Orcamentos:
                 "agencia":    config.get("agencia", ""),
                 "conta":      config.get("conta", ""),
             }
-            logo_path   = config.get("logo_path", "")
-            obs_default = config.get("observacoes_default", "")
+            logo_path     = config.get("logo_path", "")
+            obs_default   = config.get("observacoes_default", "")
+            campos_ativos = config.get("campos_ativos", [])
 
             generated, errors, doc_count = 0, [], 0
 
@@ -821,7 +839,7 @@ class Orcamentos:
                 try:
                     self._gerar_pdf_cliente(
                         chave, dados, empresa_cfg, logo_path, obs_default,
-                        output_dir, watermark, watermark_text,
+                        campos_ativos, output_dir, watermark, watermark_text,
                     )
                     generated += 1
                     doc_count += 1
@@ -848,6 +866,7 @@ class Orcamentos:
         empresa_cfg: Dict,
         logo_path: str,
         obs_default: str,
+        campos_ativos: list,
         output_dir: str,
         watermark: bool,
         watermark_text: str,
@@ -884,6 +903,7 @@ class Orcamentos:
             "banco":               empresa_cfg.get("banco", ""),
             "agencia":             empresa_cfg.get("agencia", ""),
             "conta":               empresa_cfg.get("conta", ""),
+            "campos_ativos":       campos_ativos,
         }
 
         nome_safe     = re.sub(r"[^\w\s-]", "", dados_cliente["Nome"]).strip()

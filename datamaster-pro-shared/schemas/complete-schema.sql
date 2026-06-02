@@ -425,7 +425,7 @@ ALTER TABLE webhooks_log ENABLE ROW LEVEL SECURITY;
 
 -- Policies for usuarios
 CREATE POLICY "usuarios_select" ON usuarios FOR SELECT
-    USING (auth.uid() = id OR auth.role() = 'authenticated');
+    USING (auth.uid() = id);
 
 CREATE POLICY "usuarios_insert" ON usuarios FOR INSERT
     WITH CHECK (auth.uid() = id);
