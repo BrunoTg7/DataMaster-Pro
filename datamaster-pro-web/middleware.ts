@@ -24,11 +24,11 @@ function getRateLimit(key: string, limit: number, windowMs: number): boolean {
 // Limpa registros antigos a cada 5 minutos
 setInterval(() => {
   const now = Date.now()
-  for (const [key, record] of rateLimitMap.entries()) {
+  Array.from(rateLimitMap.entries()).forEach(([key, record]) => {
     if (now > record.resetTime) {
       rateLimitMap.delete(key)
     }
-  }
+  })
 }, 5 * 60 * 1000)
 
 export async function middleware(request: NextRequest) {
