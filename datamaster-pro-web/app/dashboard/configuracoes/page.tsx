@@ -219,16 +219,13 @@ export default function ConfiguracoesPage() {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4 p-6 rounded-3xl bg-red-50 border border-red-100">
-                  <div className="w-12 h-12 rounded-2xl bg-white border border-red-200 flex items-center justify-center flex-shrink-0">
-                    <Shield className="w-6 h-6 text-red-600" />
+                <div className="flex items-start gap-4 p-6 rounded-3xl bg-surface-50 border border-surface-100">
+                  <div className="w-12 h-12 rounded-2xl bg-white border border-surface-200 flex items-center justify-center flex-shrink-0">
+                    <Shield className="w-6 h-6 text-primary-600" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-bold text-red-900">Autenticação em Duas Etapas</h3>
-                    <p className="text-sm text-red-600/80 mt-1">Adicione uma camada extra de segurança à sua conta DataMaster.</p>
-                    <button className="mt-4 px-6 py-2.5 rounded-xl bg-red-600 text-white font-bold transition-all text-sm hover:bg-red-700">
-                      Configurar 2FA
-                    </button>
+                    <h3 className="font-bold text-surface-900">Autenticação em Duas Etapas</h3>
+                    <p className="text-sm text-surface-500 mt-1">Em breve disponível. O Supabase já suporta 2FA nativo.</p>
                   </div>
                 </div>
               </div>

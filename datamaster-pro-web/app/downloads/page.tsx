@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 import { CheckCircle, Download, FileText, Monitor } from "lucide-react";
 import { Metadata } from "next";
 
@@ -12,9 +12,10 @@ export const revalidate = 7200;
 
 async function getLatestDownload() {
   try {
+    const supabase = await createClient();
     const { data, error } = await supabase
       .from("check_updates")
-      .select("*")
+      .select("versao_disponivel, created_at, tamanho_arquivo, changelog, url_download")
       .order("id", { ascending: false })
       .limit(1)
       .single();

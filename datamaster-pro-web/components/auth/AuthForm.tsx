@@ -25,6 +25,15 @@ export function AuthForm({ mode }: AuthFormProps) {
     setError(null)
 
     try {
+      if (mode === 'register') {
+        const passwordError = validatePassword(password)
+        if (passwordError) {
+          setError(passwordError)
+          setLoading(false)
+          return
+        }
+      }
+
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -80,6 +89,14 @@ export function AuthForm({ mode }: AuthFormProps) {
       setError(errorMessage)
       setLoading(false)
     }
+  }
+
+  const validatePassword = (pwd: string): string | null => {
+    if (pwd.length < 8) return 'Senha deve ter pelo menos 8 caracteres'
+    if (!/[A-Z]/.test(pwd)) return 'Senha deve conter pelo menos 1 letra maiúscula'
+    if (!/[a-z]/.test(pwd)) return 'Senha deve conter pelo menos 1 letra minúscula'
+    if (!/[0-9]/.test(pwd)) return 'Senha deve conter pelo menos 1 número'
+    return null
   }
 
   const isLogin = mode === 'login'
@@ -177,7 +194,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                   className="input-field pr-10"
                   placeholder="••••••••"
                   required
-                  minLength={6}
+                  minLength={8}
                   autoComplete={isLogin ? "current-password" : "new-password"}
                 />
                 <button

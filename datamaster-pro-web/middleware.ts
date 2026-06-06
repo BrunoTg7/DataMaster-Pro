@@ -1,7 +1,63 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Rate limiter simples em memória (reseta a cada restart do server)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
+
+function getRateLimit(key: string, limit: number, windowMs: number): boolean {
+  const now = Date.now()
+  const record = rateLimitMap.get(key)
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(key, { count: 1, resetTime: now + windowMs })
+    return true
+  }
+
+  if (record.count >= limit) {
+    return false
+  }
+
+  record.count++
+  return true
+}
+
+// Limpa registros antigos a cada 5 minutos
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, record] of rateLimitMap.entries()) {
+    if (now > record.resetTime) {
+      rateLimitMap.delete(key)
+    }
+  }
+}, 5 * 60 * 1000)
+
 export async function middleware(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+  const pathname = request.nextUrl.pathname
+
+  // Rate limiting para endpoints de auth
+  const authPaths = ['/auth/login', '/auth/registro', '/auth/reset-password', '/api/auth']
+  if (authPaths.some(path => pathname.startsWith(path))) {
+    const rateLimitKey = `auth:${ip}`
+    if (!getRateLimit(rateLimitKey, 10, 60 * 1000)) { // 10 tentativas por minuto
+      return NextResponse.json(
+        { error: 'Muitas tentativas. Tente novamente em 1 minuto.' },
+        { status: 429 }
+      )
+    }
+  }
+
+  // Rate limiting para webhook
+  if (pathname.startsWith('/api/cakto')) {
+    const rateLimitKey = `webhook:${ip}`
+    if (!getRateLimit(rateLimitKey, 30, 60 * 1000)) { // 30 por minuto
+      return NextResponse.json(
+        { error: 'Rate limit exceeded' },
+        { status: 429 }
+      )
+    }
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
