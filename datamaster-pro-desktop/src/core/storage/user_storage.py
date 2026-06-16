@@ -34,7 +34,7 @@ class UserStorage:
         cursor.execute("""
             INSERT OR REPLACE INTO users (id, email, plan, expires_at, created_at,
                 notificacoes_email, notificacoes_desktop, session_token_encrypted,
-                password_encrypted, theme, data_expiracao)
+                refresh_token_encrypted, theme, data_expiracao)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             user_data.get("id"),
@@ -57,7 +57,7 @@ class UserStorage:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, email, plan, expires_at, session_token_encrypted,
-                password_encrypted, created_at, notificacoes_email,
+                refresh_token_encrypted, created_at, notificacoes_email,
                 notificacoes_desktop, theme, data_expiracao
             FROM users LIMIT 1
         """)

@@ -129,9 +129,8 @@ class TaskHelper:
         """Envia notificação desktop"""
         try:
             from src.utils.notifications import notification_manager
-            notification_manager.send_async(
-                title=f"✅ {self.tool_name.capitalize()} Concluído!",
-                message=f"Tarefa finalizada com sucesso"
+            notification_manager.task_completed_async(
+                tool_name=self.tool_name,
             )
         except Exception:
             pass

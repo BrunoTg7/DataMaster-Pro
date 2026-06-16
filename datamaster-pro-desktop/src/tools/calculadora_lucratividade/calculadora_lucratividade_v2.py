@@ -5,7 +5,6 @@ Motor com Telemetria Avançada e Logs de Terminal em Tempo Real.
 import asyncio
 import logging
 import re
-import random
 import os
 import sys
 import json
@@ -137,29 +136,37 @@ class CalculadoraLucratividade:
 
     async def _process_single_url(self, context, url: str) -> Dict:
         async with self.semaphore:
-            page = None
-            try:
-                page = await context.new_page()
-                ua = config.get_random_ua("desktop")
-                await page.set_extra_http_headers({
-                    "User-Agent": ua,
-                    "Accept-Language": "pt-BR,pt;q=0.9",
-                    "Referer": "https://www.google.com/"
-                })
-                
-                self._log(f"🌐 Navegando até: {url[:40]}...")
-                await page.goto(url, wait_until="load", timeout=45000)
-                await page.wait_for_timeout(3000) 
+            max_retries = 2
+            for attempt in range(max_retries):
+                page = None
+                try:
+                    page = await context.new_page()
+                    ua = config.get_random_ua("desktop")
+                    await page.set_extra_http_headers({
+                        "User-Agent": ua,
+                        "Accept-Language": "pt-BR,pt;q=0.9",
+                        "Referer": "https://www.google.com/"
+                    })
+                    
+                    self._log(f"🌐 Navegando até: {url[:40]}...")
+                    await page.goto(url, wait_until="load", timeout=45000)
+                    await page.wait_for_timeout(3000) 
 
-                price = await self._extract_price_from_page(page)
-                site = self._detect_marketplace(url)
-                
-                return {"url": url, "price": price, "site": site, "success": True if price else False}
-            except Exception as e:
-                self._log(f"🛑 Erro em {url[:30]}: {str(e)[:50]}")
-                return {"url": url, "price": None, "site": "unknown", "success": False, "error": str(e)}
-            finally:
-                if page: await page.close()
+                    price = await self._extract_price_from_page(page)
+                    site = self._detect_marketplace(url)
+                    
+                    return {"url": url, "price": price, "site": site, "success": True if price else False}
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        self._log(f"⚠️ Tentativa {attempt + 1} falhou para {url[:30]}: {str(e)[:40]}. Retentando...")
+                        if page:
+                            await page.close()
+                            page = None
+                        continue
+                    self._log(f"🛑 Erro em {url[:30]}: {str(e)[:50]}")
+                    return {"url": url, "price": None, "site": "unknown", "success": False, "error": str(e)}
+                finally:
+                    if page: await page.close()
 
     def _detect_marketplace(self, url: str) -> str:
         url_lower = url.lower()

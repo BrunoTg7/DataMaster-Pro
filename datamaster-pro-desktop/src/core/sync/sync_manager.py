@@ -225,7 +225,7 @@ class SyncManager:
                         if user_data:
                             user_data["session_token"] = new_token
                             user_data["refresh_token"] = new_refresh
-                            user_data["expires_at"] = (datetime.now() + timedelta(days=90)).isoformat()
+                            user_data["expires_at"] = datetime.fromtimestamp(login.session.expires_at).isoformat()
                             self.storage.save_user_session(user_data)
                         log.info("Re-login automático realizado com sucesso via refresh_token")
                         return True
@@ -527,9 +527,10 @@ class ExecutionTracker:
             return
         
         from src.utils.notifications import notification_manager
-        notification_manager.send_async(
-            title=f"✅ {tool_name.capitalize()} Concluído!",
-            message=f"Processadas {rows} linhas.\nTempo economizado: {hours:.1f}h."
+        notification_manager.task_completed_async(
+            tool_name=tool_name,
+            records_count=rows,
+            hours_saved=hours,
         )
 
     def get_current_cycle_start(self, user_created_at: str) -> datetime:

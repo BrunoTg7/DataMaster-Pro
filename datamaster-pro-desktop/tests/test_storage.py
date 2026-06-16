@@ -90,7 +90,7 @@ class TestUserSession:
 
         conn = sqlite3.connect(tmp_db.db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT session_token_encrypted, password_encrypted FROM users LIMIT 1")
+        cursor.execute("SELECT session_token_encrypted, refresh_token_encrypted FROM users LIMIT 1")
         row = cursor.fetchone()
         conn.close()
 

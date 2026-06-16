@@ -97,7 +97,7 @@ class AuthManager:
                     "data_expiracao": profile.get("data_expiracao"),
                     "notificacoes_email": profile.get("notificacoes_email", True),
                     "notificacoes_desktop": profile.get("notificacoes_desktop", True),
-                    "expires_at": (datetime.now() + timedelta(days=90)).isoformat(),
+                    "expires_at": datetime.fromtimestamp(response.session.expires_at).isoformat(),
                     "session_token": response.session.access_token,
                     "refresh_token": response.session.refresh_token
                 }
@@ -183,7 +183,7 @@ class AuthManager:
                     "data_expiracao": profile.get("data_expiracao"),
                     "notificacoes_email": profile.get("notificacoes_email", True),
                     "notificacoes_desktop": profile.get("notificacoes_desktop", True),
-                    "expires_at": (datetime.now() + timedelta(days=90)).isoformat(),
+                    "expires_at": datetime.fromtimestamp(session_response.session.expires_at).isoformat(),
                     "session_token": session_response.session.access_token,
                     "refresh_token": session_response.session.refresh_token,
                 }
@@ -323,7 +323,7 @@ class AuthManager:
                     "data_expiracao": profile.get("data_expiracao"),
                     "notificacoes_email": profile.get("notificacoes_email", True),
                     "notificacoes_desktop": profile.get("notificacoes_desktop", True),
-                    "expires_at": (datetime.now() + timedelta(days=90)).isoformat(),
+                    "expires_at": datetime.fromtimestamp(response.session.expires_at).isoformat(),
                     "session_token": response.session.access_token,
                     "refresh_token": response.session.refresh_token
                 }

@@ -17,6 +17,7 @@ import config
 from src.core.auth.auth_manager import AuthManager
 from src.core.storage.storage_manager import StorageManager
 from src.core.sync.sync_manager import SyncManager, ExecutionTracker
+from src.core.sync.realtime_sync import get_realtime_sync
 from src.utils.network import check_internet_connection
 from src.core.update.update_checker import check_update_on_start
 from src.core.tasks.task_executor import task_executor
@@ -94,6 +95,7 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
         self.storage_manager = StorageManager()
         self.sync_manager = SyncManager(self.storage_manager)
         self.execution_tracker = ExecutionTracker(self.storage_manager, self.sync_manager)
+        self._realtime_sync = get_realtime_sync(self.storage_manager)
 
         task_executor.storage = self.storage_manager
         register_all_tools(task_executor)
@@ -111,6 +113,15 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
         self._page_cache: Dict[str, ctk.CTkFrame] = {}
         self._page_cache_order: list = []
         self._max_cache_size = 3
+
+        # Session refresh timer (50 minutes)
+        self._session_refresh_timer_id = None
+        self._SESSION_REFRESH_INTERVAL_MS = 3_000_000  # 50 minutes in milliseconds
+
+        # Inactivity timeout (2 hours)
+        self._inactivity_timeout_ms = 7_200_000  # 2 hours in milliseconds
+        self._last_activity_time = 0
+        self._inactivity_timer_id = None
 
         self._setup_layout()
         self.toast = ToastManager.get_instance(self)
@@ -273,6 +284,89 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
             self.after(5000, poll)
         poll()
 
+    def _start_session_refresh_timer(self):
+        """Agenda refresh periódico de token a cada 50 minutos."""
+        if self._session_refresh_timer_id:
+            self.after_cancel(self._session_refresh_timer_id)
+        self._session_refresh_timer_id = self.after(
+            self._SESSION_REFRESH_INTERVAL_MS,
+            self._periodic_session_refresh
+        )
+
+    def _periodic_session_refresh(self):
+        """Refresh silencioso do token de sessão."""
+        if not self.auth_manager.get_current_user():
+            return
+
+        def _refresh():
+            try:
+                result = self.auth_manager.login_with_stored_credentials()
+                if result.get("success"):
+                    user_data = result.get("user")
+                    self.storage_manager.save_user_session(user_data)
+                    log.info("Token refresh periódico concluído")
+                else:
+                    log.warning("Token refresh periódico falhou: %s", result.get("error"))
+                    if result.get("session_expired"):
+                        self.after(0, self._on_logout)
+            except Exception as e:
+                log.error("Erro no refresh periódico: %s", e)
+
+        threading.Thread(target=_refresh, daemon=True).start()
+        self._session_refresh_timer_id = self.after(
+            self._SESSION_REFRESH_INTERVAL_MS,
+            self._periodic_session_refresh
+        )
+
+    def _stop_session_refresh_timer(self):
+        """Para o timer de refresh de sessão."""
+        if self._session_refresh_timer_id:
+            self.after_cancel(self._session_refresh_timer_id)
+            self._session_refresh_timer_id = None
+
+    def _start_inactivity_monitor(self):
+        """Monitora atividade do usuário e faz logout após 2h de inatividade."""
+        import time
+        self._last_activity_time = time.time()
+
+        for event in ["<Motion>", "<ButtonPress>", "<KeyPress>"]:
+            self.bind_all(event, self._on_user_activity)
+
+        self._reset_inactivity_timer()
+
+    def _on_user_activity(self, event=None):
+        """Reset do timer de inatividade."""
+        import time
+        self._last_activity_time = time.time()
+        self._reset_inactivity_timer()
+
+    def _reset_inactivity_timer(self):
+        """Reagenda o timer de inatividade."""
+        if self._inactivity_timer_id:
+            self.after_cancel(self._inactivity_timer_id)
+        self._inactivity_timer_id = self.after(
+            self._inactivity_timeout_ms,
+            self._on_inactivity_timeout
+        )
+
+    def _on_inactivity_timeout(self):
+        """Logout por inatividade."""
+        if not self.auth_manager.get_current_user():
+            return
+
+        from tkinter import messagebox
+        messagebox.showwarning(
+            "Sessão Expirada",
+            "Sua sessão expirou por inatividade (2 horas).\nPor favor, faça login novamente."
+        )
+        self._on_logout()
+
+    def _stop_inactivity_monitor(self):
+        """Para o monitor de inatividade."""
+        if self._inactivity_timer_id:
+            self.after_cancel(self._inactivity_timer_id)
+            self._inactivity_timer_id = None
+
     def _on_connection_changed(self):
         import time
         now = time.time()
@@ -282,6 +376,9 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
         self._update_footer()
         if self.is_online:
             self.toast.success("Conexão restaurada", duration_ms=2000)
+            # Se estamos na tela de login, tentar auto-login novamente
+            if not self.auth_manager.get_current_user():
+                self.after(1000, self._retry_auto_login)
             if not self._sync_scheduled:
                 self._sync_scheduled = True
                 self.after(2000, self._do_sync)
@@ -294,6 +391,17 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
                     page.update_connection_status(self.is_online)
         except Exception:
             pass
+
+    def _retry_auto_login(self):
+        """Tenta auto-login quando conexão é restaurada na tela de login."""
+        if self.auth_manager.get_current_user():
+            return
+        saved = self.storage_manager.get_saved_session()
+        if not saved or not saved.get("refresh_token"):
+            return
+        if not self.current_page or not hasattr(self.current_page, '_check_auto_login'):
+            return
+        self.current_page._check_auto_login()
 
     def _do_sync(self):
         self._sync_scheduled = False
@@ -403,6 +511,21 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
             threading.Thread(target=run_and_cache, daemon=True).start()
         threading.Thread(target=self._preload_tool_pages, daemon=True).start()
         self._show_dashboard()
+        
+        # Start session refresh timer and inactivity monitor
+        self._start_session_refresh_timer()
+        self._start_inactivity_monitor()
+        
+        # Start realtime sync if online
+        if self.is_online:
+            try:
+                self._realtime_sync.start(
+                    user_data.get("session_token"),
+                    user_data.get("id")
+                )
+                log.info("RealtimeSync iniciado")
+            except Exception as e:
+                log.error("Erro ao iniciar RealtimeSync: %s", e)
 
     def _preload_tool_pages(self):
         for tool_key in list(TOOL_PAGE_MODULES.keys()):
@@ -509,6 +632,14 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
         self._update_footer()
 
     def _on_logout(self):
+        self._stop_session_refresh_timer()
+        self._stop_inactivity_monitor()
+        
+        # Stop realtime sync
+        if self._realtime_sync.is_running:
+            self._realtime_sync.stop()
+            log.info("RealtimeSync parado")
+        
         self.auth_manager.logout()
         self.storage_manager.clear_session()
         self._clear_page_cache()

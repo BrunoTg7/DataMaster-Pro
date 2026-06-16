@@ -121,13 +121,13 @@ class StorageManager:
                 id TEXT PRIMARY KEY, email TEXT, plan TEXT, expires_at TEXT,
                 created_at TEXT, notificacoes_email INTEGER DEFAULT 1,
                 notificacoes_desktop INTEGER DEFAULT 1, session_token_encrypted TEXT,
-                password_encrypted TEXT, theme TEXT DEFAULT 'system',
+                refresh_token_encrypted TEXT, theme TEXT DEFAULT 'system',
                 history_retention TEXT DEFAULT '15d'
             )
         """)
         _VALID_USER_COLUMNS = {
             "created_at": "TEXT", "notificacoes_email": "INTEGER DEFAULT 1",
-            "notificacoes_desktop": "INTEGER DEFAULT 1", "password_encrypted": "TEXT",
+            "notificacoes_desktop": "INTEGER DEFAULT 1", "refresh_token_encrypted": "TEXT",
             "theme": "TEXT DEFAULT 'system'", "history_retention": "TEXT DEFAULT '15d'",
             "data_expiracao": "TEXT"
         }
@@ -186,16 +186,47 @@ class StorageManager:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, created_at DESC)")
 
         # ── Bump schema version ──────────────────────────────────────────
-        NEW_VERSION = 2
+        NEW_VERSION = 3
         if current_version < NEW_VERSION:
-            # Adicione migrações aqui conforme o schema evolui:
-            # if current_version < 1:
-            #     cursor.execute("ALTER TABLE ...")
+            if current_version < 3:
+                self._migrate_column_rename(conn)
             cursor.execute("UPDATE schema_meta SET value=? WHERE key='version'", (str(NEW_VERSION),))
             log.info("Schema migrado: v%d → v%d", current_version, NEW_VERSION)
 
         conn.commit()
         conn.close()
+
+    def _migrate_column_rename(self, conn):
+        """Renomeia password_encrypted para refresh_token_encrypted."""
+        cursor = conn.cursor()
+        
+        # Verificar se coluna antiga existe
+        cols = {row[1] for row in cursor.execute("PRAGMA table_info(users)").fetchall()}
+        
+        if "password_encrypted" in cols and "refresh_token_encrypted" not in cols:
+            try:
+                # Criar tabela temporária com novo nome de coluna
+                cursor.execute("""
+                    CREATE TABLE users_backup AS 
+                    SELECT id, email, plan, expires_at, created_at,
+                           notificacoes_email, notificacoes_desktop,
+                           session_token_encrypted, password_encrypted as refresh_token_encrypted,
+                           theme, data_expiracao, history_retention
+                    FROM users
+                """)
+                
+                cursor.execute("DROP TABLE users")
+                cursor.execute("ALTER TABLE users_backup RENAME TO users")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_id ON users(id)")
+                
+                log.info("Migração: password_encrypted → refresh_token_encrypted concluída")
+            except Exception as e:
+                log.error("Erro na migração de coluna: %s", e)
+                # Se falhar, tentar recriar tabela original
+                try:
+                    cursor.execute("DROP TABLE IF EXISTS users_backup")
+                except Exception:
+                    pass
 
     def _init_execution_logs_table(self):
         conn = self._get_conn()

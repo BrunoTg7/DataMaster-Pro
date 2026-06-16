@@ -158,16 +158,16 @@ class TestFeatureFlags:
 
     def test_disabled_by_default(self):
         from src.core.feature_flags import is_feature_enabled
-        result = is_feature_enabled("realtime_sync")
+        result = is_feature_enabled("export_premium")
         assert result is False
 
     def test_override(self):
         from src.core.feature_flags import FeatureFlagManager
         mgr = FeatureFlagManager.get_instance()
-        mgr.set_override("realtime_sync", True)
-        assert mgr.is_enabled("realtime_sync") is True
-        mgr.clear_override("realtime_sync")
+        mgr.set_override("realtime_sync", False)
         assert mgr.is_enabled("realtime_sync") is False
+        mgr.clear_override("realtime_sync")
+        assert mgr.is_enabled("realtime_sync") is True
 
     def test_plan_restriction(self):
         from src.core.feature_flags import FeatureFlagManager

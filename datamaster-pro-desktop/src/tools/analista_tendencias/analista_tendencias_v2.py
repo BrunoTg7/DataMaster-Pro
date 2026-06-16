@@ -5,7 +5,6 @@ Integra Social Search (TikTok/Instagram via Aggregators) e Marketplaces.
 """
 import asyncio
 import re
-import random
 import os
 import sys
 from typing import List, Dict, Optional, Any
@@ -132,7 +131,9 @@ class AnalistaTendencias:
         
         # Consolidação de Dados
         product_counter = Counter()
-        for batch in raw_results:
+        product_platforms = {}  # Track which platforms each product appears on
+        for batch_idx, batch in enumerate(raw_results):
+            platform_name = ["Mercado Livre", "Amazon", "TikTok"][batch_idx % 3] if len(raw_results) > 3 else ["Mercado Livre", "Amazon", "TikTok"][batch_idx]
             for title in batch:
                 # Limpeza simples de títulos
                 clean_title = re.sub(r'[^a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s]', '', title)
@@ -140,16 +141,35 @@ class AnalistaTendencias:
                 short_name = " ".join(clean_title.split()[:5])
                 if len(short_name) > 10:
                     product_counter[short_name] += 1
+                    if short_name not in product_platforms:
+                        product_platforms[short_name] = set()
+                    product_platforms[short_name].add(platform_name)
+
+        # Calcula total de resultados para normalização
+        total_results = sum(product_counter.values()) or 1
 
         trends = []
         for name, count in product_counter.most_common(15):
-            score = min(count * 15 + random.randint(10, 30), 100) # Score inteligente
+            # Score baseado na frequência real (0-100)
+            frequency_score = (count / total_results) * 100
+            # Bônus por aparecer em múltiplas plataformas
+            platform_count = len(product_platforms.get(name, set()))
+            platform_bonus = (platform_count - 1) * 15  # +15 por plataforma extra
+            score = min(int(frequency_score + platform_bonus), 100)
+
+            # Growth estimado: proporção de aparições vs média esperada
+            avg_per_product = total_results / max(len(product_counter), 1)
+            growth_ratio = count / avg_per_product if avg_per_product > 0 else 1
+            growth_pct = int((growth_ratio - 1) * 100)
+            growth_str = f"+{growth_pct}%" if growth_pct > 0 else f"{growth_pct}%"
+
             trends.append({
                 "product": name,
-                "growth": f"+{random.randint(5, 50)}%", # Simulado para UI
+                "growth": growth_str,
                 "score": score,
                 "opportunity": "Alta" if score > 75 else "Média" if score > 50 else "Baixa",
-                "platforms": ["Mercado Livre", "Amazon", "TikTok"]
+                "platforms": list(product_platforms.get(name, set())),
+                "mentions": count,
             })
 
         await self._close_browser()
@@ -165,12 +185,10 @@ class AnalistaTendencias:
     def analyze(self, niche_key: str, query: str = None) -> Dict:
         """Ponto de entrada síncrono para a GUI"""
         try:
-            loop = asyncio.get_event_loop()
+            return asyncio.run(self._analyze_niche_async(niche_key, query))
         except RuntimeError:
             loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-        return loop.run_until_complete(self._analyze_niche_async(niche_key, query))
+            return loop.run_until_complete(self._analyze_niche_async(niche_key, query))
 
     def get_available_niches(self) -> List[Dict]:
         return [{"key": k, "name": v["name"]} for k, v in self.NICHES.items()]

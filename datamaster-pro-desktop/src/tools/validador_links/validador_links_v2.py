@@ -40,14 +40,15 @@ class ValidadorLinks:
     ]
     
     # Seletores de botões de compra (comuns em diversos frameworks)
+    # NOTA: Playwright não suporta CSS :contains(). Usamos seletores de texto do Playwright.
     BUY_BUTTON_SELECTORS = [
         'button[class*="buy"]', 'button[class*="comprar"]',
         'a[class*="buy"]', 'a[class*="comprar"]',
         '[data-testid*="buy"]', '[data-testid*="comprar"]',
         '.buy-button', '#buy-button', '.add-to-cart',
-        'button:contains("Comprar")', 'button:contains("Adicionar")',
-        'a:contains("Comprar")'
     ]
+    # Seletores de texto Playwright (não-CSS) — checados separadamente via page.get_by_text()
+    BUY_BUTTON_TEXTS = ["Comprar", "Adicionar ao carrinho", "Buy Now", "Add to Cart"]
 
     USER_AGENTS = config.USER_AGENTS
 
@@ -218,12 +219,29 @@ class ValidadorLinks:
 
     async def _check_buy_button(self, page) -> bool:
         """Busca exaustiva por botões de ação de compra"""
+        # 1. Seletores CSS
         for selector in self.BUY_BUTTON_SELECTORS:
             try:
                 btn = await page.query_selector(selector)
                 if btn and await btn.is_visible():
                     return True
             except Exception: continue
+        
+        # 2. Textos de compra (Playwright text selectors)
+        for text in self.BUY_BUTTON_TEXTS:
+            try:
+                btn = page.get_by_text(text, exact=False)
+                if await btn.count() > 0 and await btn.first.is_visible():
+                    return True
+            except Exception: continue
+        
+        # 3. Botão genérico de role
+        try:
+            btn = page.get_by_role("button", name=re.compile(r"comprar|buy|carrinho|cart", re.I))
+            if await btn.count() > 0 and await btn.first.is_visible():
+                return True
+        except Exception: pass
+        
         return False
 
     async def _run_validation(self, urls: List[str]) -> List[Dict]:

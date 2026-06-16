@@ -7,6 +7,7 @@ import os
 import base64
 import json
 import threading
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
@@ -153,21 +154,23 @@ class LoginPage(ctk.CTkFrame):
         register_link.pack(side="left")
         register_link.bind("<Button-1>", lambda e: self._open_register())
 
-    def _is_jwt_expired(self, token: str) -> bool:
-        """Decodifica payload do JWT localmente e verifica expiração (sem rede)."""
+    def _is_session_valid_offline(self, saved_session: dict) -> bool:
+        """Verifica se sessão é válida offline (janela de 15 dias).
+        
+        Em vez de checar o JWT real (expira em ~1h), verifica o campo
+        expires_at da sessão salva com uma tolerância de 15 dias.
+        Isso permite que o usuário use o app offline por até 15 dias
+        após a última autenticação bem-sucedida.
+        """
+        expires_at = saved_session.get("expires_at")
+        if not expires_at:
+            return False
         try:
-            parts = token.split(".")
-            if len(parts) != 3:
-                return True
-            payload_b64 = parts[1] + "=" * (4 - len(parts[1]) % 4)
-            payload = json.loads(base64.urlsafe_b64decode(payload_b64))
-            exp = payload.get("exp")
-            if not exp:
-                return True
-            import time
-            return time.time() > exp
+            exp_date = datetime.fromisoformat(expires_at)
+            offline_grace = timedelta(days=15)
+            return datetime.now() < exp_date + offline_grace
         except Exception:
-            return True
+            return False
 
     def _check_auto_login(self):
         saved_session = self.storage_manager.get_saved_session()
@@ -177,11 +180,15 @@ class LoginPage(ctk.CTkFrame):
         online = check_internet_connection()
 
         if not online:
-            # ── Modo offline: validar JWT localmente (sem rede) ──
+            # ── Modo offline: validar sessão localmente (sem rede) ──
             session_token = saved_session.get("session_token", "")
             if saved_session.get("id") and session_token:
-                if not self._is_jwt_expired(session_token):
+                if self._is_session_valid_offline(saved_session):
                     self.after(100, lambda: self.on_login_success(saved_session))
+                else:
+                    self.status_label.configure(
+                        text="Sessão expirada. Conecte-se à internet para reautenticar."
+                    )
             return
 
         # ── Modo online: usar refresh_token para renovar sessão ──

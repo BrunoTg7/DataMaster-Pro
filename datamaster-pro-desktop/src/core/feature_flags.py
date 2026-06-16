@@ -40,9 +40,9 @@ class FeatureFlag:
 KNOWN_FLAGS = {
     "realtime_sync": FeatureFlag(
         "realtime_sync",
-        default=False,
+        default=True,
         description="Sincronização em tempo real via WebSocket",
-        rollout_percent=0,
+        rollout_percent=100,
     ),
     "dark_mode": FeatureFlag(
         "dark_mode",

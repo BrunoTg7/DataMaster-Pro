@@ -45,7 +45,7 @@ class ExtratorReviews:
 
     async def _extract_reviews_playwright(self, page, max_reviews: int) -> List[Dict]:
         self._log("Scrolling para carregar reviews dinâmicos...")
-        for i in range(3):
+        for i in range(5):
             await page.evaluate(f"window.scrollBy(0, {800 + (i*200)})")
             await page.wait_for_timeout(1500)
 
@@ -56,7 +56,9 @@ class ExtratorReviews:
             ".review-text-content",
             ".shopee-product-rating__comment",
             ".review-content",
-            "[data-testid='review-text']"
+            "[data-testid='review-text']",
+            ".review-item",
+            ".comment-content",
         ]
 
         found_elements = []
@@ -96,43 +98,51 @@ class ExtratorReviews:
     async def _process_url(self, context, url: str, max_reviews: int) -> Dict:
         async with self.semaphore:
             page = None
-            try:
-                page = await context.new_page()
-                ua = config.get_random_ua("desktop")
-                await page.set_extra_http_headers({"User-Agent": ua})
-                
-                self._log(f"🔍 Analisando: {url[:40]}...")
-                await page.goto(url, wait_until="load", timeout=60000)
-                await page.wait_for_timeout(2000)
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    page = await context.new_page()
+                    ua = config.get_random_ua("desktop")
+                    await page.set_extra_http_headers({"User-Agent": ua})
+                    
+                    self._log(f"🔍 Analisando: {url[:40]}...")
+                    await page.goto(url, wait_until="load", timeout=60000)
+                    await page.wait_for_timeout(2000)
 
-                site_name = "Mercado Livre" if "mercadolivre" in url else "Amazon" if "amazon" in url else "Shopee" if "shopee" in url else "Loja"
-                reviews = await self._extract_reviews_playwright(page, max_reviews)
-                
-                pos = sum(1 for r in reviews if r['sentiment'] == 'positive')
-                neg = sum(1 for r in reviews if r['sentiment'] == 'negative')
-                neu = sum(1 for r in reviews if r['sentiment'] == 'neutral')
-                total = len(reviews)
-                score = ((pos - neg) / total * 100) if total > 0 else 0
-                
-                return {
-                    "success": True,
-                    "site": site_name,
-                    "url": url,
-                    "reviews": reviews,
-                    "total_reviews": total,
-                    "sentiment": "positive" if score > 15 else "negative" if score < -15 else "neutral",
-                    "positive": pos,
-                    "negative": neg,
-                    "neutral": neu,
-                    "score": round(score, 1)
-                }
-            except Exception as e:
-                self._log(f"🛑 Erro em {url[:30]}: {str(e)}")
-                return {"success": False, "error": str(e), "url": url}
-            finally:
-                if page: await page.close()
+                    site_name = "Mercado Livre" if "mercadolivre" in url else "Amazon" if "amazon" in url else "Shopee" if "shopee" in url else "Loja"
+                    reviews = await self._extract_reviews_playwright(page, max_reviews)
+                    
+                    pos = sum(1 for r in reviews if r['sentiment'] == 'positive')
+                    neg = sum(1 for r in reviews if r['sentiment'] == 'negative')
+                    neu = sum(1 for r in reviews if r['sentiment'] == 'neutral')
+                    total = len(reviews)
+                    score = ((pos - neg) / total * 100) if total > 0 else 0
+                    
+                    return {
+                        "success": True,
+                        "site": site_name,
+                        "url": url,
+                        "reviews": reviews,
+                        "total_reviews": total,
+                        "sentiment": "positive" if score > 15 else "negative" if score < -15 else "neutral",
+                        "positive": pos,
+                        "negative": neg,
+                        "neutral": neu,
+                        "score": round(score, 1)
+                    }
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        self._log(f"⚠️ Tentativa {attempt + 1} falhou para {url[:30]}: {str(e)[:40]}. Retentando...")
+                        if page:
+                            await page.close()
+                            page = None
+                        continue
+                    self._log(f"🛑 Erro em {url[:30]}: {str(e)}")
+                    return {"success": False, "error": str(e), "url": url}
+                finally:
+                    if page: await page.close()
 
-    async def analyze_multiple_async(self, urls: List[str], max_reviews: int = 15) -> Dict:
+    async def analyze_multiple_async(self, urls: List[str], max_reviews: int = 30) -> Dict:
         from playwright.async_api import async_playwright
         self._log(f"🚀 Iniciando extração de {len(urls)} produtos...")
         results = []
@@ -158,7 +168,7 @@ class ExtratorReviews:
             "summary": "Processamento concluído."
         }
 
-    def analyze_multiple(self, urls: List[str], max_reviews: int = 15) -> Dict:
+    def analyze_multiple(self, urls: List[str], max_reviews: int = 30) -> Dict:
         try:
             return asyncio.run(self.analyze_multiple_async(urls, max_reviews))
         except RuntimeError:

@@ -594,9 +594,10 @@ class TaskExecutor:
             from src.utils.notifications import notification_manager
             task = self._tasks.get(task_id)
             if task:
-                notification_manager.send_async(
-                    title=f"✅ {task.tool_display_name.capitalize()} Concluído!",
-                    message=f"Processadas {task.rows_processed} linhas",
+                notification_manager.task_completed_async(
+                    tool_name=task.tool_display_name,
+                    records_count=task.rows_processed,
+                    hours_saved=task.hours_saved,
                 )
         except Exception:
             pass

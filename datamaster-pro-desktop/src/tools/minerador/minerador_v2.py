@@ -1178,7 +1178,6 @@ class Minerador:
             if resp.status_code != 200:
                 self._log(f"  ✗ Proxy retornou HTTP {resp.status_code} para {url[:120]}")
                 return None
-                return None
 
             soup = BeautifulSoup(resp.text, "html.parser")
             detected = self._detect_marketplace(url, marketplace)
@@ -1407,5 +1406,45 @@ class Minerador:
     # COMPATIBILIDADE
     # ─────────────────────────────────────────────────────────────────────────
     async def minerar_async(self, queries: List[str], marketplace: str = "mercadolivre") -> Dict:
-        """Stub de compatibilidade com versão anterior."""
-        return {"success": True, "data": []}
+        """Busca produtos por query nos marketplaces e minera seus dados.
+        
+        Gera URLs de busca a partir das queries, navega nas páginas de resultado
+        e coleta títulos, preços, links e metadados dos produtos encontrados.
+        """
+        if not queries:
+            return {"success": False, "error": "Nenhuma query fornecida", "data": []}
+
+        marketplace_urls = {
+            "mercadolivre": "https://lista.mercadolivre.com.br/{query}",
+            "amazon": "https://www.amazon.com.br/s?k={query}",
+            "shopee": "https://shopee.com.br/search?keyword={query}",
+            "magalu": "https://www.magazineluiza.com.br/busca/{query}/",
+        }
+
+        all_results = []
+        all_errors = []
+
+        for query in queries:
+            url_template = marketplace_urls.get(marketplace, marketplace_urls["mercadolivre"])
+            search_url = url_template.format(query=query.replace(" ", "+"))
+            self._log(f"🔍 Buscando: '{query}' em {marketplace}...")
+
+            try:
+                result = self.mine_from_links(
+                    urls=[search_url],
+                    marketplace=marketplace,
+                    max_successful=20,
+                )
+                if result.get("success"):
+                    all_results.extend(result.get("results", []))
+                else:
+                    all_errors.append({"query": query, "error": result.get("error", "Erro desconhecido")})
+            except Exception as e:
+                all_errors.append({"query": query, "error": str(e)})
+
+        return {
+            "success": len(all_results) > 0,
+            "data": all_results,
+            "total": len(all_results),
+            "errors": all_errors,
+        }
