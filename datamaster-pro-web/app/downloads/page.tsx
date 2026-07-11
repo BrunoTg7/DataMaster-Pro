@@ -15,7 +15,7 @@ async function getLatestDownload() {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("check_updates")
-      .select("versao_disponivel, created_at, tamanho_arquivo, changelog, url_download")
+      .select("versao_disponivel, updated_at, tamanho_arquivo, changelog, url_download")
       .order("id", { ascending: false })
       .limit(1)
       .single();
@@ -36,7 +36,7 @@ export default async function DownloadsPage() {
       platform: "Windows",
       icon: Monitor,
       version: latestUpdate?.versao_disponivel || "1.0.0",
-      date: latestUpdate?.created_at ? new Date(latestUpdate.created_at).toLocaleDateString('pt-BR') : "08/05/2026",
+      date: latestUpdate?.updated_at ? new Date(latestUpdate.updated_at).toLocaleDateString('pt-BR') : "08/05/2026",
       size: latestUpdate?.tamanho_arquivo || "119 MB",
       requirements: ["Windows 10 ou superior", "4GB RAM", "200MB disco"],
       changelog: latestUpdate?.changelog
