@@ -38,7 +38,7 @@ export default async function DownloadsPage() {
       version: latestUpdate?.versao_disponivel || "1.0.0",
       date: latestUpdate?.updated_at ? new Date(latestUpdate.updated_at).toLocaleDateString('pt-BR') : "08/05/2026",
       size: latestUpdate?.tamanho_arquivo || "119 MB",
-      requirements: ["Windows 10 ou superior", "4GB RAM", "200MB disco"],
+      requirements: ["Windows 10 ou superior", "4GB RAM", "600MB disco"],
       changelog: latestUpdate?.changelog
         ? latestUpdate.changelog.split(/\\n|\n/).map((line: string) => line.replace(/^#+\s*|^-\s*|^\*\s*/, '').trim()).filter((i: string) => i)
         : [
