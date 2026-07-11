@@ -1,36 +1,32 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase/client'
+import { useSession } from '@/lib/contexts/SessionContext'
 import Link from 'next/link'
 
-// Link do Cakto para pagamento
-const CAKTO_CHECKOUT_URL = 'https://pay.cakto.com.br/pnujmgs'
+// Links do Cakto para pagamento (configurar via env ou atualizar com URLs reais)
+const CAKTO_CHECKOUT_URLS: Record<string, { monthly: string; annual: string }> = {
+  pro: {
+    monthly: process.env.NEXT_PUBLIC_CAKTO_PRO_URL || '',
+    annual: process.env.NEXT_PUBLIC_CAKTO_PRO_ANUAL_URL || '',
+  },
+  starter: {
+    monthly: process.env.NEXT_PUBLIC_CAKTO_STARTER_URL || '',
+    annual: process.env.NEXT_PUBLIC_CAKTO_STARTER_ANUAL_URL || '',
+  },
+}
+const CAKTO_CHECKOUT_URL_DEFAULT = process.env.NEXT_PUBLIC_CAKTO_PRO_URL || ''
 
 interface PaymentLinkProps {
   children: React.ReactNode
   className?: string
   planId?: string
+  isAnnual?: boolean
 }
 
-export function PaymentLink({ children, className, planId }: PaymentLinkProps) {
-  const [email, setEmail] = useState<string>('')
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function getUserEmail() {
-      const { data: { session }, error } = await supabase.auth.getSession()
-      if (!error && session?.user) {
-        setIsLoggedIn(true)
-        if (session.user.email) {
-          setEmail(session.user.email)
-        }
-      }
-      setLoading(false)
-    }
-    getUserEmail()
-  }, [])
+export function PaymentLink({ children, className, planId, isAnnual }: PaymentLinkProps) {
+  const { user, loading } = useSession()
+  const isLoggedIn = !!user
+  const email = user?.email || ''
 
   if (loading) {
     return (
@@ -57,11 +53,9 @@ export function PaymentLink({ children, className, planId }: PaymentLinkProps) {
   }
 
   // Build URL com email pré-definido
-  // Formatos comuns de plataformas de checkout:
   const params = new URLSearchParams()
 
   if (email) {
-    // Tenta diferentes parâmetros (Cakto pode usar um desses)
     params.set('email', email)
     params.set('customer_email', email)
     params.set('pre_email', email)
@@ -72,7 +66,21 @@ export function PaymentLink({ children, className, planId }: PaymentLinkProps) {
   }
 
   const queryString = params.toString()
-  const checkoutUrl = queryString ? `${CAKTO_CHECKOUT_URL}?${queryString}` : CAKTO_CHECKOUT_URL
+  const planUrls = planId ? CAKTO_CHECKOUT_URLS[planId] : undefined
+  const baseUrl = planUrls
+    ? (isAnnual ? planUrls.annual : planUrls.monthly) || CAKTO_CHECKOUT_URL_DEFAULT
+    : CAKTO_CHECKOUT_URL_DEFAULT
+
+  // Se a URL do plano não está configurada, redireciona para página de planos
+  if (planId && planId !== 'pro' && !baseUrl) {
+    return (
+      <Link href="/planos" className={className}>
+        {children}
+      </Link>
+    )
+  }
+
+  const checkoutUrl = queryString ? `${baseUrl}?${queryString}` : baseUrl
 
   return (
     <Link href={checkoutUrl} className={className} target="_blank" rel="noopener noreferrer">
@@ -82,29 +90,29 @@ export function PaymentLink({ children, className, planId }: PaymentLinkProps) {
 }
 
 // Hook para gerar URL de pagamento
-export function usePaymentUrl(planId?: string) {
-  const [paymentUrl, setPaymentUrl] = useState<string>(CAKTO_CHECKOUT_URL)
+export function usePaymentUrl(planId?: string, isAnnual?: boolean) {
+  const { user } = useSession()
 
-  useEffect(() => {
-    async function getPaymentUrl() {
-      const { data: { session } } = await supabase.auth.getSession()
+  const params = new URLSearchParams()
 
-      const params = new URLSearchParams()
+  if (user?.email) {
+    params.set('email', user.email)
+  }
 
-      if (session?.user?.email) {
-        params.set('email', session.user.email)
-      }
+  if (planId) {
+    params.set('plan', planId)
+  }
 
-      if (planId) {
-        params.set('plan', planId)
-      }
+  const queryString = params.toString()
+  const planUrls = planId ? CAKTO_CHECKOUT_URLS[planId] : undefined
+  const baseUrl = planUrls
+    ? (isAnnual ? planUrls.annual : planUrls.monthly) || CAKTO_CHECKOUT_URL_DEFAULT
+    : CAKTO_CHECKOUT_URL_DEFAULT
 
-      const queryString = params.toString()
-      setPaymentUrl(queryString ? `${CAKTO_CHECKOUT_URL}?${queryString}` : CAKTO_CHECKOUT_URL)
-    }
+  // Se a URL do plano não está configurada, redireciona para página de planos
+  if (planId && planId !== 'pro' && !baseUrl) {
+    return '/planos'
+  }
 
-    getPaymentUrl()
-  }, [planId])
-
-  return paymentUrl
+  return queryString ? `${baseUrl}?${queryString}` : baseUrl
 }

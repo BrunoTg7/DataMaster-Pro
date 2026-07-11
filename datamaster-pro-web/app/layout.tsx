@@ -1,5 +1,7 @@
 import { Footer } from "@/components/shared/Footer";
 import { Header } from "@/components/shared/Header";
+import { ConsentBanner } from "@/components/shared/ConsentBanner";
+import { ClientProviders } from "@/components/shared/ClientProviders";
 import { ThemeInitializer } from "@/hooks/ThemeInitializer";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
@@ -87,10 +89,14 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className="min-h-screen flex flex-col">
-        <ThemeInitializer />
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <ClientProviders>
+          <ThemeInitializer />
+          <a href="#main-content" className="skip-link">Pular para o conteudo principal</a>
+          <Header />
+          <main id="main-content" role="main" className="flex-1">{children}</main>
+          <Footer />
+          <ConsentBanner />
+        </ClientProviders>
       </body>
     </html>
   );

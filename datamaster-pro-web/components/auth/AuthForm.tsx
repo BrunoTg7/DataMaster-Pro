@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
+import { ConsentCheckbox } from '@/components/shared/ConsentCheckbox'
 
 interface AuthFormProps {
   mode: 'login' | 'register'
@@ -18,6 +19,8 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [consentChecked, setConsentChecked] = useState(false)
+  const [consentError, setConsentError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,6 +29,12 @@ export function AuthForm({ mode }: AuthFormProps) {
 
     try {
       if (mode === 'register') {
+        if (!consentChecked) {
+          setConsentError('Voce precisa aceitar os Termos de Uso e a Politica de Privacidade para criar sua conta.')
+          setLoading(false)
+          return
+        }
+        setConsentError(null)
         const passwordError = validatePassword(password)
         if (passwordError) {
           setError(passwordError)
@@ -34,20 +43,24 @@ export function AuthForm({ mode }: AuthFormProps) {
         }
       }
 
+      // Sanitizar inputs
+      const emailSanitizado = email.trim().toLowerCase()
+      const nomeSanitizado = name.trim().slice(0, 100)
+
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({
-          email,
+          email: emailSanitizado,
           password,
         })
         if (error) throw error
         router.push('/dashboard')
       } else {
         const { data, error } = await supabase.auth.signUp({
-          email,
+          email: emailSanitizado,
           password,
           options: {
             data: {
-              nome: name,
+              nome: nomeSanitizado,
             },
           },
         })
@@ -58,7 +71,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           await supabase.from('usuarios').upsert({
             id: data.user.id,
             email: data.user.email!,
-            nome: name,
+            nome: nomeSanitizado,
             plano_tipo: 'gratis'
           })
         }
@@ -156,6 +169,8 @@ export function AuthForm({ mode }: AuthFormProps) {
                   className="input-field"
                   placeholder="Seu nome"
                   required={!isLogin}
+                  maxLength={100}
+                  minLength={2}
                 />
               </div>
             )}
@@ -172,6 +187,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                 placeholder="seu@email.com"
                 required
                 autoComplete="email"
+                maxLength={254}
               />
             </div>
 
@@ -195,12 +211,14 @@ export function AuthForm({ mode }: AuthFormProps) {
                   placeholder="••••••••"
                   required
                   minLength={8}
+                  maxLength={128}
                   autoComplete={isLogin ? "current-password" : "new-password"}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600"
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -208,9 +226,16 @@ export function AuthForm({ mode }: AuthFormProps) {
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm" role="alert">
                 {error}
               </div>
+            )}
+
+            {!isLogin && (
+              <ConsentCheckbox
+                onChange={setConsentChecked}
+                error={consentError || undefined}
+              />
             )}
 
             <button

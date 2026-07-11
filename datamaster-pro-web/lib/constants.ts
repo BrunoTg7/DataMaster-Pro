@@ -1,3 +1,5 @@
+export const APP_VERSION = '1.0.0'
+
 export const TOOLS = [
   {
     id: 'consolidador',
@@ -138,15 +140,15 @@ export const PLANS = [
     id: 'free',
     name: 'Grátis',
     price: 0,
+    annualPrice: null,
     description: 'Perfeito para validar a potência das ferramentas.',
     features: [
-      'Consolidador: Até 600 linhas (3 execs)',
-      'Categorizador: Até 600 linhas (3 execs)',
+      'Consolidador: Até 600 linhas (5 execs)',
+      'Categorizador: Até 600 linhas (5 execs)',
       'Orçamentos: Até 15 documentos (3 execs)',
-      'Conciliador: Até 3 conciliações',
+      'Conciliador: Até 2 conciliações',
       'Minerador: Até 15 links (2 execs)',
       'Marca d\'água em todos os relatórios',
-
       'Retenção de histórico: 1 hora',
       'Suporte via documentação'
     ],
@@ -155,9 +157,31 @@ export const PLANS = [
     highlighted: false
   },
   {
+    id: 'starter',
+    name: 'Starter',
+    price: 34.00,
+    annualPrice: 30.60,
+    description: 'Para quem precisa de mais volume e sem marca d\'água.',
+    features: [
+      'Consolidador: Até 3.000 linhas (10 execs)',
+      'Categorizador: Até 3.000 linhas (10 execs)',
+      'Orçamentos: Até 60 documentos (6 execs)',
+      'Conciliador: Até 8 conciliações',
+      'Minerador: Até 80 links (8 execs)',
+      'Sem marca d\'água',
+      '2 tarefas simultâneas',
+      'Retenção de histórico (7 dias, 15 dias, 1 mês ou 6 meses)',
+      'Suporte por e-mail'
+    ],
+    notIncluded: ['Uso ilimitado', 'Suporte prioritário WhatsApp', 'Atualizações antecipadas'],
+    cta: 'Assinar Starter',
+    highlighted: false
+  },
+  {
     id: 'pro',
     name: 'Pro',
     price: 64.00,
+    annualPrice: 57.60,
     description: 'Para profissionais que buscam performance máxima e zero limites.',
     features: [
       'Todas ferramentas liberadas',
@@ -172,25 +196,7 @@ export const PLANS = [
     ],
     notIncluded: [],
     cta: 'Assinar Plano Pro',
-    highlighted: true,
-    savings: 'Economize 60% no anual'
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: null,
-    description: 'Solução sob medida para departamentos e grandes empresas.',
-    features: [
-      'Tudo do plano Pro',
-      'Licenças em Volume (+5 usuários)',
-      'Instalação Assistida',
-      'Treinamento VIP (1h de Call)',
-      'Customização de Código',
-      'Suporte 24/7 Direto'
-    ],
-    notIncluded: [],
-    cta: 'Falar com um Consultor',
-    highlighted: false
+    highlighted: true
   }
 ] as const
 
@@ -200,23 +206,44 @@ export const PLAN_LIMITS = {
   free: {
     maxLinesMonth: 1200,
     maxExecsMonth: 15,
+    maxConcurrentTasks: 1,
+    availableHistoryRetentions: ['1h'],
     tools_limit: {
-      consolidador: { max_per_exec: 600, max_execs: 3 },
-      categorizador: { max_per_exec: 600, max_execs: 3 },
-      orcamentos: { max_per_exec: 15, max_execs: 5 },
-      conciliador: { max_per_exec: null, max_execs: 3 },
-      minerador: { max_per_exec: 15, max_execs: 2 },
+      consolidador: { max_per_exec: 600, max_execs: 5 },
+      categorizador: { max_per_exec: 600, max_execs: 5 },
+      orcamentos: { max_per_exec: 15, max_execs: 3 },
+      conciliador: { max_execs: 2 },
+      minerador: { max_per_exec: 15, max_total: 15, max_execs: 2 },
       ocr: { max_per_exec: 10, max_execs: 3 },
       validador: { max_per_exec: 20, max_execs: 3 },
-      lucratividade: { max_per_exec: null, max_execs: 3 },
+      lucratividade: { max_execs: 3 },
       tendencias: { max_per_exec: 5, max_execs: 3 },
-      comissoes: { max_per_exec: 20, max_execs: 5 },
-      sanitizer: { plano: 'Disponível no Pro' },
-      laudos: { plano: 'Disponível no Pro' },
-      reviews: { plano: 'Disponível no Pro' },
+      comissoes: { max_per_exec: 20, max_execs: 3 },
+      classificador_ncm: { max_per_exec: 100, max_execs: 3 },
+      precificador_canal: { max_per_exec: 100, max_execs: 3 },
     },
     tools: ['consolidador', 'categorizador', 'orcamentos', 'minerador', 'conciliador', 'ocr', 'validador', 'lucratividade', 'tendencias', 'comissoes', 'sanitizer', 'laudos', 'reviews']
   },
-  pro: { maxLinesMonth: null, tools_limit: null, tools: ['all'] },
-  enterprise: { maxLinesMonth: null, tools_limit: null, tools: ['all'] }
+  starter: {
+    maxLinesMonth: 10000,
+    maxExecsMonth: 80,
+    maxConcurrentTasks: 2,
+    availableHistoryRetentions: ['7d', '15d', '1m', '6m'],
+    tools_limit: {
+      consolidador: { max_per_exec: 3000, max_execs: 10 },
+      categorizador: { max_per_exec: 3000, max_execs: 10 },
+      orcamentos: { max_per_exec: 60, max_execs: 6 },
+      conciliador: { max_execs: 8 },
+      minerador: { max_per_exec: 80, max_total: 80, max_execs: 8 },
+      ocr: { max_per_exec: 20, max_execs: 6 },
+      validador: { max_per_exec: 40, max_execs: 6 },
+      lucratividade: { max_execs: 6 },
+      tendencias: { max_per_exec: 10, max_execs: 6 },
+      comissoes: { max_per_exec: 40, max_execs: 6 },
+      classificador_ncm: { max_per_exec: 200, max_execs: 6 },
+      precificador_canal: { max_per_exec: 200, max_execs: 6 },
+    },
+    tools: ['consolidador', 'categorizador', 'orcamentos', 'minerador', 'conciliador', 'ocr', 'validador', 'lucratividade', 'tendencias', 'comissoes', 'classificador_ncm', 'precificador_canal']
+  },
+  pro: { maxLinesMonth: null, maxConcurrentTasks: 2, availableHistoryRetentions: ['7d', '15d', '1m', '6m'], tools_limit: null, tools: ['all'] }
 }

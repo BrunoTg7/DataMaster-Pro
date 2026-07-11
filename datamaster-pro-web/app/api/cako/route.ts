@@ -1,4 +1,22 @@
 import { NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
+
+function safeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
+}
+
+function sanitizeString(value: unknown, maxLength: number): string {
+  if (typeof value !== 'string') return ''
+  return value.trim().slice(0, maxLength)
+}
+
+function sanitizeEmail(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  return value.trim().toLowerCase().slice(0, 254)
+}
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +28,7 @@ export async function POST(request: Request) {
 
     const authHeader = request.headers.get('authorization') || request.headers.get('x-cakto-signature')
 
-    if (authHeader !== expectedSecret && authHeader !== `Bearer ${expectedSecret}`) {
+    if (!authHeader || (!safeCompare(authHeader, expectedSecret) && !safeCompare(authHeader, `Bearer ${expectedSecret}`))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -35,14 +53,28 @@ export async function POST(request: Request) {
       action = 'renew'
     }
 
-    const email = payload.data?.email || payload.data?.customer_email || ''
-    const planName = payload.data?.plan || payload.data?.plan_name || 'pro'
-    const price = payload.data?.price || 0
-    const expirationDate = payload.data?.expiration_date || payload.data?.next_billing_date || null
-    const transactionId = payload.data?.transaction_id || payload.data?.subscription_id || ''
+    const email = sanitizeEmail(payload.data?.email || payload.data?.customer_email || '')
+    const planName = sanitizeString(payload.data?.plan || payload.data?.plan_name || 'pro', 50)
+    const price = typeof payload.data?.price === 'number' ? payload.data.price : 0
+    const expirationDate = sanitizeString(payload.data?.expiration_date || payload.data?.next_billing_date || '', 30) || null
+    const transactionId = sanitizeString(payload.data?.transaction_id || payload.data?.subscription_id || '', 100)
 
     if (!email) {
       return NextResponse.json({ error: 'No email provided' }, { status: 400 })
+    }
+
+    // Check idempotency (avoid processing duplicate webhook events for the same transaction & status)
+    if (transactionId) {
+      const { data: existingPayment } = await supabase
+        .from('pagamentos')
+        .select('id')
+        .eq('transacao_id', transactionId)
+        .eq('status', action)
+        .maybeSingle()
+
+      if (existingPayment) {
+        return NextResponse.json({ message: 'Processed (duplicate)' }, { status: 200 })
+      }
     }
 
     const { data: userData, error: userError } = await supabase
@@ -60,8 +92,8 @@ export async function POST(request: Request) {
       planType = 'gratis'
     } else if (planName.toLowerCase().includes('pro') || price >= 49.90) {
       planType = 'pro'
-    } else if (planName.toLowerCase().includes('enterprise')) {
-      planType = 'enterprise'
+    } else if (planName.toLowerCase().includes('starter') || price >= 29.90) {
+      planType = 'starter'
     }
 
     let updateData: any = {
@@ -84,6 +116,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 
+    // Sanitizar metadata - apenas campos essenciais
+    const safeMetadata = {
+      event: sanitizeString(payload.event, 50),
+      plan: planName,
+      price: price,
+    }
+
     await supabase
       .from('pagamentos')
       .insert({
@@ -93,7 +132,7 @@ export async function POST(request: Request) {
         status: action,
         transacao_id: transactionId,
         gateway: 'cakto',
-        metadata: JSON.stringify(payload.data || {})
+        metadata: JSON.stringify(safeMetadata)
       })
 
     return NextResponse.json({ message: 'Processed' }, { status: 200 })

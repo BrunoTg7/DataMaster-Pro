@@ -60,10 +60,13 @@ export default function CarreirasPage() {
                   <span className="text-primary-600">{job.salary}</span>
                 </div>
               </div>
-              <button className="btn-primary group-hover:scale-105 transition-transform px-8 whitespace-nowrap">
+              <a 
+                href={`mailto:talentos@datamaster.pro?subject=${encodeURIComponent(`Candidatura: ${job.role} - DataMaster Pro`)}`}
+                className="btn-primary group-hover:scale-105 transition-transform px-8 whitespace-nowrap flex items-center justify-center"
+              >
                 Ver Detalhes
                 <ArrowRight className="w-4 h-4 ml-2" />
-              </button>
+              </a>
             </div>
           ))}
         </div>

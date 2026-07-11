@@ -24,7 +24,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (mounted) {
         if (error) {
-          console.warn('Session error:', error.message)
           setUser(null)
         } else {
           setUser(session?.user ?? null)

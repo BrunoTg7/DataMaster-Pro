@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import { Shield, Eye, Lock, FileCheck } from 'lucide-react'
+import { LgpdActions } from './LgpdActions'
 
 export const metadata: Metadata = {
   title: 'LGPD & Segurança - DataMaster Pro',
@@ -48,12 +49,16 @@ export default function LGPDPage() {
           <section>
             <h2 className="text-xl font-bold mb-4">Direitos do Titular</h2>
             <p>Em conformidade com a LGPD, garantimos a você:</p>
-            <ul className="list-disc pl-5 space-y-2 text-surface-600">
+            <ul className="list-disc pl-5 space-y-2 text-surface-600 mb-6">
               <li>Confirmação da existência de tratamento.</li>
               <li>Acesso e correção de dados incompletos ou inexatos.</li>
               <li>Eliminação de dados tratados com consentimento.</li>
               <li>Revogação do consentimento a qualquer momento.</li>
             </ul>
+
+            <div className="not-prose mt-8">
+              <LgpdActions />
+            </div>
           </section>
 
           <div className="p-8 bg-surface-900 rounded-3xl text-white">

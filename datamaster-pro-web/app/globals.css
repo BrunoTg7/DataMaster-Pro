@@ -102,15 +102,15 @@ html.dark .min-h-\[297mm\]\.bg-white {
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center px-6 py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 active:bg-primary-800 transition-all duration-200 ease-out shadow-lg shadow-primary-600/25 hover:shadow-primary-600/40 hover:-translate-y-0.5;
+    @apply inline-flex items-center justify-center px-5 sm:px-6 py-2.5 sm:py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 active:bg-primary-800 transition-all duration-200 ease-out shadow-lg shadow-primary-600/25 hover:shadow-primary-600/40 hover:-translate-y-0.5 text-sm sm:text-base;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center px-6 py-3 bg-surface-100 text-surface-900 font-semibold rounded-lg hover:bg-surface-200 active:bg-surface-300 transition-all duration-200 ease-out border border-surface-200;
+    @apply inline-flex items-center justify-center px-5 sm:px-6 py-2.5 sm:py-3 bg-surface-100 text-surface-900 font-semibold rounded-lg hover:bg-surface-200 active:bg-surface-300 transition-all duration-200 ease-out border border-surface-200 text-sm sm:text-base;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center px-4 py-2 text-surface-600 font-medium rounded-lg hover:bg-surface-100 hover:text-surface-900 transition-all duration-200;
+    @apply inline-flex items-center justify-center px-3 sm:px-4 py-1.5 sm:py-2 text-surface-600 font-medium rounded-lg hover:bg-surface-100 hover:text-surface-900 transition-all duration-200 text-sm;
   }
 
   .card {
@@ -127,5 +127,40 @@ html.dark .min-h-\[297mm\]\.bg-white {
 
   .dark .input-field {
     @apply bg-surface-800 border-surface-700 text-surface-50 placeholder:text-surface-500;
+  }
+}
+
+/* ── WCAG: Skip to Content ─────────────────────────────────── */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #d48214;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 0 0 8px 8px;
+  font-weight: 600;
+  z-index: 9999;
+  transition: top 0.2s ease;
+}
+.skip-link:focus {
+  top: 0;
+}
+
+/* ── WCAG: Focus Visible ───────────────────────────────────── */
+*:focus-visible {
+  outline: 3px solid #d48214;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── WCAG: Reduced Motion ──────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

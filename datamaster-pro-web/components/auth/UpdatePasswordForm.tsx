@@ -29,6 +29,28 @@ export function UpdatePasswordForm() {
     setLoading(true)
     setError(null)
 
+    // Validate password strength (same as AuthForm)
+    if (password.length < 8) {
+      setError('A senha deve ter pelo menos 8 caracteres.')
+      setLoading(false)
+      return
+    }
+    if (!/[A-Z]/.test(password)) {
+      setError('A senha deve conter pelo menos uma letra maiúscula.')
+      setLoading(false)
+      return
+    }
+    if (!/[a-z]/.test(password)) {
+      setError('A senha deve conter pelo menos uma letra minúscula.')
+      setLoading(false)
+      return
+    }
+    if (!/[0-9]/.test(password)) {
+      setError('A senha deve conter pelo menos um número.')
+      setLoading(false)
+      return
+    }
+
     try {
       const { error } = await supabase.auth.updateUser({ password })
       
@@ -70,13 +92,15 @@ export function UpdatePasswordForm() {
                   className="input-field pr-10"
                   placeholder="••••••••"
                   required
-                  minLength={6}
+                  minLength={8}
+                  maxLength={128}
                   autoComplete="new-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600"
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>

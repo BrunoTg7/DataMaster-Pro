@@ -37,22 +37,48 @@ export async function POST(request: Request) {
 
     if (!nome || !email || !mensagem) {
       return NextResponse.json(
-        { error: 'Nome, email e mensagem são obrigatórios.' },
+        { error: 'Nome, email e mensagem sao obrigatorios.' },
+        { status: 400 }
+      )
+    }
+
+    if (typeof nome !== 'string' || typeof email !== 'string' || typeof mensagem !== 'string') {
+      return NextResponse.json(
+        { error: 'Tipos de dados invalidos.' },
+        { status: 400 }
+      )
+    }
+
+    // Sanitizar e limitar campos
+    const nomeSanitizado = nome.trim().slice(0, 100)
+    const emailSanitizado = email.trim().toLowerCase().slice(0, 254)
+    const mensagemSanitizada = mensagem.trim().slice(0, 2000)
+
+    if (nomeSanitizado.length < 2) {
+      return NextResponse.json(
+        { error: 'Nome deve ter pelo menos 2 caracteres.' },
         { status: 400 }
       )
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(emailSanitizado)) {
       return NextResponse.json(
-        { error: 'Email inválido.' },
+        { error: 'Email invalido.' },
         { status: 400 }
       )
     }
 
-    if (mensagem.length > 2000) {
+    if (mensagemSanitizada.length < 10) {
       return NextResponse.json(
-        { error: 'Mensagem muito longa (máximo 2000 caracteres).' },
+        { error: 'Mensagem deve ter pelo menos 10 caracteres.' },
+        { status: 400 }
+      )
+    }
+
+    if (mensagemSanitizada.length > 2000) {
+      return NextResponse.json(
+        { error: 'Mensagem muito longa (maximo 2000 caracteres).' },
         { status: 400 }
       )
     }
@@ -68,9 +94,9 @@ export async function POST(request: Request) {
         fonte: 'contato',
         tipo_evento: 'contact_form',
         payload: {
-          nome,
-          email,
-          mensagem,
+          nome: nomeSanitizado,
+          email: emailSanitizado,
+          mensagem: mensagemSanitizada,
           ip,
           user_agent: request.headers.get('user-agent'),
           created_at: new Date().toISOString(),

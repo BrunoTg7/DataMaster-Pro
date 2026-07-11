@@ -6,6 +6,16 @@ const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
 
 function getRateLimit(key: string, limit: number, windowMs: number): boolean {
   const now = Date.now()
+  
+  // Limpeza sob demanda para evitar vazamento de memória em serverless
+  if (rateLimitMap.size > 500) {
+    for (const [k, v] of Array.from(rateLimitMap.entries())) {
+      if (now > v.resetTime) {
+        rateLimitMap.delete(k)
+      }
+    }
+  }
+
   const record = rateLimitMap.get(key)
 
   if (!record || now > record.resetTime) {
@@ -21,15 +31,49 @@ function getRateLimit(key: string, limit: number, windowMs: number): boolean {
   return true
 }
 
-// Limpa registros antigos a cada 5 minutos
-setInterval(() => {
-  const now = Date.now()
-  Array.from(rateLimitMap.entries()).forEach(([key, record]) => {
-    if (now > record.resetTime) {
-      rateLimitMap.delete(key)
+async function isAllowed(key: string, limit: number, windowSeconds: number): Promise<boolean> {
+  const url = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+
+  if (url && token) {
+    try {
+      const cleanedUrl = url.endsWith('/') ? url : `${url}/`
+      const evalUrl = `${cleanedUrl}eval`
+
+      const luaScript = `
+        local current = redis.call('incr', KEYS[1])
+        if current == 1 then
+          redis.call('expire', KEYS[1], ARGV[1])
+        end
+        return current
+      `
+
+      const res = await fetch(evalUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          script: luaScript,
+          args: [windowSeconds.toString()],
+          keys: [key]
+        }),
+        signal: AbortSignal.timeout(2000)
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const currentCount = Number(data.result)
+        return currentCount <= limit
+      }
+    } catch (e) {
+      console.warn('Erro ao conectar ao Upstash Redis. Fallback para in-memory rate limiting.', e)
     }
-  })
-}, 5 * 60 * 1000)
+  }
+
+  return getRateLimit(key, limit, windowSeconds * 1000)
+}
 
 export async function middleware(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
@@ -39,7 +83,8 @@ export async function middleware(request: NextRequest) {
   const authPaths = ['/auth/login', '/auth/registro', '/auth/reset-password', '/api/auth']
   if (authPaths.some(path => pathname.startsWith(path))) {
     const rateLimitKey = `auth:${ip}`
-    if (!getRateLimit(rateLimitKey, 10, 60 * 1000)) { // 10 tentativas por minuto
+    const allowed = await isAllowed(rateLimitKey, 10, 60)
+    if (!allowed) {
       return NextResponse.json(
         { error: 'Muitas tentativas. Tente novamente em 1 minuto.' },
         { status: 429 }
@@ -50,9 +95,22 @@ export async function middleware(request: NextRequest) {
   // Rate limiting para webhook
   if (pathname.startsWith('/api/cakto')) {
     const rateLimitKey = `webhook:${ip}`
-    if (!getRateLimit(rateLimitKey, 30, 60 * 1000)) { // 30 por minuto
+    const allowed = await isAllowed(rateLimitKey, 30, 60)
+    if (!allowed) {
       return NextResponse.json(
         { error: 'Rate limit exceeded' },
+        { status: 429 }
+      )
+    }
+  }
+
+  // Rate limiting para account management
+  if (pathname.startsWith('/api/account')) {
+    const rateLimitKey = `account:${ip}`
+    const allowed = await isAllowed(rateLimitKey, 20, 60)
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Muitas tentativas. Tente novamente em 1 minuto.' },
         { status: 429 }
       )
     }

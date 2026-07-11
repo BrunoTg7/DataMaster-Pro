@@ -68,6 +68,7 @@ export function ResetPasswordForm() {
                   placeholder="seu@email.com"
                   required
                   autoComplete="email"
+                  maxLength={254}
                 />
               </div>
 

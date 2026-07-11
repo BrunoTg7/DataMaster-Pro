@@ -2,15 +2,60 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Send, MessageSquare, Mail, MapPin } from 'lucide-react'
+import { Send, MessageSquare, Mail, MapPin, Loader2 } from 'lucide-react'
+import { ConsentCheckbox } from '@/components/shared/ConsentCheckbox'
 
 export default function ContatoPage() {
   const [enviado, setEnviado] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const [consentChecked, setConsentChecked] = useState(false)
+  const [consentError, setConsentError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [nome, setNome] = useState('')
+  const [email, setEmail] = useState('')
+  const [mensagem, setMensagem] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setEnviado(true)
-    setTimeout(() => setEnviado(false), 3000)
+    
+    if (!consentChecked) {
+      setConsentError('Voce precisa autorizar o tratamento dos seus dados para enviar a mensagem.')
+      return
+    }
+    
+    setConsentError(null)
+    setErro(null)
+    setLoading(true)
+
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: nome.trim(),
+          email: email.trim(),
+          mensagem: mensagem.trim(),
+          honeypot: '',
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setErro(data.error || 'Erro ao enviar mensagem. Tente novamente.')
+        return
+      }
+
+      setEnviado(true)
+      setNome('')
+      setEmail('')
+      setMensagem('')
+      setTimeout(() => setEnviado(false), 5000)
+    } catch {
+      setErro('Erro de conexao. Verifique sua internet e tente novamente.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -34,7 +79,7 @@ export default function ContatoPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-surface-900">Suporte por Email</h3>
-                  <p className="text-surface-600 mt-1">Nossa equipe responde em até 24h úteis para usuários Standard, e até 4h úteis para usuários Premium e Enterprise.</p>
+                  <p className="text-surface-600 mt-1">Nossa equipe responde em até 24h úteis para usuários Free e Starter, e até 4h úteis para usuários Pro.</p>
                   <a href="mailto:suporte@datamasterpro.com" className="text-primary-600 font-semibold mt-2 inline-block hover:underline">suporte@datamasterpro.com</a>
                 </div>
               </div>
@@ -77,21 +122,72 @@ export default function ContatoPage() {
               Envie uma mensagem
             </h2>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {erro && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                  {erro}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-2">Nome</label>
-                <input type="text" required className="w-full px-4 py-3 rounded-xl border border-surface-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all" placeholder="Seu nome completo" />
+                <input 
+                  type="text" 
+                  required 
+                  maxLength={100}
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-surface-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all" 
+                  placeholder="Seu nome completo" 
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-2">Email</label>
-                <input type="email" required className="w-full px-4 py-3 rounded-xl border border-surface-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all" placeholder="seu@email.com" />
+                <input 
+                  type="email" 
+                  required 
+                  maxLength={254}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-surface-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all" 
+                  placeholder="seu@email.com" 
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-2">Mensagem</label>
-                <textarea required rows={4} className="w-full px-4 py-3 rounded-xl border border-surface-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all resize-none" placeholder="Como podemos ajudar? Dúvidas técnicas, financeiras ou parcerias."></textarea>
+                <textarea 
+                  required 
+                  rows={4} 
+                  maxLength={2000}
+                  value={mensagem}
+                  onChange={(e) => setMensagem(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-surface-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all resize-none" 
+                  placeholder="Como podemos ajudar? Duvidas tecnicas, financeiras ou parcerias."
+                ></textarea>
+                <p className="text-xs text-surface-400 mt-1">{mensagem.length}/2000</p>
               </div>
-              <button type="submit" className="w-full btn-primary py-4 text-lg group">
-                Enviar Mensagem
-                <Send className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              <ConsentCheckbox
+                onChange={setConsentChecked}
+                error={consentError || undefined}
+              />
+              <p className="text-xs text-surface-400 -mt-2">
+                Seus dados serao usados apenas para responder esta mensagem. Consulte nossa{' '}
+                <a href="/privacidade" className="underline hover:text-surface-600">Politica de Privacidade</a>.
+              </p>
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full btn-primary py-4 text-lg group disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 ml-2 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    Enviar Mensagem
+                    <Send className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
               </button>
             </form>
           </motion.div>

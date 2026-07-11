@@ -1,10 +1,9 @@
 'use client'
 
-import { supabase } from '@/lib/supabase/client'
+import { useSession } from '@/lib/contexts/SessionContext'
 import { motion } from 'framer-motion'
 import { ArrowRight, CheckCircle, Clock, Shield, Zap } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
 
 const stats = [
   { value: '100%', label: 'Processado Localmente' },
@@ -32,13 +31,8 @@ const benefits = [
 ]
 
 export function HeroSection() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data, error }) => {
-      setIsLoggedIn(!error && !!data.session)
-    }).catch(() => setIsLoggedIn(false))
-  }, [])
+  const { user } = useSession()
+  const isLoggedIn = !!user
 
   return (
     <section className="relative overflow-hidden bg-surface-50 pt-24 pb-16 lg:pt-32 lg:pb-24">
@@ -73,7 +67,7 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-5xl sm:text-6xl lg:text-7xl font-bold text-surface-900 leading-[1.1] mb-8 tracking-tight font-display"
+            className="text-3xl sm:text-5xl lg:text-7xl font-bold text-surface-900 leading-[1.1] mb-6 sm:mb-8 tracking-tight font-display"
           >
             Transforme planilhas em{' '}
             <span className="relative">
@@ -90,7 +84,7 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="text-lg sm:text-xl text-surface-600 mb-10 max-w-2xl mx-auto leading-relaxed"
+            className="text-base sm:text-xl text-surface-600 mb-8 sm:mb-10 max-w-2xl mx-auto leading-relaxed"
           >
             15 ferramentas profissionais para automatizar tarefas repetitivas no Excel.{' '}
             Consolide, categorize, preencha orçamentos, miner dados e concilie em segundos, e muito mais...
@@ -102,9 +96,9 @@ export function HeroSection() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8"
           >
-            <Link href={isLoggedIn ? "/dashboard" : "/auth/registro"} className="btn-primary group text-base px-8 py-4">
+            <Link href={isLoggedIn ? "/dashboard" : "/auth/registro"} className="btn-primary group text-sm sm:text-base px-6 sm:px-8 py-3 sm:py-4">
               {isLoggedIn ? "Acessar Painel" : "Começar Gratuitamente"}
-              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Link>
 
           </motion.div>
@@ -131,9 +125,9 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.5 }}
-          className="mt-16 lg:mt-24"
+          className="mt-12 sm:mt-16 lg:mt-24"
         >
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 lg:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
             {stats.map((stat, index) => (
               <motion.div
                 key={stat.label}
@@ -142,10 +136,10 @@ export function HeroSection() {
                 transition={{ duration: 0.5, delay: 0.6 + index * 0.1 }}
                 className="text-center group"
               >
-                <div className="text-4xl lg:text-5xl font-bold text-surface-900 mb-2 font-display tracking-tight group-hover:text-primary-600 transition-colors">
+                <div className="text-2xl sm:text-4xl lg:text-5xl font-bold text-surface-900 mb-1 sm:mb-2 font-display tracking-tight group-hover:text-primary-600 transition-colors">
                   {stat.value}
                 </div>
-                <div className="text-sm text-surface-500 font-medium">{stat.label}</div>
+                <div className="text-xs sm:text-sm text-surface-500 font-medium">{stat.label}</div>
               </motion.div>
             ))}
           </div>
@@ -157,10 +151,10 @@ export function HeroSection() {
 
 export function BenefitsSection() {
   return (
-    <section className="py-20 lg:py-28 bg-white relative">
+    <section className="py-12 sm:py-20 lg:py-28 bg-white relative">
       <div className="absolute inset-0 bg-gradient-to-b from-surface-50/50 to-transparent" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        <div className="grid md:grid-cols-3 gap-8 lg:gap-12">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-8 lg:gap-12">
           {benefits.map((benefit, index) => (
             <motion.div
               key={benefit.title}
@@ -168,13 +162,13 @@ export function BenefitsSection() {
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
               viewport={{ once: true }}
-              className="flex flex-col items-center text-center p-8 rounded-3xl bg-surface-50/50 border border-surface-100 hover:border-primary-100 hover:shadow-xl hover:shadow-primary-500/5 transition-all duration-300 group"
+              className={`flex flex-col items-center text-center p-3.5 sm:p-8 rounded-xl sm:rounded-3xl bg-surface-50/50 border border-surface-100 hover:border-primary-100 hover:shadow-xl hover:shadow-primary-500/5 transition-all duration-300 group ${index === 2 ? 'col-span-2 md:col-span-1' : ''}`}
             >
-              <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-primary-50 rounded-2xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
-                <benefit.icon className="w-8 h-8 text-primary-600" />
+              <div className="w-10 h-10 sm:w-16 sm:h-16 bg-gradient-to-br from-primary-100 to-primary-50 rounded-lg sm:rounded-2xl flex items-center justify-center mb-2.5 sm:mb-5 group-hover:scale-110 transition-transform duration-300">
+                <benefit.icon className="w-5 h-5 sm:w-8 sm:h-8 text-primary-600" />
               </div>
-              <h3 className="text-xl font-bold text-surface-900 mb-3 font-display">{benefit.title}</h3>
-              <p className="text-surface-600 leading-relaxed">{benefit.description}</p>
+              <h3 className="text-sm sm:text-xl font-bold text-surface-900 mb-1.5 sm:mb-3 font-display">{benefit.title}</h3>
+              <p className="text-[11px] sm:text-base text-surface-600 leading-relaxed">{benefit.description}</p>
             </motion.div>
           ))}
         </div>

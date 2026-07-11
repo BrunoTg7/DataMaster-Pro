@@ -1,11 +1,11 @@
 'use client'
 
 import { supabase } from '@/lib/supabase/client'
-import { User } from '@supabase/supabase-js'
-import { LayoutDashboard, LogOut, Menu, X } from 'lucide-react'
+import { useSession } from '@/lib/contexts/SessionContext'
+import { LayoutDashboard, LogOut, Menu, X, Settings, CreditCard, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { memo, useEffect, useState } from 'react'
+import { memo, useState, useEffect } from 'react'
 
 const navLinks = [
   { href: '/', label: 'Home' },
@@ -16,45 +16,40 @@ const navLinks = [
 function HeaderComponent() {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { user, loading } = useSession()
+  const [profile, setProfile] = useState<{ plano_tipo: string; data_expiracao?: string; created_at?: string } | null>(null)
+
+  const isDashboard = pathname === '/dashboard' || pathname.startsWith('/dashboard/')
 
   useEffect(() => {
-    let mounted = true
-    
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (mounted) {
-        if (error) {
-          console.warn('Session error:', error.message)
-          setUser(null)
-        } else {
-          setUser(session?.user ?? null)
-        }
-        setLoading(false)
-      }
-    }).catch(() => {
-      if (mounted) {
-        setUser(null)
-        setLoading(false)
-      }
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (mounted) {
-        if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
-          setUser(session?.user ?? null)
-        } else {
-          setUser(session?.user ?? null)
-        }
-        setLoading(false)
-      }
-    })
-
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
+    if (!user || !isDashboard) {
+      setProfile(null)
+      return
     }
-  }, [])
+    supabase.from('usuarios').select('plano_tipo, data_expiracao, created_at').eq('id', user.id).single()
+      .then(({ data }) => {
+        if (data) setProfile(data)
+      })
+  }, [user, isDashboard])
+
+  const calculateRenewalDate = (createdAt?: string, dataExpiracao?: string) => {
+    const planType = profile?.plano_tipo || 'gratis'
+    if (planType !== 'gratis' && dataExpiracao) {
+      return new Date(dataExpiracao)
+    }
+    if (!createdAt) return null
+    const created = new Date(createdAt)
+    const now = new Date()
+    let renewal = new Date(now.getFullYear(), now.getMonth(), created.getDate())
+    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    if (created.getDate() > lastDayOfMonth) renewal.setDate(lastDayOfMonth)
+    if (renewal <= now) {
+      renewal = new Date(now.getFullYear(), now.getMonth() + 1, created.getDate())
+      const nextMonthLastDay = new Date(now.getFullYear(), now.getMonth() + 2, 0).getDate()
+      if (created.getDate() > nextMonthLastDay) renewal.setDate(nextMonthLastDay)
+    }
+    return renewal
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -62,7 +57,7 @@ function HeaderComponent() {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-surface-200/50">
+    <header role="banner" className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-surface-200/50">
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
           <Link href="/" className="flex items-center gap-2 group">
@@ -76,7 +71,7 @@ function HeaderComponent() {
             </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-8">
+          <nav aria-label="Menu principal" className="hidden md:flex items-center gap-8">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -107,7 +102,7 @@ function HeaderComponent() {
                     <button 
                       onClick={handleLogout}
                       className="text-surface-500 hover:text-red-600 transition-colors"
-                      title="Sair"
+                      aria-label="Sair da conta"
                     >
                       <LogOut className="w-5 h-5" />
                     </button>
@@ -135,6 +130,8 @@ function HeaderComponent() {
           <button
             className="md:hidden p-2 text-surface-600 hover:text-surface-900"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -172,9 +169,43 @@ function HeaderComponent() {
                       <LayoutDashboard className="w-4 h-4" />
                       Meu Painel
                     </Link>
+                    {pathname === '/dashboard' && (
+                      <>
+                        <Link
+                          href="/dashboard/configuracoes"
+                          className="px-4 py-2 flex items-center gap-2 text-surface-600 font-medium"
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          <Settings className="w-4 h-4" />
+                          Configurações
+                        </Link>
+                        <Link
+                          href="/planos"
+                          className="px-4 py-2 flex items-center gap-2 text-surface-600 font-medium"
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          <CreditCard className="w-4 h-4" />
+                          Plano e Faturas
+                        </Link>
+                        {(profile?.created_at || profile?.data_expiracao) && (
+                          <div className="px-4 py-2 flex items-center gap-2 text-primary-700 font-medium bg-primary-50 rounded-lg mx-0">
+                            <Clock className="w-4 h-4" />
+                            <div className="flex flex-col">
+                              <span className="text-[10px] uppercase tracking-wider font-bold text-primary-600">
+                                {profile?.plano_tipo === 'gratis' ? 'Renovação do Limite' : 'Vencimento do Plano'}
+                              </span>
+                              <span className="text-sm font-bold">
+                                {calculateRenewalDate(profile?.created_at, profile?.data_expiracao)?.toLocaleDateString('pt-BR')}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
                     <button
                       onClick={handleLogout}
                       className="px-4 py-2 text-left text-red-600 font-medium flex items-center gap-2"
+                      aria-label="Sair da conta"
                     >
                       <LogOut className="w-4 h-4" />
                       Sair da conta
