@@ -1,0 +1,2 @@
+datamaster-pro-desktop/DataMasterPro_1.5.0.0_x64.msix filter=lfs diff=lfs merge=lfs -text
+datamaster-pro-desktop/datamaster_selfsigned.pfx filter=lfs diff=lfs merge=lfs -text
