@@ -35,19 +35,23 @@ export default async function DownloadsPage() {
     {
       platform: "Windows",
       icon: Monitor,
-      version: latestUpdate?.versao_disponivel || "1.0.0",
-      date: latestUpdate?.updated_at ? new Date(latestUpdate.updated_at).toLocaleDateString('pt-BR') : "08/05/2026",
-      size: latestUpdate?.tamanho_arquivo || "119 MB",
+      version: latestUpdate?.versao_disponivel || "1.5.0",
+      date: latestUpdate?.updated_at ? new Date(latestUpdate.updated_at).toLocaleDateString('pt-BR') : "05/08/2026",
+      size: latestUpdate?.tamanho_arquivo || "322 MB",
       requirements: ["Windows 10 ou superior", "4GB RAM", "600MB disco"],
-      changelog: latestUpdate?.changelog
-        ? latestUpdate.changelog.split(/\\n|\n/).map((line: string) => line.replace(/^#+\s*|^-\s*|^\*\s*/, '').trim()).filter((i: string) => i)
+changelog: latestUpdate?.changelog
+        ? latestUpdate.changelog.split(/\n|\n/).map((line: string) => line.replace(/^#+\s*|^-\s*|^\*\s*/, '').trim()).filter((i: string) => i)
         : [
-          "5 ferramentas completas",
-          "Modo offline",
-          "Segurança total Nos Seus dados",
-          "Criptografia de ponta a ponta",
-        ],
-      downloadUrl: latestUpdate?.url_download || "https://github.com/BrunoTg7/DataMaster-Pro-Upgrade/releases/download/1.4.0/DataMaster.Pro.Setup.v1.1.0.exe",
+            "MSIX Package v1.5.0 para Microsoft Store",
+            "5 ferramentas ativas com interface ITool",
+            "Orçamentos streaming (evita OOM em 1000+ PDFs)",
+            "Minerador com Selector Registry auto-update",
+            "Laudos com assinatura pAdES-B",
+            "NCM/CEST pipeline completo",
+            "Config dinâmica (tax_rules.json + simples_nacional_2026.json)",
+            "MSIX Package pronto para Microsoft Store",
+          ],
+        downloadUrl: latestUpdate?.url_download || "https://github.com/BrunoTg7/DataMaster-Pro-Upgrade/releases/download/v1.5.0/DataMasterPro_1.5.0.0_x64.msix",
     },
   ];
 

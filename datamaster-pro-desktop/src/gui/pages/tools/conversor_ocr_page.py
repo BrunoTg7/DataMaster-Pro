@@ -1,5 +1,6 @@
 """
 Conversor OCR Page - Extrai dados de PDFs e Imagens
+Versão Enterprise v3.0 - PaddleOCR (Zero binários, Layout Analysis, Tabelas)
 """
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
@@ -10,7 +11,7 @@ import threading
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
 from src.gui.pages.tool_page import ToolPage
-from src.tools.conversor_ocr.conversor_ocr_v2 import ConversorOCR
+from src.tools.conversor_ocr import ConversorOCRV3
 from src.gui.components.result_viewer_modal import ResultViewerButton
 from src.gui.helpers.execution_helper import ExecutionHelper
 from src.core.tasks.task_executor import task_executor
@@ -19,16 +20,17 @@ from src.core.tasks.task_executor import task_executor
 
 class ConversorOCRPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
-        self.ocr = None # Inicializa como None para evitar erro no _create_content
-        self.execution = ExecutionHelper("conversor_ocr", "Conversor OCR Premium", user_id)
-        super().__init__(master, "conversor_ocr", "Conversor OCR Premium", on_back, execution_tracker, user_id)
+        self.ocr = ConversorOCRV3(
+            progress_callback=self._update_progress,
+            log_callback=self._log_msg,
+            use_gpu=False
+        )
+        self.execution = ExecutionHelper("conversor_ocr", "Conversor OCR Enterprise v3", user_id)
+        super().__init__(master, "conversor_ocr", "Conversor OCR Enterprise v3", on_back, execution_tracker, user_id)
         self._check_task_state()
-        self.ocr = ConversorOCR(log_callback=self._log_msg)
+        self._check_ocr_status()
         self.input_files = []
         self._last_result_text = ""
-        
-        # Inicia a verificação e instalação automática sem botão
-        self._auto_setup_tesseract()
 
     def _check_task_state(self):
         last_task = self._tool_service.get_last_task_by_tool("conversor_ocr")
@@ -77,41 +79,61 @@ class ConversorOCRPage(ToolPage):
         except Exception:
             pass
 
-    def _create_content(self):
+def _create_content(self):
         content = ctk.CTkScrollableFrame(self, fg_color="transparent")
         content.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
         content.grid_columnconfigure(0, weight=1)
 
-        # Status & Tesseract Warning (Oculto se tudo ok)
-        self.status_frame = ctk.CTkFrame(content, fg_color="transparent")
-        self.status_frame.pack(fill="x", padx=20, pady=(10, 0))
+        # ── Header Info ─────────────────────────────────────────────────
+        info = ctk.CTkLabel(
+            content,
+            text=(
+                "Converta PDFs e Imagens para Excel com OCR Enterprise v3.0\n"
+                "✅ PaddleOCR PP-OCRv4  |  ✅ Layout Analysis  |  ✅ Extração de Tabelas  |  ✅ Zero binários externos"
+            ),
+            font=ctk.CTkFont(size=12),
+            text_color=config.Colors.TEXT_SECONDARY,
+            wraplength=550,
+            justify="left"
+        )
+        info.pack(pady=(20, 10))
 
-        # Drop Zone (Centralizado e Grande)
+        # ── Status do Motor ─────────────────────────────────────────────
+        self.status_frame = ctk.CTkFrame(content, fg_color=config.Colors.CARD, corner_radius=12)
+        self.status_frame.pack(fill="x", padx=20, pady=10)
+
+        self.status_label = ctk.CTkLabel(
+            self.status_frame,
+            text="Verificando motor PaddleOCR...",
+            font=ctk.CTkFont(size=11),
+            text_color=config.Colors.TEXT_SECONDARY
+        )
+        self.status_label.pack(padx=20, pady=15)
+
+        # ── Drop Zone ───────────────────────────────────────────────────
         self.drop_zone = self._create_drop_zone(
             content, 
-            "Arraste seus PDFs ou Imagens aqui", 
+            "Arraste PDFs ou Imagens aqui\n(PNG, JPG, BMP, TIFF, PDF)", 
             self._on_files_selected
         )
 
-        # Tema Visual da Planilha
-        theme_frame = ctk.CTkFrame(content, fg_color="transparent")
-        theme_frame.pack(fill="x", padx=20, pady=(5, 5))
+        # ── Tema Visual da Planilha ────────────────────────────────────
+        theme_frame = ctk.CTkFrame(content, fg_color=config.Colors.CARD, corner_radius=12)
+        theme_frame.pack(fill="x", padx=20, pady=8)
 
         ctk.CTkLabel(
             theme_frame,
             text="Tema Visual da Planilha (Excel):",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=config.Colors.TEXT_PRIMARY
-        ).pack(anchor="w", pady=(5, 5))
-        
-        # Verificar se é usuário FREE
+        ).pack(anchor="w", padx=20, pady=(15, 5))
+
         user_plan = self.user_data.get("plan", "gratis").lower() if self.user_data else "gratis"
         is_free_user = user_plan == "gratis"
-        
+
         if is_free_user:
-            # Mostrar aviso para FREE users
             aviso_frame = ctk.CTkFrame(theme_frame, fg_color="transparent")
-            aviso_frame.pack(anchor="w", pady=(0, 5))
+            aviso_frame.pack(anchor="w", padx=20, pady=(0, 5))
             
             aviso_label = ctk.CTkLabel(
                 aviso_frame,
@@ -138,17 +160,16 @@ class ConversorOCRPage(ToolPage):
             button_hover_color=config.Colors.PRIMARY_HOVER
         )
         self.visual_theme_menu.set("Azul Corporativo")
-        self.visual_theme_menu.pack(anchor="w", pady=(0, 10))
+        self.visual_theme_menu.pack(anchor="w", padx=20, pady=(0, 15))
         
-        # Desabilitar menu para FREE users
         if is_free_user:
             self.visual_theme_menu.configure(state="disabled")
 
-        # Botão de Ação (Abaixo do drop zone, mas integrado)
+        # ── Botão de Ação ──────────────────────────────────────────────
         self.action_btn = self._create_action_button(content, "Iniciar Conversão para Excel", self._run_conversion)
-        self.action_btn.configure(state="disabled") # Só habilita com arquivos
+        self.action_btn.configure(state="disabled")
 
-        # Progresso
+        # ── Progresso ──────────────────────────────────────────────────
         self.progress_frame = ctk.CTkFrame(content, fg_color="transparent")
         self.progress_frame.pack(fill="x", padx=40, pady=(0, 10))
         
@@ -157,7 +178,7 @@ class ConversorOCRPage(ToolPage):
         self.progress_bar.set(0)
         self.progress_frame.pack_forget()
 
-        # Resultados
+        # ── Log de Processamento ──────────────────────────────────────
         results_container = ctk.CTkFrame(content, fg_color=config.Colors.CARD, corner_radius=12)
         results_container.pack(fill="both", expand=True, padx=40, pady=10)
         
@@ -187,30 +208,15 @@ class ConversorOCRPage(ToolPage):
         )
         self.viewer_btn.pack(pady=(0, 15))
 
-    def _auto_setup_tesseract(self):
-        status = self.ocr.get_status()
-        tesseract_ok = status.get("tesseract_installed", False)
-        
-        if not tesseract_ok:
-            self._update_results_text("> Configurando motor de OCR automaticamente...\n")
-            threading.Thread(target=self._run_silent_setup, daemon=True).start()
-        else:
-            self._update_results_text("> Motor de OCR pronto.\n")
-
-    def _run_silent_setup(self):
-        # 1. Download
-        dl_res = self.ocr.download_tesseract()
-        if not dl_res["success"]:
-            self.after(0, lambda: self._update_results_text(f"❌ Erro ao baixar motor: {dl_res['error']}\n"))
-            return
-        
-        # 2. Silent Install
-        inst_res = self.ocr.install_tesseract_silently(dl_res["installer_path"], dl_res["target_dir"])
-        
-        if inst_res["success"]:
-            self.after(0, lambda: self._update_results_text("> Motor de OCR configurado com sucesso!\n"))
-        else:
-            self.after(0, lambda: self._update_results_text(f"❌ Erro na instalação: {inst_res['error']}\n"))
+    def _check_ocr_status(self):
+        """Verifica status do PaddleOCR e atualiza UI"""
+        try:
+            status = self.ocr.get_status()
+            self._log_msg(f"> Engine: {status.get('engine', 'PaddleOCR')}")
+            self._log_msg(f"> Features: {', '.join(status.get('features', []))}")
+            self._log_msg("> Motor de OCR pronto (sem binários externos).")
+        except Exception as e:
+            self._log_msg(f"> Erro ao verificar status: {e}")
 
     def _clear_all_files(self):
         self.input_files = []
@@ -303,12 +309,6 @@ class ConversorOCRPage(ToolPage):
             messagebox.showwarning("Aviso", "Selecione os arquivos PDF ou imagem primeiro")
             return
 
-        # Verifica se o OCR está pronto antes de começar
-        status = self.ocr.get_status()
-        if not status.get("tesseract_installed"):
-            messagebox.showwarning("Aguarde", "O motor de OCR ainda está sendo configurado. Aguarde alguns segundos.")
-            return
-
         output_dir = self._browse_folder()
         if not output_dir:
             return
@@ -346,7 +346,8 @@ class ConversorOCRPage(ToolPage):
             execute_func=_execute_func,
             on_complete=_on_complete,
             tool_name="conversor_ocr",
-            tool_display_name="Conversor OCR Premium"
+            tool_display_name="Conversor OCR Enterprise v3",
+            user_id=self.user_id
         )
 
     def _show_result_details(self, result):
@@ -359,21 +360,28 @@ class ConversorOCRPage(ToolPage):
         for r in result.get("results", []):
             name = os.path.basename(r["file"])
             if r["result"].get("success"):
-                method = r["result"].get("method", "OCR")
+                method = r["result"].get("method", "PaddleOCR")
                 self.results_text.insert("end", f"✅ {name} ({method})\n")
+                tables = r["result"].get("tables_found", 0)
+                if tables:
+                    self.results_text.insert("end", f"   📊 {tables} tabela(s) extraída(s)\n")
             else:
                 self.results_text.insert("end", f"❌ {name}\n   -> {r['result'].get('error', 'Erro')}\n")
         
         self.results_text.see("end")
         self.results_text.configure(state="disabled")
         
-        report = f"📄 RELATÓRIO OCR PREMIUM\n{'='*40}\n"
+        report = f"📄 RELATÓRIO OCR ENTERPRISE v3\n{'='*40}\n"
         report += f"Total: {result.get('total', 0)}\nSucesso: {result.get('processed', 0)}\n\n"
         for r in result.get("results", []):
             status = "✅" if r["result"].get("success") else "❌"
             report += f"{status} {os.path.basename(r['file'])}\n"
             if not r["result"].get("success"):
                 report += f"   Erro: {r['result'].get('error')}\n"
+            else:
+                method = r["result"].get("method", "PaddleOCR")
+                tables = r["result"].get("tables_found", 0)
+                report += f"   Método: {method} | Tabelas: {tables}\n"
         
         self._last_result_text = report
         

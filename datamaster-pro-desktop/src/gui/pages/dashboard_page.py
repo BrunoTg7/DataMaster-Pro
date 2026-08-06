@@ -158,11 +158,15 @@ class DashboardPage(ctk.CTkFrame):
             
         user_id = self.user_data.get("id")
         user_plan = self.user_data.get("plan", "gratis")
+        created_at = self.user_data.get("created_at")
         
-        # Buscar stats (já prioriza online)
-        stats = self.execution_tracker.get_user_stats(user_id)
+        # Calcular início do ciclo (igual ao web)
+        cycle_start = self.execution_tracker.get_current_cycle_start(created_at)
         
-        # Filtrar apenas Consolidador e Categorizador
+        # Buscar stats com filtro de ciclo
+        stats = self.execution_tracker.get_user_stats(user_id, start_date=cycle_start)
+        
+        # Filtrar apenas Consolidador e Categorizador (igual ao web)
         tools_to_count = ["consolidador", "categorizador"]
         stats_by_tool = stats.get("by_tool", {})
         current_lines = sum(
@@ -177,14 +181,29 @@ class DashboardPage(ctk.CTkFrame):
         
         self.lines_label.configure(text=f"{current_lines}{max_lines_text}")
         self.tasks_label.configure(text=f"{current_execs}{max_execs_text}")
-        self.hours_label.configure(text=f"{stats.get('total_hours', 0.0):.1f}h")
+        
+        # Formatar tempo poupado de forma intuitiva
+        total_hours = stats.get('total_hours', 0.0)
+        if total_hours > 0:
+            hours = int(total_hours)
+            minutes = int((total_hours - hours) * 60)
+            if hours > 0 and minutes > 0:
+                self.hours_label.configure(text=f"{hours}h {minutes}min")
+            elif hours > 0:
+                self.hours_label.configure(text=f"{hours}h")
+            else:
+                self.hours_label.configure(text=f"{minutes}min")
+        else:
+            self.hours_label.configure(text="0 min")
 
     def _update_tool_cards_stats(self):
         if not self.execution_tracker or not self.user_data or not self._tool_usage_labels:
             return
         user_id = self.user_data.get("id")
         user_plan = self.user_data.get("plan", "gratis")
-        stats = self.execution_tracker.get_user_stats(user_id)
+        created_at = self.user_data.get("created_at")
+        cycle_start = self.execution_tracker.get_current_cycle_start(created_at)
+        stats = self.execution_tracker.get_user_stats(user_id, start_date=cycle_start)
         stats_by_tool = (stats or {}).get("by_tool", {})
         plan_limits = config.PLAN_LIMITS.get(self._cached_plan_type, config.PLAN_LIMITS[config.PlanType.GRATIS])
         tools = list(config.TOOLS.items())
@@ -257,7 +276,11 @@ class DashboardPage(ctk.CTkFrame):
             config.PLAN_LIMITS[config.PlanType.GRATIS]
         ).get("tools", [])
 
-        stats = self.execution_tracker.get_user_stats(self.user_data.get("id")) if self.execution_tracker else {}
+        stats = {}
+        if self.execution_tracker and self.user_data:
+            created_at = self.user_data.get("created_at")
+            cycle_start = self.execution_tracker.get_current_cycle_start(created_at)
+            stats = self.execution_tracker.get_user_stats(self.user_data.get("id"), start_date=cycle_start)
 
         tools = list(config.TOOLS.items())
         for idx, (tool_key, tool_info) in enumerate(tools):
@@ -675,8 +698,9 @@ class DashboardPage(ctk.CTkFrame):
         status_label.configure(text="✅ Download concluído! Instalando...", text_color="#22c55e")
 
         try:
-            subprocess.Popen([file_path], shell=True)
+            import os
+            os.startfile(file_path)
             self.after(2000, lambda: self.master.destroy() if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
         except Exception as e:
-            status_label.configure(text=f"❌ Erro ao iniciar instalador: {str(e)[:40]}", text_color="#EF4444")
+            status_label.configure(text=f"❌ Erro ao iniciar instalador", text_color="#EF4444")
             self.after(5000, self._dismiss_banner)

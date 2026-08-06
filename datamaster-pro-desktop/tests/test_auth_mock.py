@@ -139,7 +139,7 @@ class TestLoginWithSupabaseMock:
         result = auth_manager.login("test@test.com", "wrong")
 
         assert result["success"] is False
-        assert "Invalid credentials" in result["error"]
+        assert "Login falhou" in result["error"]
 
     @patch("supabase.create_client")
     def test_login_with_session_success(self, mock_create, auth_manager):

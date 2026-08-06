@@ -1,17 +1,16 @@
 """
-Analista de Tendências Page - Identifica produtos trending em nichos específicos
+Analista de Tendências Page - Trend Intelligence Enterprise
+Zero Scraping — APIs Oficiais + Fontes Legítimas
 """
 import customtkinter as ctk
 from tkinter import messagebox
 import os
 import sys
-import threading
 
-# Garante que o caminho do projeto esteja no sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
 from src.gui.pages.tool_page import ToolPage
-from src.tools.analista_tendencias.analista_tendencias_v2 import AnalistaTendencias
+from src.tools.analista_tendencias import AnalistaTendenciasEnterprise
 from src.gui.components.result_viewer_modal import ResultViewerButton
 from src.gui.helpers.execution_helper import ExecutionHelper
 from src.core.tasks.task_executor import task_executor
@@ -19,18 +18,20 @@ from src.core.tasks.task_executor import task_executor
 class AnalistaTendenciasPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
         # Criar primeiro para obter niches disponíveis
-        temp_analista = AnalistaTendencias()
+        temp_analista = AnalistaTendenciasEnterprise()
         self.niches_disponiveis = temp_analista.get_available_niches()
+        self.active_sources = temp_analista.get_active_sources()
         
         # Agora criar com callbacks
-        self.analista = AnalistaTendencias(
+        self.analista = AnalistaTendenciasEnterprise(
             progress_callback=self._update_progress,
             log_callback=self._log_from_thread
         )
-        self.execution = ExecutionHelper("analista_tendencias", "Analista de Tendências", user_id)
-        super().__init__(master, "analista_tendencias", "Analista de Tendências", on_back, execution_tracker, user_id)
+        self.execution = ExecutionHelper("analista_tendencias", "Analista de Tendências Enterprise", user_id)
+        super().__init__(master, "analista_tendencias", "Analista de Tendências Enterprise", on_back, execution_tracker, user_id)
         self._check_task_state()
         self.results_for_copy = ""
+        self._check_provider_status()
 
     def _check_task_state(self):
         last_task = self._tool_service.get_last_task_by_tool("analista_tendencias")
@@ -80,17 +81,46 @@ class AnalistaTendenciasPage(ToolPage):
         except Exception:
             pass
 
+    def _check_provider_status(self):
+        """Verifica quais providers estão configurados e alerta o usuário"""
+        if not self.active_sources:
+            self.after(1000, lambda: messagebox.showinfo(
+                "Configuração Necessária",
+                "⚠️ Nenhuma fonte de tendências configurada!\n\n"
+                "Para usar o Analista Enterprise, configure no .env:\n\n"
+                "📊 Google Trends (sempre ativo via pytrends):\n"
+                "   Funciona sem credenciais (limite ~100 req/hora)\n\n"
+                "🛍️ Mercado Livre Bestsellers API (Obrigatório para dados de venda):\n"
+                "   ML_CLIENT_ID=seu_client_id\n"
+                "   ML_CLIENT_SECRET=seu_client_secret\n\n"
+                "🎵 TikTok Creative Center (Export manual CSV):\n"
+                "   Coloque CSVs exportados em data/tiktok_trends/\n\n"
+                "🚀 Exploding Topics API (Pago, opcional):\n"
+                "   EXPLODING_TOPICS_API_KEY=sua_chave\n\n"
+                "Obtenha credenciais ML em: https://developers.mercadolivre.com.br"
+            ))
+        else:
+            self._log_from_thread(f"✅ Fontes ativas: {', '.join(self.active_sources)}")
+
     def _create_content(self):
         content = ctk.CTkScrollableFrame(self, fg_color="transparent")
         content.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
         content.grid_columnconfigure(0, weight=1)
 
+        sources_info = f"Fontes ativas: {', '.join(self.active_sources) if self.active_sources else 'Apenas Google Trends (sem credenciais ML)'}"
+        
         info = ctk.CTkLabel(
             content,
-            text="Selecione um nicho para identificar produtos em alta tendência via Redes Sociais e Marketplaces.",
-            font=ctk.CTkFont(size=12),
+            text=(
+                f"Trend Intelligence Enterprise — Zero Scraping\n"
+                f"Fontes: Google Trends API + ML Bestsellers API + TikTok CSV + Exploding Topics (opcional)\n\n"
+                f"{sources_info}\n\n"
+                f"Selecione um nicho para identificar produtos em alta tendência."
+            ),
+            font=ctk.CTkFont(size=11),
             text_color=config.Colors.TEXT_SECONDARY,
-            wraplength=400
+            wraplength=550,
+            justify="left"
         )
         info.pack(pady=(20, 10))
 
@@ -131,7 +161,7 @@ class AnalistaTendenciasPage(ToolPage):
         self.log_text.insert("1.0", "Aguardando análise...\n")
         self.log_text.configure(state="disabled")
 
-        self.results_text = ctk.CTkTextbox(content, height=300, font=ctk.CTkFont(size=11))
+        self.results_text = ctk.CTkTextbox(content, height=350, font=ctk.CTkFont(size=11))
         self.results_text.pack(fill="both", expand=True, padx=20, pady=10)
         self.results_text.insert("1.0", "Os resultados aparecerão aqui...\n")
         self.results_text.configure(state="disabled")
@@ -179,13 +209,6 @@ class AnalistaTendenciasPage(ToolPage):
             user_id=self.user_id
         )
 
-    def _analysis_worker(self, niche_key, search_term):
-        try:
-            result = self.analista.analyze(niche_key, search_term)
-            self.after(0, lambda: self._show_results(result) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
-        except Exception as e:
-            self.after(0, lambda: self._show_error(str(e)) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
-
     def _show_results(self, result):
         try:
             if not self.winfo_exists():
@@ -203,20 +226,38 @@ class AnalistaTendenciasPage(ToolPage):
             return
         
         trends = result.get("trends", [])
-        header = f"🔥 RELATÓRIO TREND INTELLIGENCE v3.0\n{'='*45}\nNicho: {result.get('niche')}\nData: {result.get('timestamp')}\n\n"
-        self.results_text.insert("1.0", header)
-        self.results_text.insert("end", f"📌 SUMÁRIO:\n{result.get('summary')}\n\n")
+        sources = result.get("sources_used", [])
         
-        copy_text = header + f"📌 SUMÁRIO:\n{result.get('summary')}\n\n"
+        header = f"""🔥 TREND INTELLIGENCE ENTERPRISE v2.0
+{'='*55}
+Nicho: {result.get('niche')}
+Data: {result.get('timestamp')}
+Fontes Ativas: {', '.join(sources) if sources else 'Nenhuma'}
+{result.get('summary')}
+
+"""
+        self.results_text.insert("1.0", header)
+        
+        copy_text = header
         for i, trend in enumerate(trends, 1):
-            line = f"{i}. {trend['product']}\n   Oportunidade: {trend['opportunity']} | Score: {trend['score']}/100\n\n"
+            growth = trend.get('growth', '0%')
+            score = trend.get('score', 0)
+            opportunity = trend.get('opportunity', 'Baixa')
+            platforms = ', '.join(trend.get('platforms', []))
+            mentions = trend.get('mentions', 0)
+            
+            line = f"""{i}. {trend['product']}
+   🎯 Oportunidade: {opportunity}  |  Score: {score}/100  |  Crescimento: {growth}
+   📊 Plataformas: {platforms}  |  Sinais: {mentions}
+   ---
+"""
             self.results_text.insert("end", line)
             copy_text += line
-            
+        
         self.results_for_copy = copy_text
         self.results_text.configure(state="disabled")
-        self._finalize_execution({"success": True}, "", len(trends), {"tendencias": len(trends)})
-        messagebox.showinfo("Sucesso", "Análise de tendências concluída!")
+        self._finalize_execution({"success": True}, "", len(trends), {"tendencias": len(trends), "fontes": sources})
+        messagebox.showinfo("Sucesso", f"Análise Enterprise concluída!\n{len(trends)} tendências detectadas\nFontes: {', '.join(sources) if sources else 'Nenhuma configurada'}")
 
     def _show_error(self, error):
         try:

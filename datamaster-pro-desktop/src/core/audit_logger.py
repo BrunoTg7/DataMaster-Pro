@@ -84,3 +84,19 @@ def audit_sync(user_id: str, direction: str, records: int, success: bool):
 
 def audit_settings_change(user_id: str, setting: str, old_value, new_value):
     audit("settings_change", user_id=user_id, details={"setting": setting, "old": old_value, "new": new_value})
+
+
+def audit_lgpd_export(user_id: str, record_count: int, export_format: str):
+    audit("lgpd_export", user_id=user_id, details={"records": record_count, "format": export_format})
+
+
+def audit_lgpd_delete_request(user_id: str, grace_days: int = 30):
+    audit("lgpd_delete_request", user_id=user_id, details={"grace_days": grace_days}, level="warning")
+
+
+def audit_lgpd_delete_confirmed(user_id: str):
+    audit("lgpd_delete_confirmed", user_id=user_id, level="warning")
+
+
+def audit_lgpd_consent(user_id: str, consented: bool, method: str = "checkbox"):
+    audit("lgpd_consent", user_id=user_id, details={"consented": consented, "method": method})

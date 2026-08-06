@@ -14,6 +14,7 @@ import config
 from src.core.auth.auth_manager import AuthManager
 from src.core.storage.storage_manager import StorageManager
 from src.utils.network import check_internet_connection
+from src.core.audit_logger import audit_lgpd_consent
 
 
 class LoginPage(ctk.CTkFrame):
@@ -154,6 +155,31 @@ class LoginPage(ctk.CTkFrame):
         register_link.pack(side="left")
         register_link.bind("<Button-1>", lambda e: self._open_register())
 
+        # LGPD Consent
+        self.consent_var = ctk.BooleanVar(value=False)
+        self.consent_checkbox = ctk.CTkCheckBox(
+            inner_frame,
+            text="Li e aceito os Termos de Uso e a Politica de Privacidade. Consinto com o tratamento dos meus dados pessoais.",
+            variable=self.consent_var,
+            font=ctk.CTkFont(family="Inter", size=11),
+            text_color=config.Colors.TEXT_SECONDARY,
+            fg_color=config.Colors.PRIMARY,
+            hover_color=config.Colors.PRIMARY_HOVER,
+            corner_radius=4,
+            border_width=1,
+            border_color=config.Colors.BORDER,
+            command=self._on_consent_change,
+        )
+        self.consent_checkbox.pack(pady=(10, 5), padx=20)
+
+        self.consent_error_label = ctk.CTkLabel(
+            inner_frame,
+            text="",
+            font=ctk.CTkFont(family="Inter", size=11),
+            text_color="#ef4444"
+        )
+        self.consent_error_label.pack(pady=(0, 5))
+
     def _is_session_valid_offline(self, saved_session: dict) -> bool:
         """Verifica se sessão é válida offline (janela de 15 dias).
         
@@ -212,14 +238,23 @@ class LoginPage(ctk.CTkFrame):
                     self.storage_manager.clear_session()
                 self.status_label.configure(text=result.get("error", "Sessão expirada. Faça login novamente."))
         except Exception as e:
-            self.status_label.configure(text=f"Erro: {str(e)}")
+            self.status_label.configure(text="Erro inesperado. Tente novamente.")
         finally:
             if self.login_button.winfo_exists():
                 self.login_button.configure(state="normal", text="Entrar")
 
+    def _on_consent_change(self):
+        self.consent_error_label.configure(text="")
+
     def _on_login(self):
         email = self.email_entry.get().strip()
         password = self.password_entry.get().strip()
+
+        if not self.consent_var.get():
+            self.consent_error_label.configure(
+                text="Voce deve aceitar os Termos de Uso e a Politica de Privacidade."
+            )
+            return
 
         if not email or not password:
             self.status_label.configure(text="Preencha todos os campos")
@@ -233,17 +268,25 @@ class LoginPage(ctk.CTkFrame):
             if result.get("success"):
                 user_data = result.get("user")
                 self.storage_manager.save_user_session(user_data)
+                self.storage_manager.save_consent(user_data["id"], True)
+                audit_lgpd_consent(user_data["id"], True, "login_checkbox")
                 self.after(100, lambda: self.on_login_success(user_data))
             else:
                 self.status_label.configure(text=result.get("error", "Erro ao fazer login"))
         except Exception as e:
-            self.status_label.configure(text=f"Erro: {str(e)}")
+            self.status_label.configure(text="Erro inesperado. Tente novamente.")
         finally:
             if self.login_button.winfo_exists():
                 self.login_button.configure(state="normal", text="Entrar")
 
     def _on_google_login(self):
         """Iniciar login com Google em thread separada"""
+        if not self.consent_var.get():
+            self.consent_error_label.configure(
+                text="Voce deve aceitar os Termos de Uso e a Politica de Privacidade."
+            )
+            return
+
         self.google_button.configure(state="disabled", text="Abrindo navegador...")
         self.status_label.configure(text="")
 
@@ -253,12 +296,14 @@ class LoginPage(ctk.CTkFrame):
                 if result.get("success"):
                     user_data = result.get("user")
                     self.storage_manager.save_user_session(user_data)
+                    self.storage_manager.save_consent(user_data["id"], True)
+                    audit_lgpd_consent(user_data["id"], True, "google_oauth")
                     self.after(100, lambda: self.on_login_success(user_data))
                 else:
                     error_msg = result.get("error", "Erro ao autenticar com Google")
                     self.after(0, lambda: self.status_label.configure(text=error_msg))
             except Exception as e:
-                self.after(0, lambda: self.status_label.configure(text=f"Erro: {str(e)}"))
+                self.after(0, lambda: self.status_label.configure(text="Erro inesperado. Tente novamente."))
             finally:
                 if self.google_button.winfo_exists():
                     self.after(0, lambda: self.google_button.configure(

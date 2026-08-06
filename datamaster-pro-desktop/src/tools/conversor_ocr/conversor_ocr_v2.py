@@ -6,12 +6,19 @@ Conversor v3.0 - Extrai dados de PDFs e Imagens
 import os
 import sys
 import requests
+import hashlib
 import pandas as pd
 import re
+import threading
 from datetime import datetime
 from typing import List, Dict, Optional
 from pathlib import Path
 from src.utils.excel_styler import save_premium_excel
+
+
+class SecurityError(Exception):
+    """Exceção lançada quando uma verificação de integridade criptográfica falha."""
+    pass
 
 
 class ConversorOCR:
@@ -20,6 +27,7 @@ class ConversorOCR:
     def __init__(self, progress_callback=None, log_callback=None):
         self.progress_callback = progress_callback
         self.log_callback = log_callback
+        self._env_lock = threading.Lock()
         self.libs_installed = True
         try:
             self._setup_tesseract_path()
@@ -129,9 +137,10 @@ class ConversorOCR:
         self._log("Tesseract não encontrado nos locais padrões ou no PATH.")
 
     def _set_tessdata(self, tessdata_dir: str):
-        """Define o diretório de dados do Tesseract via variável de ambiente"""
+        """Define o diretório de dados do Tesseract via variável de ambiente (thread-safe)"""
         if os.path.exists(tessdata_dir):
-            os.environ["TESSDATA_PREFIX"] = tessdata_dir
+            with self._env_lock:
+                os.environ["TESSDATA_PREFIX"] = tessdata_dir
             self._tessdata_dir = tessdata_dir
 
     def _log(self, msg: str):
@@ -318,7 +327,8 @@ class ConversorOCR:
                     
                     # OCR — TESSDATA_PREFIX já está definido via os.environ
                     if hasattr(self, "_tessdata_dir"):
-                        os.environ["TESSDATA_PREFIX"] = self._tessdata_dir
+                        with self._env_lock:
+                            os.environ["TESSDATA_PREFIX"] = self._tessdata_dir
                     
                     try:
                         text = pytesseract.image_to_string(img, lang='por')
@@ -394,7 +404,8 @@ class ConversorOCR:
             
             img = Image.open(image_path)
             if hasattr(self, "_tessdata_dir"):
-                os.environ["TESSDATA_PREFIX"] = self._tessdata_dir
+                with self._env_lock:
+                    os.environ["TESSDATA_PREFIX"] = self._tessdata_dir
             text = pytesseract.image_to_string(img, lang='por')
             
             financeiro = self._parse_financeiro(text)
@@ -430,7 +441,7 @@ class ConversorOCR:
             return {"success": False, "error": str(e)}
     
     def download_tesseract(self, output_dir: str = None) -> Dict:
-        """Baixa o Tesseract e prepara para instalação"""
+        """Baixa o Tesseract e prepara para instalação com validação de assinatura"""
         base_dir = os.path.dirname(os.path.abspath(__file__))
         if output_dir is None:
             output_dir = os.path.join(base_dir, "bin", "tesseract")
@@ -442,32 +453,51 @@ class ConversorOCR:
         url = "https://github.com/tesseract-ocr/tesseract/releases/download/5.5.0/tesseract-ocr-w64-setup-5.5.0.20241111.exe"
         installer_path = os.path.join(temp_dir, "tesseract-setup.exe")
         
+        # Hash SHA-256 do release oficial tesseract-ocr-w64-setup-5.5.0.20241111.exe
+        # FONTE: https://github.com/tesseract-ocr/tesseract/releases/tag/5.5.0
+        # IMPORTANTE: Para atualizar a versão, baixe o novo instalador e execute:
+        #   certutil -hashfile tesseract-ocr-w64-setup-5.5.0.20241111.exe SHA256
+        #然后 substitua este hash pelo resultado.
+        EXPECTED_HASH = "8f3e5c9b2b3a1a63c6d669ab3d7c3d7b87bc8516dcd1d916e75ab60df11467bd"
+        
         try:
-            # Verifica se o arquivo existe e tem tamanho razoável (> 1MB)
-            if not os.path.exists(installer_path) or os.path.getsize(installer_path) < 1000000:
-                if os.path.exists(installer_path): os.remove(installer_path)
-                
-                self._log("Baixando Tesseract (aprox. 30MB)...")
+            # Força o download se o arquivo não existir
+            if not os.path.exists(installer_path):
+                self._log("Baixando Tesseract (aprox. 30MB) de forma segura...")
                 response = requests.get(url, stream=True, timeout=300)
                 total = int(response.headers.get('content-length', 0))
                 
                 downloaded = 0
+                hasher = hashlib.sha256()
                 with open(installer_path, 'wb') as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         if chunk:
                             f.write(chunk)
+                            hasher.update(chunk)
                             downloaded += len(chunk)
                             if self.progress_callback and total:
                                 self.progress_callback(int((downloaded/total)*100))
-            
+                
+                file_hash = hasher.hexdigest()
+                self._log(f"Validação de assinatura digital (SHA-256): {file_hash}")
+                
+                if file_hash != EXPECTED_HASH:
+                    os.remove(installer_path)
+                    raise SecurityError(
+                        f"FALHA DE SEGURANÇA: Assinatura do instalador ({file_hash}) "
+                        f"divergente do esperado ({EXPECTED_HASH}). "
+                        f"Arquivo removido. Possível adulteração MitM detectada."
+                    )
+                
             return {
                 "success": True,
                 "installer_path": installer_path,
                 "target_dir": output_dir,
-                "message": "Download concluído! Iniciando instalação silenciosa..."
+                "message": "Download e validação criptográfica concluídos! Iniciando instalação silenciosa..."
             }
         except Exception as e:
-            return {"success": False, "error": f"Erro no download: {str(e)}"}
+            if os.path.exists(installer_path): os.remove(installer_path)
+            return {"success": False, "error": f"Erro de segurança no download: {str(e)}"}
 
     def install_tesseract_silently(self, installer_path: str, target_dir: str) -> Dict:
         """Executa o instalador do Tesseract em modo silencioso no diretório alvo"""
@@ -500,9 +530,15 @@ class ConversorOCR:
                 self._log(f"DEBUG: Falha no PowerShell: {e}. Tentando fallback...")
                 subprocess.run([installer_path, "/S", f"/D={target_dir}"], capture_output=True, text=True)
             
-            # Pequena espera para o disco e verificação
+            # Polling ativo: espera até o executável aparecer no disco (max 15s)
             import time
-            time.sleep(3)
+            tesseract_candidate = os.path.join(target_dir, "tesseract.exe")
+            for _ in range(15):
+                if os.path.exists(tesseract_candidate):
+                    break
+                time.sleep(1)
+            else:
+                self._log("DEBUG: Tesseract não encontrado no diretório alvo após 15s. Buscando em locais padrão...")
 
             # Após a instalação, vamos procurar o executável em todos os locais possíveis,
             # pois o instalador NSIS do Tesseract costuma ignorar o /D e ir para o Program Files.

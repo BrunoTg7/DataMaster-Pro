@@ -138,7 +138,7 @@ class FeatureFlagManager:
         # 4. Restrição de plano
         if flag.min_plan:
             effective_plan = plan or (user_data or {}).get("plan", "gratis")
-            plan_order = {"gratis": 0, "pro": 1, "enterprise": 2}
+            plan_order = {"gratis": 0, "starter": 1, "pro": 2}
             if plan_order.get(effective_plan, 0) < plan_order.get(flag.min_plan, 0):
                 return False
 

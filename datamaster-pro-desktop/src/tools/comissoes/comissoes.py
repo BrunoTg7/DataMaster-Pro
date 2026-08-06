@@ -1,10 +1,17 @@
 """
-Comissões Pro v2.0 - Sistema de Cálculo e Geração de Relatórios de Comissões
-Suporte: % fixa, faixas de desempenho, exceções por produto, ranking de performance
+Comissões Pro v2.1 - Sistema de Cálculo e Geração de Relatórios de Comissões
+Suporte: % fixa, faixas de desempenho, volume tiers, exceções por produto, ranking de performance
+
+Novidades v2.1:
+- Comissão escalonada por volume (volume_tiers)
+- PDF com gráfico de barras de comissões por vendedor
+- Métricas de performance aprimoradas
 """
 import pandas as pd
 import os
 import re
+import io
+import tempfile
 from typing import Dict, List, Optional
 from datetime import datetime
 from pathlib import Path
@@ -96,6 +103,7 @@ class Comissoes:
         Regras suportadas:
         - type: "percentage" → % fixa sobre cada venda
         - type: "tiers" → Faixas progressivas sobre o TOTAL acumulado do vendedor
+        - type: "volume_tiers" → Escalonamento por VOLUME TOTAL de vendas do vendedor
         - product_exceptions: {nome_produto: taxa%} → Exceções por produto
 
         Returns:
@@ -122,6 +130,8 @@ class Comissoes:
             
             if rule_type == "tiers":
                 df = self._apply_tiered_commissions(df, rules)
+            elif rule_type == "volume_tiers":
+                df = self._apply_volume_tiered_commissions(df, rules)
             else:
                 df = self._apply_flat_commissions(df, rules)
 
@@ -223,6 +233,62 @@ class Comissoes:
         df['taxa_aplicada'] = df['vendedor'].map(
             lambda v: get_tier_rate(vendor_totals.get(v, 0)) * 100
         ).round(1)
+        
+        return df
+
+    def _apply_volume_tiered_commissions(self, df: pd.DataFrame, rules: Dict) -> pd.DataFrame:
+        """
+        Aplica comissão escalonada por VOLUME TOTAL de vendas do vendedor.
+        Diferente do tiers tradicional, aqui o volume é o NUMERO de vendas, não o valor.
+        Cada faixa define: min_volume, max_volume, rate (%)
+        """
+        volume_tiers = rules.get("volume_tiers", [])
+        default_rate = rules.get("default_rate", 0) / 100
+        product_exceptions = rules.get("product_exceptions", {})
+
+        if not volume_tiers:
+            return self._apply_flat_commissions(df, rules)
+
+        # Calcular volume (nº vendas) e valor total por vendedor
+        vendor_stats = df.groupby('vendedor').agg(
+            volume=('valor', 'count'),
+            total_valor=('valor', 'sum')
+        ).to_dict('index')
+
+        def get_volume_tier_rate(vendedor: str):
+            """Retorna a taxa da faixa de volume correspondente"""
+            stats = vendor_stats.get(vendedor, {"volume": 0})
+            vol = stats["volume"]
+            
+            for tier in sorted(volume_tiers, key=lambda t: t.get("min_volume", 0), reverse=True):
+                min_v = tier.get("min_volume", 0)
+                max_v = tier.get("max_volume", float("inf"))
+                if min_v <= vol <= max_v:
+                    return tier.get("rate", 0) / 100
+            return default_rate
+
+        def calc(row):
+            valor = row.get('valor', 0)
+            vendedor = row.get('vendedor', '')
+            produto = str(row.get('produto', '')).lower()
+
+            # Verificar exceção por produto
+            for prod_key, rate in product_exceptions.items():
+                if prod_key.lower() in produto:
+                    return valor * (rate / 100)
+
+            rate = get_volume_tier_rate(vendedor)
+            return valor * rate
+
+        df['comissao'] = df.apply(calc, axis=1).round(2)
+        
+        # Salvar a taxa aplicada e o volume para cada vendedor
+        df['taxa_aplicada'] = df['vendedor'].map(
+            lambda v: get_volume_tier_rate(v) * 100
+        ).round(1)
+        df['volume_vendedor'] = df['vendedor'].map(
+            lambda v: vendor_stats.get(v, {}).get("volume", 0)
+        )
         
         return df
 
@@ -505,6 +571,134 @@ class Comissoes:
 
         doc.build(elements)
         return pdf_path
+
+    # ==================== GERAÇÃO DE PDF COM GRÁFICO ====================
+
+    def _generate_chart_image(self, commission_data: List[Dict]) -> Optional[str]:
+        """Gera gráfico de barras de comissões por vendedor usando matplotlib"""
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+
+            fig, ax = plt.subplots(figsize=(10, 5))
+            
+            sellers = [d['vendedor'][:20] for d in commission_data[:10]]  # Top 10
+            commissions = [d['comissao'] for d in commission_data[:10]]
+            
+            colors_list = ['#1a56db', '#d48214', '#059669', '#dc2626', '#7c3aed',
+                          '#ea580c', '#0891b2', '#4f46e5', '#c026d3', '#65a30d']
+            
+            bars = ax.barh(sellers, commissions, color=colors_list[:len(sellers)])
+            ax.set_xlabel("Comissão (R$)", fontsize=10)
+            ax.set_title("Top Vendedores por Comissão", fontsize=12, fontweight='bold')
+            ax.invert_yaxis()
+            
+            for bar, val in zip(bars, commissions):
+                ax.text(bar.get_width() + max(commissions) * 0.01, 
+                       bar.get_y() + bar.get_height()/2,
+                       f"R$ {val:,.2f}", va='center', fontsize=8)
+            
+            plt.tight_layout()
+            
+            chart_path = os.path.join(tempfile.gettempdir(), "commission_chart.png")
+            plt.savefig(chart_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            return chart_path
+        except ImportError:
+            self._log("⚠️ matplotlib não instalado. Pulando gráfico no PDF.")
+            return None
+
+    def generate_pdf_with_chart(
+        self,
+        ranking: List[Dict],
+        output_path: str,
+        company_name: str = "Empresa",
+        period: str = None
+    ) -> Dict:
+        """Gera PDF consolidado com gráfico de barras de comissões"""
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib import colors as rl_colors
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import cm
+            from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+        except ImportError:
+            return {"success": False, "error": "reportlab não instalado."}
+
+        if not ranking:
+            return {"success": False, "error": "Ranking vazio."}
+
+        period_str = period or datetime.now().strftime('%m/%Y')
+        doc = SimpleDocTemplate(output_path, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm)
+        elements = []
+        styles = getSampleStyleSheet()
+
+        title_style = ParagraphStyle(
+            'CustomTitle', parent=styles['Title'],
+            fontSize=18, spaceAfter=6, textColor=rl_colors.HexColor('#1a1a2e'),
+            alignment=TA_CENTER
+        )
+        subtitle_style = ParagraphStyle(
+            'Subtitle', parent=styles['Normal'],
+            fontSize=11, textColor=rl_colors.HexColor('#6b7280'),
+            alignment=TA_CENTER, spaceAfter=20
+        )
+
+        # Cabecalho
+        elements.append(Paragraph(f"{company_name}", title_style))
+        elements.append(Paragraph(f"Relatório Consolidado de Comissões — {period_str}", subtitle_style))
+        elements.append(Spacer(1, 10))
+
+        # Gráfico
+        chart_path = self._generate_chart_image(ranking)
+        if chart_path and os.path.exists(chart_path):
+            elements.append(RLImage(chart_path, width=16*cm, height=8*cm))
+            elements.append(Spacer(1, 15))
+
+        # Tabela de ranking
+        header = ['Posição', 'Vendedor', 'Receita', 'Vendas', 'Comissão']
+        table_data = [header]
+        for item in ranking:
+            table_data.append([
+                item['medal'],
+                item['vendedor'],
+                f"R$ {item['receita']:,.2f}",
+                str(item['vendas']),
+                f"R$ {item['comissao']:,.2f}",
+            ])
+
+        rank_table = Table(table_data, colWidths=[2*cm, 5*cm, 3.5*cm, 2*cm, 3.5*cm])
+        rank_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), rl_colors.HexColor('#1a1a2e')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), rl_colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (-3, 1), (-1, -1), 'RIGHT'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor('#f9fafb')]),
+            ('LINEBELOW', (0, 0), (-1, -1), 0.5, rl_colors.HexColor('#e5e7eb')),
+        ]))
+        elements.append(rank_table)
+
+        # Rodapé
+        footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, 
+                                       textColor=rl_colors.HexColor('#9ca3af'), alignment=TA_CENTER)
+        elements.append(Spacer(1, 20))
+        elements.append(Paragraph(
+            f"Documento gerado automaticamente por DataMaster Pro em {datetime.now().strftime('%d/%m/%Y às %H:%M')}.",
+            footer_style
+        ))
+
+        doc.build(elements)
+        
+        # Limpar temporário
+        if chart_path and os.path.exists(chart_path):
+            os.remove(chart_path)
+        
+        return {"success": True, "output_path": output_path}
 
     # ==================== EXPORTAÇÃO ====================
 

@@ -25,12 +25,12 @@ class SecurityManager:
 
         try:
             # Captura Serial da Placa Mãe via PowerShell
-            cmd_board = 'powershell "Get-CimInstance Win32_BaseBoard | Select-Object -ExpandProperty SerialNumber"'
-            serial = subprocess.check_output(cmd_board, shell=True).decode().strip()
+            cmd_board = ['powershell', '-Command', 'Get-CimInstance Win32_BaseBoard | Select-Object -ExpandProperty SerialNumber']
+            serial = subprocess.check_output(cmd_board).decode().strip()
             
             # Captura ID do Processador via PowerShell
-            cmd_cpu = 'powershell "Get-CimInstance Win32_Processor | Select-Object -ExpandProperty ProcessorId"'
-            cpu_id = subprocess.check_output(cmd_cpu, shell=True).decode().strip()
+            cmd_cpu = ['powershell', '-Command', 'Get-CimInstance Win32_Processor | Select-Object -ExpandProperty ProcessorId']
+            cpu_id = subprocess.check_output(cmd_cpu).decode().strip()
             
             # Combina e gera um Hash SHA-256
             raw_id = f"DATAMASTER-PRO-{serial}-{cpu_id}"

@@ -701,7 +701,10 @@ class OrcamentosPage(ToolPage):
             log.debug("execute() started in thread")
             from src.tools.orcamentos.orcamentos import Orcamentos as Orc
             o = Orc()
-            result = o.generate_from_excel(self.data_file, output_dir, watermark=has_watermark, config=cfg)
+            result = o.generate_from_excel_streaming(
+                self.data_file, output_dir, watermark=has_watermark, config=cfg,
+                batch_size=50  # gc.collect a cada 50 PDFs
+            )
             result["rows_processed"] = result.get("generated", 0)
             result["output_path"] = result.get("output_dir", "")
             log.debug("execute() done: %s PDFs", result.get('generated'))

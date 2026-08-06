@@ -6,13 +6,11 @@ Integra Social Search (TikTok/Instagram via Aggregators) e Marketplaces.
 import asyncio
 import re
 import os
-import sys
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from collections import Counter
 
 # Importa configurações globais
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 import config
 
 class AnalistaTendencias:

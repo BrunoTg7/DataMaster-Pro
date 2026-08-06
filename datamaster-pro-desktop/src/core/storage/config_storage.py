@@ -1,23 +1,45 @@
 """
 Config Storage - Gerencia configurações de ferramentas e tarefas agendadas.
+Campos sensíveis são criptografados com Fernet (AES).
 """
 import sqlite3
 import json
 import logging
 from typing import Optional, List
+from src.core.storage.db_encryption import DBEncryption, needs_encryption
 
 log = logging.getLogger(__name__)
 
 
 class ConfigStorage:
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str, db_encryption: DBEncryption = None):
         self.db_path = db_path
+        self._enc = db_encryption or DBEncryption()
 
     def _get_conn(self):
         conn = sqlite3.connect(self.db_path, timeout=5)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=5000")
         return conn
+
+    def _encrypt(self, data: str) -> str:
+        if not data:
+            return ""
+        return self._enc.encrypt(data)
+
+    def _decrypt(self, data: str) -> str:
+        if not data:
+            return ""
+        try:
+            return self._enc.decrypt(data)
+        except Exception:
+            return data
+
+    def _encrypt_json(self, obj) -> str:
+        return self._enc.encrypt_json(obj)
+
+    def _decrypt_json(self, data: str):
+        return self._enc.decrypt_json(data)
 
     def save_tool_configuration(self, tool_key: str, config_data: dict, is_default: bool = False):
         conn = self._get_conn()
@@ -26,7 +48,11 @@ class ConfigStorage:
             INSERT OR REPLACE INTO tool_configurations_local
                 (tool_key, config_name, config_json, is_default, updated_at)
             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-        """, (tool_key, config_data.get("name", "default"), json.dumps(config_data), 1 if is_default else 0))
+        """, (
+            tool_key, config_data.get("name", "default"),
+            self._encrypt_json(config_data),
+            1 if is_default else 0
+        ))
         conn.commit()
         conn.close()
 
@@ -41,7 +67,7 @@ class ConfigStorage:
         rows = cursor.fetchall()
         conn.close()
         return [
-            {"name": r[0], "config": json.loads(r[1]), "is_default": bool(r[2]), "updated_at": r[3]}
+            {"name": r[0], "config": self._decrypt_json(r[1]) or {}, "is_default": bool(r[2]), "updated_at": r[3]}
             for r in rows
         ]
 
@@ -54,7 +80,7 @@ class ConfigStorage:
         """, (tool_key,))
         row = cursor.fetchone()
         conn.close()
-        return json.loads(row[0]) if row else None
+        return self._decrypt_json(row[0]) if row and row[0] else None
 
     def delete_tool_configuration(self, tool_key: str, config_name: str):
         conn = self._get_conn()
@@ -89,8 +115,8 @@ class ConfigStorage:
         """, (
             task_data.get("task_id"), task_data.get("user_id"),
             task_data.get("tool_name"), task_data.get("tool_action"),
-            task_data.get("task_name"),
-            json.dumps(task_data.get("input_files", [])),
+            self._encrypt(task_data.get("task_name", "")),
+            self._encrypt_json(task_data.get("input_files", [])),
             task_data.get("schedule_frequency"), task_data.get("cron_expression"),
             task_data.get("next_run_at"),
             1 if task_data.get("enabled", True) else 0,
@@ -113,8 +139,8 @@ class ConfigStorage:
         return [
             {
                 "task_id": r[0], "user_id": user_id, "tool_name": r[1],
-                "tool_action": r[2], "task_name": r[3],
-                "input_files": json.loads(r[4] or "[]"),
+                "tool_action": r[2], "task_name": self._decrypt(r[3]),
+                "input_files": self._decrypt_json(r[4]) or [],
                 "schedule_frequency": r[5], "cron_expression": r[6],
                 "next_run_at": r[7], "enabled": bool(r[8]),
                 "created_at": r[9], "updated_at": r[10]
@@ -129,6 +155,8 @@ class ConfigStorage:
         values = []
         for k, v in updates.items():
             if k in ("next_run_at", "enabled", "task_name", "schedule_frequency", "cron_expression"):
+                if k == "task_name":
+                    v = self._encrypt(str(v))
                 clauses.append(f"{k} = ?")
                 values.append(v)
         if clauses:
@@ -165,8 +193,8 @@ class ConfigStorage:
             """, (
                 task.get("task_id"), user_id,
                 task.get("tool_name"), task.get("tool_action"),
-                task.get("task_name"),
-                json.dumps(task.get("input_files", task.get("input_files_json", []))),
+                self._encrypt(task.get("task_name", "")),
+                self._encrypt_json(task.get("input_files", task.get("input_files_json", []))),
                 task.get("schedule_frequency"), task.get("cron_expression"),
                 task.get("next_run_at"),
                 1 if task.get("enabled", True) else 0,

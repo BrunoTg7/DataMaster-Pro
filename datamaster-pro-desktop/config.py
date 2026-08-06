@@ -18,7 +18,7 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 
 # ==================== APP ====================
 APP_NAME = os.getenv("APP_NAME", "DataMaster Pro")
-APP_VERSION = os.getenv("APP_VERSION", "1.4.0")
+APP_VERSION = os.getenv("APP_VERSION", "1.2.8")
 THEME = os.getenv("THEME", "dark")
 WINDOW_WIDTH = 1200
 WINDOW_HEIGHT = 800
@@ -126,7 +126,7 @@ def _r1() -> str:
         from src.utils._net._z import _f
         _r0 = _f()
     except Exception:
-        _r0 = ""
+        _r0 = os.getenv("SUPABASE_ANON_KEY", "")
     return _r0
 
 _g0 = None
@@ -156,20 +156,25 @@ SESSION_BANNER_SHOWN = False
 # Validação
 if not _u0:
     raise ValueError(
-        "ERRO: URL não foi carregado!\n"
-        "Verifique se o arquivo .env existe e contém SUPABASE_URL"
+        "Erro de configuração. Verifique se o arquivo .env existe e está configurado corretamente."
     )
+
+_supabase_key = _r1()
+if not _supabase_key:
+    log.warning("SUPABASE_KEY não configurada. Verifique src/utils/_net/_z.py ou a variável de ambiente.")
 
 # ==================== PLANOS E LIMITES ====================
 class PlanType(Enum):
     GRATIS = "gratis"
+    STARTER = "starter"
     PRO = "pro"
-    ENTERPRISE = "enterprise"
 
 PLAN_LIMITS = {
     PlanType.GRATIS: {
         "max_lines_month": 1200,
         "max_execs_month": 15,
+        "max_concurrent_tasks": 1,
+        "available_history_retentions": ["1h"],
         "tools": ["consolidador", "categorizador", "orcamentos", "minerador", "conciliador", "conversor_ocr", "validador_links", "calculadora_lucratividade", "analista_tendencias", "comissoes", "classificador_ncm", "precificador_canal"],
         "tools_limit": {
             "consolidador": {"max_per_exec": 600, "max_execs": 5},
@@ -186,9 +191,32 @@ PLAN_LIMITS = {
             "precificador_canal": {"max_per_exec": 100, "max_execs": 3},
         }
     },
+    PlanType.STARTER: {
+        "max_lines_month": 10000,
+        "max_execs_month": 80,
+        "max_concurrent_tasks": 2,
+        "available_history_retentions": ["7d", "15d", "1m", "6m"],
+        "tools": ["consolidador", "categorizador", "orcamentos", "minerador", "conciliador", "conversor_ocr", "validador_links", "calculadora_lucratividade", "analista_tendencias", "comissoes", "classificador_ncm", "precificador_canal"],
+        "tools_limit": {
+            "consolidador": {"max_per_exec": 3000, "max_execs": 10},
+            "categorizador": {"max_per_exec": 3000, "max_execs": 10},
+            "orcamentos": {"max_per_exec": 60, "max_execs": 6},
+            "minerador": {"max_per_exec": 80, "max_total": 80, "max_execs": 8},
+            "conciliador": {"max_execs": 8},
+            "conversor_ocr": {"max_per_exec": 20, "max_execs": 6},
+            "validador_links": {"max_per_exec": 40, "max_execs": 6},
+            "calculadora_lucratividade": {"max_execs": 6},
+            "analista_tendencias": {"max_per_exec": 10, "max_execs": 6},
+            "comissoes": {"max_per_exec": 40, "max_execs": 6},
+            "classificador_ncm": {"max_per_exec": 200, "max_execs": 6},
+            "precificador_canal": {"max_per_exec": 200, "max_execs": 6},
+        }
+    },
     PlanType.PRO: {
         "max_lines_month": 999999,
         "max_execs_month": 999,
+        "max_concurrent_tasks": 2,
+        "available_history_retentions": ["7d", "15d", "1m", "6m"],
         "tools": "all"
     }
 }

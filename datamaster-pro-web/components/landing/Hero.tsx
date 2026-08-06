@@ -59,7 +59,7 @@ export function HeroSection() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-500 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
               </span>
-              Novo: Sistema Disponível!
+              v1.5.0 Disponível para Download!
             </span>
           </motion.div>
 
@@ -86,8 +86,7 @@ export function HeroSection() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="text-base sm:text-xl text-surface-600 mb-8 sm:mb-10 max-w-2xl mx-auto leading-relaxed"
           >
-            15 ferramentas profissionais para automatizar tarefas repetitivas no Excel.{' '}
-            Consolide, categorize, preencha orçamentos, miner dados e concilie em segundos, e muito mais...
+            5 ferramentas profissionais ativas no Desktop (Consolidador, Categorizador, Orçamentos, Minerador, Conciliador) + 10 em desenvolvimento. Baixe o app Windows e use 100% offline.
           </motion.p>
 
           <motion.div

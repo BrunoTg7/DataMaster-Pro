@@ -1,0 +1,45 @@
+{
+  "ano_vigencia": 2026,
+  "fonte": "Lei Complementar 123/2006 + Atualizações 2025/2026",
+  "observacao": "Valores anuais de receita bruta. Alíquotas e parcelas a deduzir conforme Anexo da LC 123/2006.",
+  "anexo_1_comercio": {
+    "faixa_1": {"limite": 180000.00, "aliquota": 0.0400, "parcela_deduzir": 0.00},
+    "faixa_2": {"limite": 360000.00, "aliquota": 0.0730, "parcela_deduzir": 5940.00},
+    "faixa_3": {"limite": 720000.00, "aliquota": 0.0950, "parcela_deduzir": 13860.00},
+    "faixa_4": {"limite": 1800000.00, "aliquota": 0.1070, "parcela_deduzir": 22500.00},
+    "faixa_5": {"limite": 3600000.00, "aliquota": 0.1430, "parcela_deduzir": 87300.00},
+    "faixa_6": {"limite": 4800000.00, "aliquota": 0.1900, "parcela_deduzir": 378000.00}
+  },
+  "anexo_2_industria": {
+    "faixa_1": {"limite": 180000.00, "aliquota": 0.0450, "parcela_deduzir": 0.00},
+    "faixa_2": {"limite": 360000.00, "aliquota": 0.0780, "parcela_deduzir": 5940.00},
+    "faixa_3": {"limite": 720000.00, "aliquota": 0.1000, "parcela_deduzir": 13860.00},
+    "faixa_4": {"limite": 1800000.00, "aliquota": 0.1120, "parcela_deduzir": 22500.00},
+    "faixa_5": {"limite": 3600000.00, "aliquota": 0.1470, "parcela_deduzir": 87300.00},
+    "faixa_6": {"limite": 4800000.00, "aliquota": 0.3000, "parcela_deduzir": 720000.00}
+  },
+  "anexo_3_servicos_1": {
+    "faixa_1": {"limite": 180000.00, "aliquota": 0.0600, "parcela_deduzir": 0.00},
+    "faixa_2": {"limite": 360000.00, "aliquota": 0.1120, "parcela_deduzir": 9360.00},
+    "faixa_3": {"limite": 720000.00, "aliquota": 0.1350, "parcela_deduzir": 17640.00},
+    "faixa_4": {"limite": 1800000.00, "aliquota": 0.1600, "parcela_deduzir": 35640.00},
+    "faixa_5": {"limite": 3600000.00, "aliquota": 0.2100, "parcela_deduzir": 125640.00},
+    "faixa_6": {"limite": 4800000.00, "aliquota": 0.3300, "parcela_deduzir": 648000.00}
+  },
+  "anexo_4_servicos_2": {
+    "faixa_1": {"limite": 180000.00, "aliquota": 0.0450, "parcela_deduzir": 0.00},
+    "faixa_2": {"limite": 360000.00, "aliquota": 0.0900, "parcela_deduzir": 8100.00},
+    "faixa_3": {"limite": 720000.00, "aliquota": 0.1020, "parcela_deduzir": 12420.00},
+    "faixa_4": {"limite": 1800000.00, "aliquota": 0.1400, "parcela_deduzir": 39780.00},
+    "faixa_5": {"limite": 3600000.00, "aliquota": 0.2200, "parcela_deduzir": 183780.00},
+    "faixa_6": {"limite": 4800000.00, "aliquota": 0.3200, "parcela_deduzir": 820000.00}
+  },
+  "anexo_5_servicos_3": {
+    "faixa_1": {"limite": 180000.00, "aliquota": 0.1550, "parcela_deduzir": 0.00},
+    "faixa_2": {"limite": 360000.00, "aliquota": 0.1800, "parcela_deduzir": 4500.00},
+    "faixa_3": {"limite": 720000.00, "aliquota": 0.1950, "parcela_deduzir": 9900.00},
+    "faixa_4": {"limite": 1800000.00, "aliquota": 0.2050, "parcela_deduzir": 17100.00},
+    "faixa_5": {"limite": 3600000.00, "aliquota": 0.2300, "parcela_deduzir": 62100.00},
+    "faixa_6": {"limite": 4800000.00, "aliquota": 0.3050, "parcela_deduzir": 540000.00}
+  }
+}

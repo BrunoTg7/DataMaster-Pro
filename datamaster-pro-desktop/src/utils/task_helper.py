@@ -33,7 +33,10 @@ class TaskHelper:
                 return None, f"Uma tarefa de {self.tool_name} já está em execução"
         
         active_count = self.storage.get_running_tasks_count()
-        max_concurrent = 2 if user_data and user_data.get("plan") == "pro" else 1
+        user_plan = user_data.get("plan", "gratis") if user_data else "gratis"
+        plan_type = config.PlanType[user_plan.upper()] if user_plan.upper() in config.PlanType.__members__ else config.PlanType.GRATIS
+        plan_limits = config.PLAN_LIMITS.get(plan_type, config.PLAN_LIMITS[config.PlanType.GRATIS])
+        max_concurrent = plan_limits.get("max_concurrent_tasks", 1)
         
         if active_count >= max_concurrent:
             return None, f"Limite de {max_concurrent} tarefas simultâneas atingido"

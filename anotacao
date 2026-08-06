@@ -1,0 +1,187 @@
+ANÁLISE DE PRONTIDÃO PARA PRODUÇÃO - DataMaster Pro (15 Ferramentas)
+
+1. CONSOLIDADOR v3.0
+
+Status: PRODUÇÃO MADURA
+
+Prontidão (9.5/10)
+
+- Estabilidade: Código maduro (728 linhas), tratamento robusto de erros, fallbacks de encoding
+
+- Performance: Processamento em lote, fuzzy mapping inteligente (thefuzz + LRU cache), limite de 50k linhas premium
+
+- Segurança: Processamento local, sem rede, sanitização de colunas
+
+- Documentação: Docstrings completas, type hints, logging estruturado
+
+- Manutenção: Arquitetura modular, temas visuais configuráveis, testes unitários existentes
+
+- Custo: Zero custo operacional (local-only), sem vendor lock-in
+
+- Riscos: Baixo - dependências estáveis (pandas, openpyxl, thefuzz)
+
+Concorrentes
+
+Ferramenta	Forte	Fraco	vs Consolidador
+
+Power Query (Excel)	Nativo, gratuito	Curva de aprendizado, sem fuzzy mapping	Inferior - Consolidador tem fuzzy match + export premium
+
+Pandas CLI	Poderoso	Requer código, sem UI	Inferior - Consolidador tem GUI + formatação comercial
+
+Tableau Prep	Enterprise-grade	Caro ($70/user/mês), complexo	Inferior para PMEs - Consolidador é 100% local e gratuito
+
+Veredito: ✅ PRONTA PARA PRODUÇÃO - Ferramenta carro-chefe, superior aos concorrentes para uso desktop local
+
+2. CATEGORIZADOR v3.1
+
+Status: PRODUÇÃO MADURA
+
+Prontidão (9/10)
+
+- Estabilidade: Paralelismo com ProcessPoolExecutor, templates multi-setoriais (5 domínios)
+
+- Performance: Auto-descoberta de categorias via NLP local, processamento em chunks
+
+- Segurança: 100% offline, sem telemetria
+
+- Documentação: Excelente - docstrings, type hints, exemplos de uso
+
+- Manutenção: Templates JSON/Excel customizáveis, hot-reload de templates
+
+- Custo: Zero - roda local
+
+- Riscos: Médio - thefuzz pode ter breaking changes, mas com fallback
+
+Concorrentes
+
+Ferramenta	Forte	Fraco	vs Categorizador
+
+Excel Fórmulas (SE/PROCX)	Grátis, nativo	Manual, não escala	Inferior - Categorizador automatiza 10k+ linhas
+
+Power BI DAX	Visual, recorrente	Curva alta, só leitura	Inferior para categorização transacional
+
+RPA (UiPath/Automation Anywhere)	Enterprise	Caro ($15k+/ano), complexo	Inferior para PME - Categorizador é 100% local e gratuito
+
+Veredito: ✅ PRONTA PARA PRODUÇÃO - Melhor opção custo-benefício para categorização automática local
+
+3. ORÇAMENTOS v2.0
+
+Status: PRODUÇÃO MADURA
+
+Prontidão (9/10)
+
+- Estabilidade: ReportLab maduro, geração de PDF robusta, watermark, QR Code PIX (EMV/CRC16)
+
+- Performance: Geração em lote, agrupamento inteligente por cliente
+
+- Segurança: Assinatura criptográfica no QR PIX, validação de templates
+
+- Documentação: Boa - COLUMN_MAP centralizado, templates configuráveis
+
+- Manutenção: Template engine flexível, campos ativos configuráveis
+
+- Custo: Zero operacional (local)
+
+- Riscos: Baixo - pypdf/qrcode estão estáveis
+
+Concorrentes
+
+Ferramenta	Forte	Fraco	vs Orçamentos
+
+Canva/Word Mail Merge	Visual	Manual, não escala	Inferior - Orçamentos gera 100s de PDFs em minutos
+
+Pipedrive/HubSpot Quotes	CRM integrado	SaaS caro ($50+/user/mês)	Inferior para quem só precisa gerar PDFs
+
+DocuSign/PDF filler API	Assinatura	Custo por documento	Inferior - Orçamentos é geração pura, sem custo
+
+Veredito: ✅ PRONTA PARA PRODUÇÃO - Único gerador de orçamentos PDF em massa 100% local e gratuito
+
+4. MINERADOR v4.1
+
+Status: PRODUÇÃO MADURA (COM RESSALVAS)
+
+Prontidão (8/10)
+
+- Estabilidade: Playwright + Chromium headless, anti-bot stealth, retry automático, fallback ScraperAPI
+
+- Performance: Concorrência configurável (padrão 5), seletores CSS pré-calibrados para 25+ marketplaces
+
+- Segurança: Validação de URL, user-agent rotation, headers realísticos
+
+- Documentação: Boa - SELECTOR_REGISTRY documentado, exemplos de uso   Você é um Engenheiro de Software Sênior e Arquiteto de Produto responsável por levar as ferramentas do DataMaster Pro de sua nota atual para 10/10 (nível enterprise, produção crítica).
+
+Vou te passar a análise de prontidão mais recente das 15 ferramentas. Note que ela já reflete correções anteriores (ex: tax_rules.json externo no Precificador e Calculadora, SHA-256 no OCR). Sua tarefa agora é fechar os gaps que AINDA faltam para cada ferramenta chegar a 10/10, focando principalmente nas que estão abaixo de 9.5.
+
+Para CADA ferramenta com nota < 10, entregue:
+
+1. GAP ESPECÍFICO (baseado literalmente no que o relatório apontou como risco/limitação)
+
+   - Não generalize — use exatamente o problema descrito no relatório (ex: "Tesseract frágil no Windows", "template hardcoded", "banco TIPI ausente")
+
+2. SOLUÇÃO TÉCNICA DETALHADA
+
+   - Nomeie bibliotecas, padrões de arquitetura e trechos de pseudocódigo/código quando fizer sentido
+
+   - Se a solução envolver trocar de tecnologia (ex: Tesseract → PaddleOCR), explique a migração passo a passo e o que precisa ser reescrito
+
+   - Se envolver dados externos que a IA não tem acesso (ex: base TIPI, tabelas de frete reais), crie a estrutura de código pronta para receber os dados e indique a fonte oficial exata de onde buscar
+
+3. VALIDAÇÃO DE QUE VIROU 10/10
+
+   - Critérios objetivos de aceite (ex: "OCR deve processar tabela complexa com 95%+ de acurácia", "Laudo deve suportar 500+ linhas sem quebrar layout")
+
+   - Teste de regressão sugerido
+
+4. CLASSIFICAÇÃO DE ESFORÇO E RISCO
+
+   - Esforço: Baixo / Médio / Alto
+
+   - Risco de quebrar algo que já funciona: Baixo / Médio / Alto
+
+Priorize nesta ordem, considerando o que o relatório aponta como crítico:
+
+FASE 1 — Ferramentas com bloqueio de compliance/legal (mais urgente):
+
+- Extrator de Reviews (viola ToS/LGPD)
+
+- Analista de Tendências (scraping ilegal de SERP)
+
+- Classificador NCM (não funciona sem base oficial; risco de multa fiscal)
+
+FASE 2 — Ferramentas "prontas com ressalvas" que já funcionam mas precisam de melhoria de qualidade:
+
+- Conversor OCR (migrar Tesseract → PaddleOCR ou avaliar Azure/AWS)
+
+- Gerador de Laudos (template hardcoded, limite de 50 linhas, sem assinatura digital)
+
+- Minerador (dependência de manutenção manual de seletores)
+
+FASE 3 — Ferramentas já "prontas para produção" mas que ainda não são 10/10 perfeito:
+
+- Todas as demais com nota entre 8.0 e 9.5, indicando o que falta para atingir excelência total (não apenas "suficiente para produção")
+
+Para as ferramentas de FASE 1, seja especialmente rigoroso: se a solução realista for "não dá para chegar a 10/10 fazendo scraping, a única forma correta é usar API oficial/serviço licenciado", diga isso claramente ao invés de forçar uma solução técnica frágil só para parecer que resolveu. Recomendar descontinuar/substituir por serviço terceirizado é uma resposta válida e às vezes a correta.
+
+Ao final, gere:
+
+## TABELA RESUMO
+
+| Ferramenta | Nota Atual | Bloqueio Principal | Solução Recomendada | Esforço | É Tecnicamente Possível Chegar a 10/10 Fazendo Scraping/Local? (Sim/Não) |
+
+## ROADMAP FINAL
+
+Ordem sugerida de implementação considerando risco legal > risco financeiro > risco de qualidade > risco de manutenção.
+
+[✓] FASE 1: Extrator Reviews - Reescrever para usar APIs oficiais (ML, Amazon SP-API, Shopee)
+
+[✓] FASE 1: Analista Tendências - Substituir scraping por fontes legítimas (Google Trends API, ML Bestsellers API, TikTok CSV export)
+
+[✓] FASE 1: Classificador NCM - Pipeline ETL oficial TIPI/CEST + Classificador Enterprise
+
+[✓] FASE 2: Conversor OCR - Migrar Tesseract → PaddleOCR (layout analysis, tabelas, sem binários Windows)
+
+[✓] FASE 2: Gerador Laudos - Template Engine Jinja2 + WeasyPrint + Assinatura Digital ICP-Brasil
+
+[•] FASE 2: Minerador - Selector Registry auto-atualizável + fallback API oficial
+
+[ ] FASE 3: Polimento excelência nas 9 ferramentas restantes

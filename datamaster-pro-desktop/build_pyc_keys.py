@@ -1,11 +1,18 @@
 """
 Build: python build_pyc_keys.py
+Lê SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY do .env
 """
 import py_compile
 import os
+from dotenv import load_dotenv
 
-_J = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5dHB1ZWZwaXN2bWx4bXFrYmZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMTEzNTQsImV4cCI6MjA5MzY4NzM1NH0.ExGFv5Ltv8xI2Ajkm8lvQjuAor_CG7hW--o4HCGKF84"
-_S = "f9c0ef564f87b5a3bb502a2d6a8dc05b"
+load_dotenv()
+
+_J = os.getenv("SUPABASE_ANON_KEY", "")
+_S = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+
+if not _J or not _S:
+    raise SystemExit("Configure SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY no .env antes de rodar este script.")
 
 _C = 8
 _JC = [_J[i:i+_C] for i in range(0, len(_J), _C)]

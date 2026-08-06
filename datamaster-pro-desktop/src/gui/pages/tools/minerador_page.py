@@ -2,12 +2,11 @@ import customtkinter as ctk
 from tkinter import messagebox
 import os
 import sys
-import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
 from src.gui.pages.tool_page import ToolPage
-from src.tools.minerador.minerador_v2 import Minerador
+from src.tools.minerador import MineradorEnterprise
 from src.gui.components.result_viewer_modal import ResultViewerButton
 from src.utils.task_helper import TaskHelper
 from src.gui.helpers.execution_helper import ExecutionHelper
@@ -16,14 +15,14 @@ from src.core.tasks.task_executor import task_executor
 
 class MineradorPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
-        self.minerador = Minerador(
+        self.minerador = MineradorEnterprise(
             progress_callback=self._update_progress,
             log_callback=self._log_from_thread,
-            _p0=config._r1(),
+            max_concurrency=5,
         )
         self.task_helper = TaskHelper("minerador")
-        self.execution = ExecutionHelper("minerador", "Minerador de Preços", user_id)
-        super().__init__(master, "minerador", "Minerador de Preços", on_back, execution_tracker, user_id)
+        self.execution = ExecutionHelper("minerador", "Minerador de Preços Enterprise", user_id)
+        super().__init__(master, "minerador", "Minerador de Preços Enterprise v5.0", on_back, execution_tracker, user_id)
         self.links = []
         self.current_progress = 0
         self.total_progress = 0

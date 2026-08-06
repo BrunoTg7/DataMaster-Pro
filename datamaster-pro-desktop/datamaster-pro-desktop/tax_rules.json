@@ -1,0 +1,87 @@
+{
+  "MARKETPLACE_FEES": {
+    "mercadolivre": {
+      "percent": 0.16,
+      "fixed": 6.00,
+      "frete_gratis_min": 79.0,
+      "custo_frete_medio": 15.0,
+      "emoji": "🛒",
+      "freight_table_key": "mercado_envios"
+    },
+    "shopee": {
+      "percent": 0.20,
+      "fixed": 3.00,
+      "frete_gratis_min": 0.0,
+      "custo_frete_medio": 0.0,
+      "emoji": "🍊",
+      "freight_table_key": "shopee_envios"
+    },
+    "amazon": {
+      "percent": 0.15,
+      "fixed": 0.0,
+      "frete_gratis_min": 0.0,
+      "custo_frete_medio": 12.0,
+      "emoji": "📦",
+      "freight_table_key": "amazon_fba"
+    },
+    "magalu": {
+      "percent": 0.14,
+      "fixed": 2.50,
+      "frete_gratis_min": 99.0,
+      "custo_frete_medio": 18.0,
+      "emoji": "🛍️",
+      "freight_table_key": "magalu_envios"
+    }
+  },
+  "FREIGHT_TABLES": {
+    "mercado_envios": {
+      "description": "Tabela Mercado Envios 2024 (valores aproximados)",
+      "base_url": "https://www.mercadolivre.com.br/mercadoenvios",
+      "rules": [
+        {"uf_origem": "SP", "uf_destino": "SP", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 12.90},
+        {"uf_origem": "SP", "uf_destino": "SP", "peso_min_kg": 0.5, "peso_max_kg": 1.0, "valor": 14.90},
+        {"uf_origem": "SP", "uf_destino": "RJ", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 18.90},
+        {"uf_origem": "SP", "uf_destino": "RJ", "peso_min_kg": 0.5, "peso_max_kg": 1.0, "valor": 22.90},
+        {"uf_origem": "SP", "uf_destino": "MG", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 16.90},
+        {"uf_origem": "SP", "uf_destino": "MG", "peso_min_kg": 0.5, "peso_max_kg": 1.0, "valor": 20.90},
+        {"uf_origem": "SP", "uf_destino": "RS", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 24.90},
+        {"uf_origem": "SP", "uf_destino": "RS", "peso_min_kg": 0.5, "peso_max_kg": 1.0, "valor": 28.90},
+        {"uf_origem": "SP", "uf_destino": "BA", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 26.90},
+        {"uf_origem": "SP", "uf_destino": "CE", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 28.90},
+        {"uf_origem": "SP", "uf_destino": "PR", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 18.90},
+        {"uf_origem": "SP", "uf_destino": "SC", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 19.90}
+      ]
+    },
+    "shopee_envios": {
+      "description": "Tabela Shopee Envios 2024 (valores aproximados)",
+      "base_url": "https://shopee.com.br/shopee-envios",
+      "rules": [
+        {"uf_origem": "SP", "uf_destino": "SP", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 9.90},
+        {"uf_origem": "SP", "uf_destino": "SP", "peso_min_kg": 0.5, "peso_max_kg": 1.0, "valor": 11.90},
+        {"uf_origem": "SP", "uf_destino": "RJ", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 14.90},
+        {"uf_origem": "SP", "uf_destino": "RJ", "peso_min_kg": 0.5, "peso_max_kg": 1.0, "valor": 17.90},
+        {"uf_origem": "SP", "uf_destino": "MG", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 12.90},
+        {"uf_origem": "SP", "uf_destino": "RS", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 19.90},
+        {"uf_origem": "SP", "uf_destino": "BA", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 21.90}
+      ]
+    },
+    "amazon_fba": {
+      "description": "Amazon FBA - frete por dimensões/peso",
+      "base_url": "https://sellercentral.amazon.com.br",
+      "rules": [
+        {"uf_origem": "SP", "uf_destino": "SP", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 11.50},
+        {"uf_origem": "SP", "uf_destino": "RJ", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 16.50},
+        {"uf_origem": "SP", "uf_destino": "MG", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 14.50}
+      ]
+    },
+    "magalu_envios": {
+      "description": "Magalu Entregas - frete por região",
+      "base_url": "https://www.magazineluiza.com.br/entregas",
+      "rules": [
+        {"uf_origem": "SP", "uf_destino": "SP", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 13.50},
+        {"uf_origem": "SP", "uf_destino": "RJ", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 19.50},
+        {"uf_origem": "SP", "uf_destino": "MG", "peso_min_kg": 0, "peso_max_kg": 0.5, "valor": 17.50}
+      ]
+    }
+  }
+}

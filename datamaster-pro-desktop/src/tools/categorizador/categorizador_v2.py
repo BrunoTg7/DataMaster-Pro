@@ -1,7 +1,12 @@
 """
-Categorizador v3.1 Pro - Otimizado para máxima velocidade, flexibilidade e multi-setorial
+Categorizador v3.2 Pro - Otimizado para máxima velocidade, flexibilidade e multi-setorial
 Classifica transações ou qualquer tipo de dado de texto por categorias usando
 regras inteligentes de palavras-chave, exclusões negativas, Regex e autodescoberta offline.
+
+Novidades v3.2:
+- Fallback de fuzzy matching: rapidfuzz > thefuzz > builtin (Jaccard)
+- Métricas de acurácia automáticas (distribuição + outlier rate)
+- Relatório de classify quality para validação do usuário
 """
 import pandas as pd
 import json
@@ -15,6 +20,32 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import numpy as np
 import os
 from src.utils.excel_styler import save_premium_excel
+
+
+# ── Fuzzy Engine Detection (rapidfuzz > thefuzz > builtin) ──────────────────
+try:
+    from rapidfuzz import fuzz as _rapidfuzz_fuzz
+    FUZZ_ENGINE = "rapidfuzz"
+except ImportError:
+    try:
+        from thefuzz import fuzz as _thefuzz_fuzz
+        FUZZ_ENGINE = "thefuzz"
+    except ImportError:
+        FUZZ_ENGINE = "builtin"
+
+
+def _fuzzy_score(a: str, b: str) -> int:
+    """Calcula similaridade fuzzy entre duas strings usando a melhor engine disponível"""
+    if FUZZ_ENGINE == "rapidfuzz":
+        return int(_rapidfuzz_fuzz.token_sort_ratio(a, b))
+    elif FUZZ_ENGINE == "thefuzz":
+        return int(_thefuzz_fuzz.token_sort_ratio(a, b))
+    else:
+        set_a = set(a.lower().split())
+        set_b = set(b.lower().split())
+        if not set_a or not set_b:
+            return 0
+        return int(100 * len(set_a & set_b) / len(set_a | set_b))
 
 
 def _classify_worker(chunk: Sequence[str], categories: Dict) -> List[str]:
@@ -399,6 +430,20 @@ class Categorizador:
                         "examples": examples
                     })
             
+            # 5. Métricas de qualidade da classificação
+            distribution = df[category_column].value_counts().to_dict()
+            outlier_count = distribution.get("outros", 0)
+            outlier_pct = round((outlier_count / total_rows) * 100, 1) if total_rows > 0 else 0
+
+            quality_metrics = {
+                "engine": FUZZ_ENGINE,
+                "total_classified": categorized_count,
+                "total_outliers": outlier_count,
+                "outlier_percentage": outlier_pct,
+                "distribution": distribution,
+                "classification_quality": "excelente" if outlier_pct < 10 else "boa" if outlier_pct < 25 else "regular" if outlier_pct < 50 else "ruim",
+            }
+            
             return {
                 "success": True,
                 "total_rows": total_rows,
@@ -407,6 +452,7 @@ class Categorizador:
                 "processing_time": proc_time,
                 "estimated_time_saved": estimated_minutes_saved,
                 "others_suggestions": suggestions,
+                "quality_metrics": quality_metrics,
                 "output_path": final_path
             }
             

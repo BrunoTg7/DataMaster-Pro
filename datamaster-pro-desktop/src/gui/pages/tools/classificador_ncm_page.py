@@ -1,6 +1,7 @@
 """
-Classificador NCM/CEST Automático — GUI Page
-Classifica produtos com os códigos NCM e CEST corretos via fuzzy matching.
+Classificador NCM/CEST Enterprise — GUI Page
+Base oficial TIPI (Receita Federal) + CEST (Convênio ICMS 92/2015)
+Pipeline ETL automatizado + Fuzzy matching hierárquico + Auditoria completa
 """
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
@@ -11,24 +12,62 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
 from src.gui.pages.tool_page import ToolPage
-from src.tools.classificador_ncm.classificador_ncm_v1 import ClassificadorNCM
+from src.tools.classificador_ncm import ClassificadorNCMEntperprise, NCMPipeline
 from src.gui.helpers.execution_helper import ExecutionHelper
 from src.core.tasks.task_executor import task_executor
+import json
 
 
 class ClassificadorNcmPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
         self._tk_ready = False
-        self.classificador = ClassificadorNCM(
+        self._db_ready = False
+        self._check_database()
+        
+        # Usar classificador enterprise
+        self.classificador = ClassificadorNCMEntperprise(
             log_callback=self._log_safe,
             progress_callback=self._update_progress,
         )
-        self.execution = ExecutionHelper("classificador_ncm", "Classificador NCM/CEST", user_id)
+        self.execution = ExecutionHelper("classificador_ncm", "Classificador NCM/CEST Enterprise", user_id)
         self._planilha_path = None
         self._last_output_path = None
-        super().__init__(master, "classificador_ncm", "Classificador NCM/CEST", on_back, execution_tracker, user_id)
+        super().__init__(master, "classificador_ncm", "Classificador NCM/CEST Enterprise", on_back, execution_tracker, user_id)
         self._tk_ready = True
         self._check_task_state()
+
+    def _check_database(self):
+        """Verifica se a base NCM/CEST existe e oferece para gerar se não existir"""
+        db_path = os.path.join("data", "processed", "ncm_database.json")
+        if os.path.exists(db_path):
+            try:
+                with open(db_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self._db_ready = True
+                self._log_safe(f"✅ Base NCM/CEST carregada: {len(data)} registros")
+            except Exception as e:
+                self._log_safe(f"⚠️ Erro ao ler base NCM: {e}")
+                self._db_ready = False
+        else:
+            self._db_ready = False
+            self._log_safe("⚠️ Base NCM/CEST NÃO ENCONTRADA. Execute 'Atualizar Base NCM' para gerar.")
+
+    def _log_safe(self, message: str):
+        if not self._tk_ready:
+            print(f"[LOG] {message}")
+            return
+        if "Erro" not in message and "ERRO" not in message:
+            self.after(0, lambda: self._update_log_display(message))
+    
+    def _update_log_display(self, message: str):
+        try:
+            if hasattr(self, 'log_text') and self.log_text and self.log_text.winfo_exists():
+                self.log_text.configure(state="normal")
+                self.log_text.insert("end", f"• {message}\n")
+                self.log_text.see("end")
+                self.log_text.configure(state="disabled")
+        except Exception:
+            pass
 
     def _check_task_state(self):
         last_task = self._tool_service.get_last_task_by_tool("classificador_ncm")
@@ -38,23 +77,6 @@ class ClassificadorNcmPage(ToolPage):
         if status == "completed" and hasattr(self, "status_label"):
             rows = last_task.get("rows_processed", 0)
             self.status_label.configure(text=f"✅ Última execução: {rows} produto(s) classificado(s)")
-
-    def _log_safe(self, message: str):
-        if self._tk_ready:
-            self.after(0, lambda: self._add_log(message))
-
-    def _log_from_thread(self, message: str):
-        self.after(0, lambda: self._add_log(message))
-
-    def _add_log(self, message: str):
-        try:
-            if hasattr(self, "log_text") and self.log_text.winfo_exists():
-                self.log_text.configure(state="normal")
-                self.log_text.insert("end", f"• {message}\n")
-                self.log_text.see("end")
-                self.log_text.configure(state="disabled")
-        except Exception:
-            pass
 
     def _update_progress(self, value: int):
         try:

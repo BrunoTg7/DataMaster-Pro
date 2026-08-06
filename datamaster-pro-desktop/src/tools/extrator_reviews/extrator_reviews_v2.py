@@ -7,14 +7,11 @@ import logging
 import re
 import random
 import os
-import sys
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
 log = logging.getLogger(__name__)
 
-# Importa configurações globais
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 import config
 
 class ExtratorReviews:
@@ -32,14 +29,38 @@ class ExtratorReviews:
 
     SENTIMENT_DICT = {
         "positive": [
-            "bom", "ótimo", "excelente", "perfeito", "maravilhoso", "recomendo", "gostei", 
+            "bom", "ótimo", "excelente", "perfeito", "maravilhoso", "recomendo", "gostei",
             "rápido", "qualidade", "top", "lindo", "original", "atendeu", "surpreso",
-            "fácil", "baixo custo", "vale a pena", "satisfeito", "impecável", "entrega rápida"
+            "fácil", "baixo custo", "vale a pena", "satisfeito", "impecável", "entrega rápida",
+            "durável", "robusto", "elegante", "funcional", "prático", "leve", "compacto",
+            "silencioso", "eficiente", "potente", "versátil", " resistente", "comfortável",
+            "bonito", "moderno", "claro", "nítido", "suave", "macio", "fino",
+            "barato", "econômico", "compensou", "superou", "recomendado", "aprovado",
+            " nota 10", "marca", "genuíno", "authentic", "conforme", "exatamente",
+            "chegou antes", "bem embalado", "sem defeito", "zerado", "novo",
+            "amigo", "educado", "prestativo", "áttil", "solícito", "cordial",
+            "filme", "série", "jogo", "livro", "música", "show", "engraçado",
+            "emocionante", "divertido", "interessante", "incrível", "fantástico",
+            "sensacional", "show de bola", "muito bom", "adorei", "amei",
+            "feliz", "contente", "orgulho", "grato", "agradecido", "indicação",
+            "recomendaria", "compraria novamente", "fiel", "preferido", "favorito"
         ],
         "negative": [
             "ruim", "péssimo", "horrível", "defeito", "quebrou", "lixo", "não recomendo",
             "decepção", "devolver", "problema", "atraso", "falha", "fraco", "pior",
-            "falso", "pirata", "parou de funcionar", "estragou", "caro", "insatisfeito", "paraguaio"
+            "falso", "pirata", "parou de funcionar", "estragou", "caro", "insatisfeito", "paraguaio",
+            "quebrado", "rachado", "arranhado", "amassado", "torto", "ferrugem",
+            "barulho", "aquece", "esquenta", "cheiro", "odor", "mal cheiro",
+            "lento", "travando", "trava", "congelando", "bug", "erro",
+            "frágil", "fino", "barato", "porcaria", "vergonha", "arroto",
+            "não funciona", "não liga", "não carrega", "não liga mais",
+            "golpe", "enganado", "errado", "diferente", "não é original",
+            "devolução", "reclamação", "trocar", "reembolso", "cancelar",
+            "demorou", "nunca chegou", "extraviado", "danificado", "avaria",
+            "decepcionado", "arrependido", "perda", "desperdício", "lixão",
+            "horroroso", "terrível", "desastroso", "caótico", "péssima",
+            "não comprem", "evitem", "cuidado", "armadilha", "furada",
+            "superfaturado", "overpriced", "não vale", "desperdício de dinheiro"
         ]
     }
 

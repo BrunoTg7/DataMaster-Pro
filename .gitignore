@@ -27,6 +27,8 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 .env*.local
+.encryption_key
+.db_password
 
 # --- OS FILES ---
 .DS_Store

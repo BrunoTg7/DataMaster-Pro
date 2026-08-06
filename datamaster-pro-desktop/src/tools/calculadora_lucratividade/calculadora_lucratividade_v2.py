@@ -1,6 +1,15 @@
 """
-Calculadora de Lucratividade e Arbitragem v3.2 Pro
+Calculadora de Lucratividade e Arbitragem v3.4 Pro
 Motor com Telemetria Avançada e Logs de Terminal em Tempo Real.
+
+Novidades v3.4:
+- Tabela Simples Nacional atualizável via JSON externo
+- Cálculo de break-even (ponto de equilíbrio)
+- Simulação what-if com múltiplos cenários de margem
+- Métricas de performance aprimoradas
+
+As taxas e alíquotas fiscais são carregadas de tax_rules.json.
+Consulte tax_rules.example.json para o schema completo.
 """
 import asyncio
 import logging
@@ -8,26 +17,20 @@ import re
 import os
 import sys
 import json
+import pandas as pd
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
 log = logging.getLogger(__name__)
 
 # Importa configurações globais
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 import config
 
 class CalculadoraLucratividade:
     """Calculadora profissional com telemetria de extração e logs de terminal"""
     
-    MARKETPLACE_FEES = {
-        "mercadolivre": {"percent": 0.16, "fixed": 6.00},
-        "amazon": {"percent": 0.15, "fixed": 2.00},
-        "shopee": {"percent": 0.14, "fixed": 3.00},
-        "magalu": {"percent": 0.18, "fixed": 5.00},
-        "aliexpress": {"percent": 0.10, "fixed": 0.00},
-        "other": {"percent": 0.15, "fixed": 0.00}
-    }
+    # As taxas foram extraídas para tax_rules.json (ou tax_rules.example.json)
+    # Evita falhas críticas caso a política de taxas dos marketplaces mude.
 
     # Seletores de preço atualizados 2024/2025
     PRICE_SELECTORS = [
@@ -46,6 +49,166 @@ class CalculadoraLucratividade:
         self.progress_callback = progress_callback
         self.log_callback = log_callback
         self.semaphore = asyncio.Semaphore(max_concurrency)
+        self.MARKETPLACE_FEES = self._load_tax_config()
+
+    def _load_tax_config(self) -> dict:
+        """Carrega regras de taxas do JSON externo (tax_rules.json ou tax_rules.example.json)"""
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        self._tax_rules_path = os.path.join(base_dir, "tax_rules.json")
+        example_file = os.path.join(base_dir, "tax_rules.example.json")
+        simples_file = os.path.join(base_dir, "simples_nacional_2026.json")
+        
+        target_file = self._tax_rules_path if os.path.exists(self._tax_rules_path) else example_file
+        self._tax_data = {}
+        try:
+            if os.path.exists(target_file):
+                with open(target_file, "r", encoding="utf-8") as f:
+                    self._tax_data = json.load(f)
+                    self._log(f"Taxas carregadas de: {os.path.basename(target_file)}")
+            
+            # Carregar Simples Nacional 2026 (arquivo separado)
+            if os.path.exists(simples_file):
+                with open(simples_file, "r", encoding="utf-8") as f:
+                    simples_data = json.load(f)
+                    if "TAX_RATES" not in self._tax_data:
+                        self._tax_data["TAX_RATES"] = {}
+                    self._tax_data["TAX_RATES"]["simples_nacional"] = simples_data
+                    self._log(f"Simples Nacional 2026 carregado de: {os.path.basename(simples_file)}")
+                    
+            return self._tax_data.get("MARKETPLACE_FEES", {})
+        except Exception as e:
+            self._log(f"Erro ao carregar taxas: {e}. Usando fallback de segurança.")
+        
+        return {
+            "mercadolivre": {"percent": 0.16, "fixed": 6.00},
+            "other": {"percent": 0.15, "fixed": 0.00}
+        }
+
+    def get_tax_rates(self) -> dict:
+        """Retorna as alíquotas fiscais carregadas do JSON (ICMS, PIS/COFINS, Simples Nacional)"""
+        return self._tax_data.get("TAX_RATES", {})
+
+    def calculate_simples_nacional(self, faturamento_anual: float, anexo: str = "anexo_1_comercio") -> float:
+        """
+        Calcula a alíquota efetiva do Simples Nacional com base no faturamento anual.
+        
+        Args:
+            faturamento_anual: Receita bruta nos últimos 12 meses
+            anexo: 'anexo_1_comercio' ou 'anexo_2_servicos'
+        
+        Returns:
+            Alíquota efetiva em decimal (ex: 0.06 para 6%)
+        """
+        tax_rates = self._tax_data.get("TAX_RATES", {})
+        simples = tax_rates.get("simples_nacional", {})
+        faixas = simples.get(anexo, {})
+        
+        if not faixas:
+            return tax_rates.get("default_simples_pct", 6.0) / 100.0
+        
+        for faixa_key, faixa_data in faixas.items():
+            if faixa_key.startswith("faixa_") and isinstance(faixa_data, dict):
+                limite = faixa_data.get("limite", float("inf"))
+                if faturamento_anual <= limite:
+                    aliquota_nominal = faixa_data["aliquota"]
+                    parcela = faixa_data["parcela"]
+                    # Fórmula do Simples Nacional (Lei 12.3/2006)
+                    base = faturamento_anual * aliquota_nominal - parcela
+                    aliquota_efetiva = base / faturamento_anual if faturamento_anual > 0 else 0
+                    return max(aliquota_efetiva, 0.0)
+        
+        # Se exceder todas as faixas, usa a última
+        last_faixa = list(faixas.values())[-1]
+        return last_faixa.get("aliquota", 0.19)
+
+    # ------------------------------------------------------------------
+    # CÁLCULO DE BREAK-EVEN (PONTO DE EQUILÍBRIO)
+    # ------------------------------------------------------------------
+    def calcular_break_even(
+        self,
+        custo_fixo_mensal: float,
+        custo_variavel_unit: float,
+        preco_venda_unit: float,
+    ) -> Dict:
+        """Calcula ponto de equilíbrio em unidades e faturamento
+        
+        Args:
+            custo_fixo_mensal: Custos fixos mensais (aluguel, salários, etc.)
+            custo_variavel_unit: Custo variável por unidade (material, embalagem, etc.)
+            preco_venda_unit: Preço de venda por unidade
+            
+        Returns:
+            Dict com unidades, faturamento e tempo para break-even
+        """
+        margem_contribution = preco_venda_unit - custo_variavel_unit
+        
+        if margem_contribution <= 0:
+            return {
+                "error": "Margem de contribution negativa - não há break-even possível",
+                "margem_contribution": round(margem_contribution, 2),
+            }
+        
+        import math
+        break_even_units = custo_fixo_mensal / margem_contribution
+        break_even_revenue = break_even_units * preco_venda_unit
+        
+        # Tempo para recuperar investimento inicial (se fornecido)
+        return {
+            "break_even_units": math.ceil(break_even_units),
+            "break_even_revenue": round(break_even_revenue, 2),
+            "margem_contribution_unit": round(margem_contribution, 2),
+            "margem_contribution_pct": round((margem_contribution / preco_venda_unit) * 100, 1) if preco_venda_unit > 0 else 0,
+            "custo_fixo_mensal": custo_fixo_mensal,
+            "custo_variavel_unit": custo_variavel_unit,
+            "preco_venda_unit": preco_venda_unit,
+        }
+
+    # ------------------------------------------------------------------
+    # SIMULAÇÃO WHAT-IF
+    # ------------------------------------------------------------------
+    def simular_cenarios(
+        self,
+        custo_produto: float,
+        cenarios: List[Dict],
+    ) -> pd.DataFrame:
+        """Simula múltiplos cenários de lucratividade
+        
+        Args:
+            custo_produto: Custo de aquisição
+            cenarios: Lista de dicts com {nome, preco_venda, custo_fixo, custo_variavel}
+            
+        Returns:
+            DataFrame com resultados comparativos
+        """
+        
+        resultados = []
+        for cenario in cenarios:
+            nome = cenario.get("nome", "Cenário")
+            preco = cenario.get("preco_venda", 0)
+            custo_fixo = cenario.get("custo_fixo", 0)
+            custo_var = cenario.get("custo_variavel", 0)
+            
+            # Calcular lucro
+            receita = preco
+            custos_totais = custo_produto + custo_var + custo_fixo
+            lucro = receita - custos_totais
+            margem = (lucro / receita * 100) if receita > 0 else 0
+            roi = (lucro / custo_produto * 100) if custo_produto > 0 else 0
+            
+            # Break-even
+            be = self.calcular_break_even(custo_fixo, custo_var + custo_produto, preco)
+            
+            resultados.append({
+                "Cenário": nome,
+                "Preço Venda": f"R$ {preco:.2f}",
+                "Custo Total": f"R$ {custos_totais:.2f}",
+                "Lucro": f"R$ {lucro:.2f}",
+                "Margem": f"{margem:.1f}%",
+                "ROI": f"{roi:.1f}%",
+                "Break-Even (un)": be.get("break_even_units", "-"),
+            })
+        
+        return pd.DataFrame(resultados)
 
     def _log(self, message: str):
         """Log que sai no Terminal e na GUI simultaneamente"""
@@ -149,8 +312,7 @@ class CalculadoraLucratividade:
                     })
                     
                     self._log(f"🌐 Navegando até: {url[:40]}...")
-                    await page.goto(url, wait_until="load", timeout=45000)
-                    await page.wait_for_timeout(3000) 
+                    await page.goto(url, wait_until="networkidle", timeout=45000)
 
                     price = await self._extract_price_from_page(page)
                     site = self._detect_marketplace(url)
@@ -217,6 +379,9 @@ class CalculadoraLucratividade:
                 "net_profit": round(profit, 2),
                 "margin": round(margin, 1),
                 "roi": round(roi, 1),
+                # Opportunity Score (0-100): weighted combination of margin and ROI.
+                # margin * 2.5 favors high-margin products; roi / 2 balances with capital efficiency.
+                # Clamped to [0, 100] to normalize output.
                 "opportunity_score": min(max(int((margin * 2.5) + (roi / 2)), 0), 100)
             })
 

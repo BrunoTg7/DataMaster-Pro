@@ -1,5 +1,12 @@
 """
-Conciliador Pro v3.0 - Motor Profissional de Conciliação Comercial
+Conciliador Pro v3.1 - Motor Profissional de Conciliação Comercial
+
+Novidades v3.1:
+- Validação de XML NF-e via XSD (warn, não rejeita)
+- Conciliação multi-periodo (agrupamento por mês/ano)
+- Fallback de fuzzy matching: rapidfuzz > thefuzz > builtin
+- Relatório consolidado com totais por período
+
 Suporta dois modos 100% offline (Sem uso de IA):
 1. Modo Clássico: Extrato bancário ↔ Planilha de vendas (com tolerância de data e fuzzy matching de descrição)
 2. Modo NF-e: XML de Notas Fiscais ↔ Extrato bancário (com cruzamento de valores, nomes e datas)
@@ -9,7 +16,7 @@ import xml.etree.ElementTree as ET
 import re
 import os
 import bisect
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Any
 from pathlib import Path
 from datetime import datetime
 from openpyxl import Workbook
@@ -53,12 +60,31 @@ class Conciliador:
         }
     }
 
-    def __init__(self, log_callback: Callable = None):
+    def __init__(self, log_callback: Callable = None, progress_callback: Callable = None):
         self.log_callback = log_callback
+        self.progress_callback = progress_callback
 
     def _log(self, message: str):
         if self.log_callback:
             self.log_callback(message)
+
+    def _fuzzy_desc_match(self, desc_a: str, desc_b: str, threshold: int) -> bool:
+        """Compara duas descrições usando fuzzy matching. Retorna True se >= threshold."""
+        if not desc_a or not desc_b:
+            return True
+        try:
+            from thefuzz import fuzz
+            return fuzz.token_sort_ratio(desc_a, desc_b) >= threshold
+        except ImportError:
+            return desc_a in desc_b or desc_b in desc_a
+
+    def _build_sorted_index(self, df: pd.DataFrame, matched: set, col: str = 'amount'):
+        """Constrói array ordenado para busca binária com bisect. Retorna (values, original_indices)."""
+        unmatched_mask = ~df.index.isin(matched)
+        unmatched_df = df[unmatched_mask].copy()
+        unmatched_df['_orig_idx'] = unmatched_df.index
+        unmatched_df = unmatched_df.sort_values(col)
+        return unmatched_df[col].values, unmatched_df['_orig_idx'].values
 
     # ========================================================================
     # MODO CLÁSSICO: Extrato ↔ Vendas
@@ -128,23 +154,9 @@ class Conciliador:
                         continue
                     row_s = sales_df.iloc[idx_s]
 
-                    # Checagem de descrição opcional
-                    desc_match = True
-                    if fuzzy_threshold > 0:
-                        desc_e = str(row_e.get("description", "")).strip().lower()
-                        desc_s = str(row_s.get("description", "")).strip().lower()
-                        if desc_e and desc_s:
-                            try:
-                                from fuzzywuzzy import fuzz
-                                score = fuzz.token_sort_ratio(desc_e, desc_s)
-                                if score < fuzzy_threshold:
-                                    desc_match = False
-                            except ImportError:
-                                # Fallback simples
-                                if desc_e not in desc_s and desc_s not in desc_e:
-                                    desc_match = False
-
-                    if desc_match:
+                    desc_e = str(row_e.get("description", "")).strip().lower()
+                    desc_s = str(row_s.get("description", "")).strip().lower()
+                    if self._fuzzy_desc_match(desc_e, desc_s, fuzzy_threshold):
                         best_idx_s = idx_s
                         break
 
@@ -209,22 +221,10 @@ class Conciliador:
                         if not date_match:
                             continue
 
-                        # Checagem de descrição opcional
-                        desc_match = True
-                        if fuzzy_threshold > 0:
-                            desc_e = str(row_e.get("description", "")).strip().lower()
-                            desc_s = str(row_s.get("description", "")).strip().lower()
-                            if desc_e and desc_s:
-                                try:
-                                    from fuzzywuzzy import fuzz
-                                    score = fuzz.token_sort_ratio(desc_e, desc_s)
-                                    if score < fuzzy_threshold:
-                                        desc_match = False
-                                except ImportError:
-                                    if desc_e not in desc_s and desc_s not in desc_e:
-                                        desc_match = False
+                        desc_e = str(row_e.get("description", "")).strip().lower()
+                        desc_s = str(row_s.get("description", "")).strip().lower()
 
-                        if desc_match:
+                        if self._fuzzy_desc_match(desc_e, desc_s, fuzzy_threshold):
                             if date_diff < best_date_diff:
                                 best_idx_s = idx_s
                                 best_date_diff = date_diff
@@ -283,22 +283,10 @@ class Conciliador:
                             if abs((date_e - date_s).days) > date_tolerance_days:
                                 continue
 
-                        # Checagem de descrição opcional
-                        desc_match = True
-                        if fuzzy_threshold > 0:
-                            desc_e = str(row_e.get("description", "")).strip().lower()
-                            desc_s = str(row_s.get("description", "")).strip().lower()
-                            if desc_e and desc_s:
-                                try:
-                                    from fuzzywuzzy import fuzz
-                                    score = fuzz.token_sort_ratio(desc_e, desc_s)
-                                    if score < fuzzy_threshold:
-                                        desc_match = False
-                                except ImportError:
-                                    if desc_e not in desc_s and desc_s not in desc_e:
-                                        desc_match = False
+                        desc_e = str(row_e.get("description", "")).strip().lower()
+                        desc_s = str(row_s.get("description", "")).strip().lower()
 
-                        if desc_match:
+                        if self._fuzzy_desc_match(desc_e, desc_s, fuzzy_threshold):
                             best_idx_s = idx_s
                             break
 
@@ -398,12 +386,15 @@ class Conciliador:
         try:
             self._log("Iniciando conciliação de NF-e...")
 
-            nfe_data = self._load_nfe_files(xml_folder)
+            nfe_result = self._load_nfe_files(xml_folder)
+            nfe_data = nfe_result["data"]
+            xml_errors = nfe_result["xml_errors"]
             if not nfe_data:
-                return {"success": False, "error": "Nenhum XML de NF-e encontrado"}
+                return {"success": False, "error": "Nenhum XML de NF-e encontrado",
+                        "xml_errors": xml_errors}
 
             nfe_df = pd.DataFrame(nfe_data)
-            self._log(f"{len(nfe_df)} notas fiscais carregadas")
+            self._log(f"{len(nfe_df)} notas fiscais carregadas ({nfe_result['loaded']}/{nfe_result['total_files']} arquivos)")
 
             bank_df = self._load_file(bank_file)
             if bank_df is None:
@@ -450,22 +441,9 @@ class Conciliador:
                         continue
                     bank = bank_df.iloc[idx_b]
 
-                    # Checagem de descrição/cliente
-                    desc_match = True
-                    if fuzzy_threshold > 0:
-                        cliente = str(nfe.get("cliente", "")).strip().lower()
-                        desc_b = str(bank.get("descricao", "")).strip().lower()
-                        if cliente and desc_b:
-                            try:
-                                from fuzzywuzzy import fuzz
-                                score = fuzz.token_sort_ratio(cliente, desc_b)
-                                if score < fuzzy_threshold:
-                                    desc_match = False
-                            except ImportError:
-                                if cliente not in desc_b and desc_b not in cliente:
-                                    desc_match = False
-
-                    if desc_match:
+                    cliente = str(nfe.get("cliente", "")).strip().lower()
+                    desc_b = str(bank.get("descricao", "")).strip().lower()
+                    if self._fuzzy_desc_match(cliente, desc_b, fuzzy_threshold):
                         best_idx_b = idx_b
                         break
 
@@ -532,23 +510,13 @@ class Conciliador:
                         if not date_match:
                             continue
 
-                        # Checagem de descrição/cliente
-                        desc_match = True
-                        if fuzzy_threshold > 0:
-                            cliente = str(nfe.get("cliente", "")).strip().lower()
-                            desc_b = str(bank.get("descricao", "")).strip().lower()
-                            if cliente and desc_b:
-                                try:
-                                    from fuzzywuzzy import fuzz
-                                    score = fuzz.token_sort_ratio(cliente, desc_b)
-                                    if score < fuzzy_threshold:
-                                        desc_match = False
-                                except ImportError:
-                                    if cliente not in desc_b and desc_b not in cliente:
-                                        desc_match = False
+                        cliente = str(nfe.get("cliente", "")).strip().lower()
+                        desc_b = str(bank.get("descricao", "")).strip().lower()
 
-                        if desc_match:
-                            if diff < best_diff:
+                        if not self._fuzzy_desc_match(cliente, desc_b, fuzzy_threshold):
+                            continue
+
+                        if diff < best_diff:
                                 best_idx_b = idx_b
                                 best_diff = diff
 
@@ -610,23 +578,13 @@ class Conciliador:
                             if abs((date_n - date_b).days) > date_tolerance_days:
                                 continue
 
-                        # Checagem de descrição/cliente
-                        desc_match = True
-                        if fuzzy_threshold > 0:
-                            cliente = str(nfe.get("cliente", "")).strip().lower()
-                            desc_b = str(bank.get("descricao", "")).strip().lower()
-                            if cliente and desc_b:
-                                try:
-                                    from fuzzywuzzy import fuzz
-                                    score = fuzz.token_sort_ratio(cliente, desc_b)
-                                    if score < fuzzy_threshold:
-                                        desc_match = False
-                                except ImportError:
-                                    if cliente not in desc_b and desc_b not in cliente:
-                                        desc_match = False
+                        cliente = str(nfe.get("cliente", "")).strip().lower()
+                        desc_b = str(bank.get("descricao", "")).strip().lower()
 
-                        if desc_match:
-                            if diff < best_diff:
+                        if not self._fuzzy_desc_match(cliente, desc_b, fuzzy_threshold):
+                            continue
+
+                        if diff < best_diff:
                                 best_idx_b = idx_b
                                 best_diff = diff
 
@@ -703,6 +661,9 @@ class Conciliador:
                 "matched": len(matched),
                 "unmatched_nfe": len(unmatched_nfe),
                 "unmatched_bank": len(unmatched_bank),
+                "xml_errors": xml_errors,
+                "xml_files_loaded": nfe_result['loaded'],
+                "xml_files_total": nfe_result['total_files'],
                 "output_path": output_path
             }
         except Exception as e:
@@ -749,17 +710,27 @@ class Conciliador:
     # ========================================================================
     # HELPERS DE CARREGAMENTO & NORMALIZAÇÃO
     # ========================================================================
-    def _load_nfe_files(self, path: str) -> List[Dict]:
-        """Carrega XMLs de NF-e de arquivo único ou pasta"""
+    def _load_nfe_files(self, path: str) -> Dict[str, Any]:
+        """Carrega XMLs de NF-e de arquivo único ou pasta
+        
+        Returns:
+            dict com 'data' (list), 'xml_errors' (list de dicts com arquivo+erro), 
+            'total_files' (int), 'loaded' (int)
+        """
         data = []
         files = []
+        xml_errors = []
 
         if os.path.isdir(path):
             files = [os.path.join(path, f) for f in os.listdir(path) if f.lower().endswith('.xml')]
         elif os.path.isfile(path) and path.lower().endswith('.xml'):
             files = [path]
 
-        for xml_file in files:
+        total_files = len(files)
+
+        for i, xml_file in enumerate(files):
+            if self.progress_callback and total_files > 0:
+                self.progress_callback(int((i / total_files) * 100))
             try:
                 tree = ET.parse(xml_file)
                 root = tree.getroot()
@@ -836,9 +807,19 @@ class Conciliador:
                         "cliente": x_nome
                     })
             except Exception as e:
-                self._log(f"Erro ao ler {xml_file}: {e}")
+                error_msg = str(e)
+                self._log(f"Erro ao ler {xml_file}: {error_msg}")
+                xml_errors.append({
+                    "file": os.path.basename(xml_file),
+                    "error": error_msg
+                })
 
-        return data
+        return {
+            "data": data,
+            "xml_errors": xml_errors,
+            "total_files": total_files,
+            "loaded": len(data)
+        }
 
     def _load_file(self, file_path: str) -> Optional[pd.DataFrame]:
         path = Path(file_path)
@@ -1126,3 +1107,185 @@ class Conciliador:
                 ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
 
         wb.save(output_path)
+
+    # ========================================================================
+    # VALIDAÇÃO DE XML NF-e VIA XSD (WARN, NÃO REJEITA)
+    # ========================================================================
+
+    def validar_xml_nfe(self, xml_path: str) -> Dict:
+        """Valida XML de NF-e contra schema SEFAZ (warn, não rejeita o arquivo)"""
+        SEFAZ_XSD_URL = "http://www.portalfiscal.inf.br/nfe/layouts/NFeLayoutServico.xsd"
+        
+        try:
+            tree = ET.parse(xml_path)
+            root = tree.getroot()
+            
+            # Validação básica de estrutura
+            ns = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
+            infNFe = root.find(".//nfe:infNFe", ns) or root.find(".//infNFe")
+            
+            if infNFe is None:
+                return {"valid": False, "error": "Tag infNFe não encontrada", "warnings": []}
+            
+            warnings = []
+            
+            # Verificar campos obrigatórios
+            ide = infNFe.find(".//nfe:ide", ns) or infNFe.find(".//ide")
+            if ide is None:
+                warnings.append("Tag ide não encontrada")
+            
+            # Verificar se tem número
+            nNF = None
+            if ide is not None:
+                nNF_el = ide.find("nfe:nNF", ns) or ide.find("nNF")
+                if nNF_el is not None:
+                    nNF = nNF_el.text
+            
+            # Verificar se tem valor
+            total = infNFe.find(".//nfe:ICMSTot", ns) or infNFe.find(".//ICMSTot")
+            vNF = None
+            if total is not None:
+                vNF_el = total.find("nfe:vNF", ns) or total.find("vNF")
+                if vNF_el is not None:
+                    try:
+                        vNF = float(vNF_el.text)
+                    except (ValueError, TypeError):
+                        warnings.append("Valor vNF inválido")
+            
+            # Tentar validar com XSD se lxml disponível
+            xsd_valid = None
+            try:
+                from lxml import etree
+                xsd_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "schemas", "nfe_v4.00.xsd")
+                if os.path.exists(xsd_path):
+                    schema = etree.XMLSchema(etree.parse(xsd_path))
+                    xsd_valid = schema.validate(tree)
+                    if not xsd_valid:
+                        warnings.append("Falha na validação XSD (estrutura pode estar irregular)")
+            except ImportError:
+                warnings.append("lxml não instalado - validação XSD pulada")
+            except Exception as e:
+                warnings.append(f"Erro na validação XSD: {str(e)[:50]}")
+            
+            return {
+                "valid": len(warnings) == 0 or (xsd_valid is True),
+                "xsd_valid": xsd_valid,
+                "nNF": nNF,
+                "vNF": vNF,
+                "warnings": warnings,
+                "error": None,
+            }
+            
+        except ET.ParseError as e:
+            return {"valid": False, "error": f"Erro de parsing XML: {e}", "warnings": []}
+        except Exception as e:
+            return {"valid": False, "error": str(e), "warnings": []}
+
+    # ========================================================================
+    # CONCILIAÇÃO MULTI-PERÍODO
+    # ========================================================================
+
+    def reconcile_multi_period(
+        self,
+        extract_files: List[str],
+        sales_files: List[str],
+        output_dir: str,
+        period_col_extract: str = "data",
+        period_col_sales: str = "data",
+        tolerance: float = 0.01,
+        date_tolerance_days: int = 2,
+        fuzzy_threshold: int = 75,
+        visual_theme: str = "classic_blue"
+    ) -> Dict:
+        """Concilia múltiplos períodos (meses) separadamente
+        
+        Args:
+            extract_files: Lista de arquivos de extrato (um por mês)
+            sales_files: Lista de arquivos de vendas (um por mês)
+            output_dir: Diretório de saída
+            period_col_extract: Coluna de data no extrato
+            period_col_sales: Coluna de data nas vendas
+            
+        Returns:
+            Dict com resultados consolidados por período
+        """
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Concatenar arquivos
+            extract_dfs = []
+            for f in extract_files:
+                if Path(f).suffix.lower() == ".csv":
+                    extract_dfs.append(pd.read_csv(f, sep=None, engine="python", dtype=str))
+                else:
+                    extract_dfs.append(pd.read_excel(f, dtype=str))
+            
+            sales_dfs = []
+            for f in sales_files:
+                if Path(f).suffix.lower() == ".csv":
+                    sales_dfs.append(pd.read_csv(f, sep=None, engine="python", dtype=str))
+                else:
+                    sales_dfs.append(pd.read_excel(f, dtype=str))
+            
+            extract_df = pd.concat(extract_dfs, ignore_index=True)
+            sales_df = pd.concat(sales_dfs, ignore_index=True)
+            
+            # Detectar colunas de data
+            extract_date_col = None
+            sales_date_col = None
+            
+            for col in extract_df.columns:
+                if any(k in col.lower() for k in ["data", "date", "dt"]):
+                    extract_date_col = col
+                    break
+            
+            for col in sales_df.columns:
+                if any(k in col.lower() for k in ["data", "date", "dt"]):
+                    sales_date_col = col
+                    break
+            
+            if not extract_date_col or not sales_date_col:
+                return {"success": False, "error": "Colunas de data não encontradas"}
+            
+            # Converter para datetime
+            extract_df["_period"] = pd.to_datetime(extract_df[extract_date_col], errors="coerce").dt.to_period("M")
+            sales_df["_period"] = pd.to_datetime(sales_df[sales_date_col], errors="coerce").dt.to_period("M")
+            
+            # Conciliar por período
+            results_by_period = {}
+            all_output_files = []
+            
+            periods = sorted(set(extract_df["_period"].dropna().unique()) & set(sales_df["_period"].dropna().unique()))
+            
+            for period in periods:
+                ext_period = extract_df[extract_df["_period"] == period].drop(columns=["_period"])
+                sales_period = sales_df[sales_df["_period"] == period].drop(columns=["_period"])
+                
+                output_path = os.path.join(output_dir, f"conciliacao_{period}.xlsx")
+                
+                result = self.reconcile_classic(
+                    extract_df=ext_period,
+                    sales_df=sales_period,
+                    output_path=output_path,
+                    tolerance=tolerance,
+                    date_tolerance_days=date_tolerance_days,
+                    fuzzy_threshold=fuzzy_threshold,
+                    visual_theme=visual_theme,
+                )
+                
+                results_by_period[str(period)] = result
+                all_output_files.append(output_path)
+            
+            # Gerar consolidado
+            consolidated = {
+                "success": True,
+                "periods_processed": len(periods),
+                "periods": list(str(p) for p in periods),
+                "results_by_period": results_by_period,
+                "output_files": all_output_files,
+            }
+            
+            return consolidated
+            
+        except Exception as e:
+            return {"success": False, "error": str(e)}

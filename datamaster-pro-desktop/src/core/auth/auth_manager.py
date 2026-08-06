@@ -70,10 +70,69 @@ class AuthManager:
         self._session_token: Optional[str] = None
         self._stored_credentials: Optional[Dict] = None
 
+    def _get_rate_limit_file(self) -> str:
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        cache_dir = os.path.join(base_dir, "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        return os.path.join(cache_dir, "auth_rate_limit.enc")
+
+    def _get_rate_limit_key(self) -> str:
+        import config
+        key = config.ENCRYPTION_KEY
+        if key and len(key) >= 16:
+            return key
+        key_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), ".encryption_key")
+        if os.path.exists(key_file):
+            with open(key_file, "r") as f:
+                key = f.read().strip()
+            if key and len(key) >= 16:
+                return key
+        return "datamaster-rate-limit-key"
+
+    def _read_rate_limit(self) -> Dict:
+        try:
+            filepath = self._get_rate_limit_file()
+            if os.path.exists(filepath):
+                with open(filepath, "r") as f:
+                    encrypted = f.read()
+                if encrypted:
+                    from src.utils.encryption import decrypt_data
+                    decrypted = decrypt_data(encrypted, self._get_rate_limit_key())
+                    return json.loads(decrypted)
+        except Exception as e:
+            logger.warning(f"Erro ao ler arquivo de rate limit: {e}")
+        return {"attempts": 0, "lockout_until": None}
+
+    def _write_rate_limit(self, data: Dict):
+        try:
+            filepath = self._get_rate_limit_file()
+            from src.utils.encryption import encrypt_data
+            encrypted = encrypt_data(json.dumps(data), self._get_rate_limit_key())
+            with open(filepath, "w") as f:
+                f.write(encrypted)
+        except Exception as e:
+            logger.warning(f"Erro ao salvar arquivo de rate limit: {e}")
+
     def login(self, email: str, password: str) -> Dict:
         """
         Authenticate user via Supabase
         """
+        # Verificar lockout ativo
+        rate_data = self._read_rate_limit()
+        lockout_until_str = rate_data.get("lockout_until")
+        if lockout_until_str:
+            try:
+                lockout_until = datetime.fromisoformat(lockout_until_str)
+                if datetime.now() < lockout_until:
+                    remaining = lockout_until - datetime.now()
+                    minutes_remaining = int(remaining.total_seconds() / 60) + 1
+                    return {
+                        "success": False, 
+                        "error": f"Muitas tentativas incorretas. Login bloqueado por mais {minutes_remaining} minutos."
+                    }
+            except Exception as e:
+                logger.warning(f"Erro ao processar timestamp de lockout: {e}")
+
         try:
             from supabase import create_client, Client
             _c: Client = create_client(config._u0, config._r1())
@@ -106,11 +165,36 @@ class AuthManager:
                 self._stored_credentials = {"refresh_token": response.session.refresh_token}
                 set_user_id(user_data["id"])
                 audit_login(user_data["id"], success=True)
+                
+                # Resetar tentativas
+                self._write_rate_limit({"attempts": 0, "lockout_until": None})
                 return {"success": True, "user": user_data}
 
         except Exception as e:
+            error_str = str(e).lower()
             audit_login(email, success=False, error=str(e))
-            return {"success": False, "error": str(e)}
+            
+            # Detectar erro de configuração (key ausente)
+            if "supabase_key" in error_str or "required" in error_str:
+                logger.error("Supabase key não configurada: %s", e)
+                return {"success": False, "error": "Serviço indisponível. Verifique a configuração do aplicativo."}
+            
+            # Incrementar tentativas
+            rate_data = self._read_rate_limit()
+            attempts = rate_data.get("attempts", 0) + 1
+            rate_data["attempts"] = attempts
+            
+            if attempts >= 5:
+                lockout_until = (datetime.now() + timedelta(minutes=15)).isoformat()
+                rate_data["lockout_until"] = lockout_until
+                self._write_rate_limit(rate_data)
+                return {
+                    "success": False,
+                    "error": "Muitas tentativas incorretas. Login bloqueado por 15 minutos."
+                }
+            else:
+                self._write_rate_limit(rate_data)
+                return {"success": False, "error": f"Login falhou. Tentativa {attempts} de 5. Verifique seu email e senha."}
 
         return {"success": False, "error": "Login failed"}
 
@@ -199,8 +283,12 @@ class AuthManager:
             return {"success": False, "error": "Falha ao obter sessao do Google"}
 
         except Exception as e:
+            error_str = str(e).lower()
             audit_login("google", success=False, error=str(e))
-            return {"success": False, "error": str(e)}
+            if "supabase_key" in error_str or "required" in error_str:
+                logger.error("Supabase key não configurada: %s", e)
+                return {"success": False, "error": "Serviço indisponível. Verifique a configuração do aplicativo."}
+            return {"success": False, "error": "Falha na autenticação com Google. Tente novamente."}
 
     def _get_user_plan(self, user_id: str, token: str = None) -> str:
         """
@@ -215,8 +303,8 @@ class AuthManager:
             response = _c.table("usuarios").select("plano_tipo").eq("id", user_id).execute()
             if response.data and isinstance(response.data[0], dict):
                 return response.data[0].get("plano_tipo", "gratis")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Erro ao obter plano do usuario: {e}", exc_info=True)
         return "gratis"
 
     def _get_user_profile(self, user_id: str, token: str = None) -> dict:
@@ -232,8 +320,8 @@ class AuthManager:
             response = _c.table("usuarios").select("plano_tipo, data_expiracao, created_at").eq("id", user_id).execute()
             if response.data and isinstance(response.data[0], dict):
                 return response.data[0]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Erro ao obter perfil do usuario: {e}", exc_info=True)
         return {"plano_tipo": "gratis", "data_expiracao": None, "created_at": None}
 
     def _ensure_user_profile(self, auth_user, token: str) -> Dict:
@@ -334,6 +422,7 @@ class AuthManager:
 
         except Exception as e:
             error_msg = str(e)
+            error_lower = error_msg.lower()
             # Refresh token inválido ou não encontrado — limpar sessão local
             if "Refresh Token Not Found" in error_msg or "Invalid Refresh Token" in error_msg:
                 logger.warning("Refresh token inválido/expirado, limpando sessão local")
@@ -341,7 +430,10 @@ class AuthManager:
                 self._session_token = None
                 self.current_user = None
                 return {"success": False, "error": "Sessão expirada. Faça login novamente.", "session_expired": True}
-            return {"success": False, "error": error_msg}
+            if "supabase_key" in error_lower or "required" in error_lower:
+                logger.error("Supabase key não configurada: %s", e)
+                return {"success": False, "error": "Serviço indisponível. Verifique a configuração do aplicativo."}
+            return {"success": False, "error": "Erro ao restaurar sessão. Faça login novamente."}
 
         return {"success": False, "error": "Session refresh failed"}
 
@@ -408,6 +500,6 @@ class AuthManager:
                 self._session_token = response.session.access_token
                 self.current_user["session_token"] = response.session.access_token
                 return True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Erro ao renovar sessao silenciosamente: {e}")
         return False

@@ -87,8 +87,8 @@ class RealtimeSync:
             client = AsyncRealtimeClient(
                 ws_url,
                 token=access_token,
-                auto_reconnect=True,
-                max_retries=5,
+                auto_reconnect=False,
+                max_retries=2,
             )
 
             await client.connect()
@@ -132,12 +132,9 @@ class RealtimeSync:
         except asyncio.CancelledError:
             log.info("RealtimeSync desconectado")
         except Exception as e:
-            log.error("RealtimeSync erro de conexão: %s", e)
             if self._running:
-                # Reconectar após delay
-                await asyncio.sleep(5)
-                if self._running:
-                    await self._connect(access_token)
+                log.warning("RealtimeSync indisponível (reconecta no próximo sync): %s", str(e)[:80])
+            self._running = False
 
     def _on_execucoes_change(self, payload):
         """Callback para mudanças na tabela execucoes."""

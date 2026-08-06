@@ -32,7 +32,7 @@ class GeradorLaudos:
             extrato_file: Arquivo do extrato bancário
             notas_file: Arquivo das notas fiscais
             output_path: Caminho do PDF de saída
-            config: Configurações do template {company_name, logo_path, header_color, footer_text}
+            config: Configurações do template {company_name, logo_path, header_color, footer_text, tolerance}
         
         Returns:
             {success, output_path, summary}
@@ -48,7 +48,7 @@ class GeradorLaudos:
             extrato_df = self._load_file(extrato_file)
             notas_df = self._load_file(notas_file)
 
-            conformity_data = self._match_data(extrato_df, notas_df)
+            conformity_data = self._match_data(extrato_df, notas_df, config)
 
             doc = SimpleDocTemplate(
                 output_path,
@@ -158,6 +158,7 @@ class GeradorLaudos:
             total_items = total_conforme + total_nao_conforme
             compliance_rate = (total_conforme / total_items * 100) if total_items > 0 else 0
 
+            # Status thresholds: APROVADO >= 80%, PARCIAL >= 50%, REPROVADO < 50%
             overall_status = "APROVADO" if compliance_rate >= 80 else "APROVADO PARCIALMENTE" if compliance_rate >= 50 else "REPROVADO"
             status_color = "#22c55e" if overall_status == "APROVADO" else "#eab308" if "PARCIAL" in overall_status else "#ef4444"
 
@@ -223,14 +224,14 @@ class GeradorLaudos:
         else:
             return pd.read_csv(file_path, encoding='utf-8')
 
-    def _match_data(self, extrato_df: pd.DataFrame, notas_df: pd.DataFrame) -> List[Dict]:
+    def _match_data(self, extrato_df: pd.DataFrame, notas_df: pd.DataFrame, config: Dict = None) -> List[Dict]:
         """Cruza dados do extrato com notas fiscais usando busca binária O(N log M).
 
         Estratégia:
         1. Pré-processa notas_df: converte valores para float e ordena por valor.
         2. Para cada lançamento do extrato, usa bisect para localizar em O(log M)
            o ponto de inserção do valor-alvo na lista ordenada.
-        3. Verifica apenas os candidatos dentro da janela de tolerância (±1 R$),
+        3. Verifica apenas os candidatos dentro da janela de tolerância (±config),
            que na prática são pouquíssimos registros — tornando o custo total O(N log M).
 
         Complexidade: O((N + M) log M) — vs O(N × M) do loop aninhado anterior.
@@ -256,7 +257,8 @@ class GeradorLaudos:
             if nf_col else ['N/A'] * len(notas_sorted)
         )
 
-        TOLERANCE = 1.0  # Margem de ±1 real
+        # Tolerância configurável via config (default ±R$1.00)
+        TOLERANCE = float((config or {}).get("tolerance", 1.0))
 
         # ── Colunas do extrato ───────────────────────────────────────────────
         val_cols_ext = [c for c in ['valor', 'Value', 'VALOR', 'value'] if c in extrato_df.columns]
@@ -270,11 +272,11 @@ class GeradorLaudos:
         extrato_df = extrato_df.copy()
         extrato_df['_valor_float'] = pd.to_numeric(extrato_df[val_col_ext], errors='coerce').fillna(0.0)
 
-        # ── Cruzamento O(N log M) ────────────────────────────────────────────
-        for _, row in extrato_df.iterrows():
-            value: float = row['_valor_float']
-            date = str(row[dat_col]) if dat_col else 'N/A'
-            desc = str(row[desc_col])[:40] if desc_col else 'N/A'
+        # ── Cruzamento O(N log M) via itertuples (3-5x mais rápido que iterrows) ──
+        for row in extrato_df.itertuples(index=False):
+            value: float = getattr(row, '_valor_float', 0.0)
+            date = str(getattr(row, dat_col, 'N/A')) if dat_col else 'N/A'
+            desc = str(getattr(row, desc_col, 'N/A'))[:40] if desc_col else 'N/A'
 
             # Ponto de inserção do limite inferior na lista ordenada
             lo = bisect.bisect_left(sorted_values, value - TOLERANCE)

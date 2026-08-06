@@ -16,10 +16,12 @@ def load_environment():
     # Tentar diferentes caminhos
     paths_to_try = [
         Path.cwd() / ".env",  # Diretório atual
-        Path(__file__).parent / ".env",  # Mesmo diretório do main.py
-        Path(__file__).parent.parent / ".env",  # Diretório pai
         Path(sys.executable).parent / ".env",  # Diretório do executável (instalado)
     ]
+
+    # Se rodando como PyInstaller single-file, verificar temp dir
+    if getattr(sys, '_MEIPASS', None):
+        paths_to_try.insert(0, Path(sys._MEIPASS) / ".env")
     
     # Procurar arquivo .env
     env_path = None

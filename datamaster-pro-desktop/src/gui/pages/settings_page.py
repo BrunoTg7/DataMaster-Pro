@@ -396,10 +396,10 @@ class SettingsPage(ctk.CTkFrame):
 
     def _run_installer(self, file_path):
         """Executa o instalador e fecha o app"""
-        import subprocess
+        import os
         self._update_status.configure(text="✅ Instalando... O app será reiniciado.", text_color="#22c55e")
         try:
-            subprocess.Popen([file_path], shell=True)
+            os.startfile(file_path)
             self.after(2000, lambda: self.master.destroy() if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
         except Exception as e:
-            self._update_status.configure(text=f"❌ Erro: {str(e)[:40]}", text_color="#EF4444")
+            self._update_status.configure(text=f"❌ Erro ao iniciar instalador", text_color="#EF4444")

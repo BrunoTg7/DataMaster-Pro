@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.utils.encryption import encrypt_data, decrypt_data, _derive_key, DecryptionError
+from src.core.storage.db_encryption import DBEncryption, DBEncryptionError, ENC_PREFIX, needs_encryption
 
 class TestEncryption:
     """Testes unitários para o módulo de criptografia."""
@@ -67,3 +68,94 @@ class TestEncryption:
         """Tentar descriptografar dados malformados ou não encriptados deve falhar."""
         with pytest.raises(DecryptionError):
             decrypt_data("nao_sou_criptografado", "minha_chave")
+
+
+class TestDBEncryption:
+    """Testes para o módulo de criptografia do banco de dados."""
+
+    def test_encrypt_decrypt_roundtrip(self):
+        """Criptografar e descriptografar deve retornar o original."""
+        enc = DBEncryption(password="test-password-123", hwid="test-hwid-abc")
+        original = "dados sensíveis do usuário"
+        encrypted = enc.encrypt(original)
+        decrypted = enc.decrypt(encrypted)
+        assert decrypted == original
+
+    def test_encrypted_has_prefix(self):
+        """Dados criptografados devem começar com o prefixo ENC$v1$."""
+        enc = DBEncryption(password="pw", hwid="hw")
+        encrypted = enc.encrypt("test")
+        assert encrypted.startswith(ENC_PREFIX)
+
+    def test_encrypt_empty_returns_empty(self):
+        """Criptografar string vazia retorna vazia."""
+        enc = DBEncryption(password="pw", hwid="hw")
+        assert enc.encrypt("") == ""
+        assert enc.encrypt(None) == ""
+
+    def test_decrypt_empty_returns_empty(self):
+        """Descriptografar string vazia retorna vazia."""
+        enc = DBEncryption(password="pw", hwid="hw")
+        assert enc.decrypt("") == ""
+        assert enc.decrypt(None) == ""
+
+    def test_is_encrypted(self):
+        """is_encrypted deve detectar dados criptografados."""
+        enc = DBEncryption(password="pw", hwid="hw")
+        assert enc.is_encrypted(enc.encrypt("test")) is True
+        assert enc.is_encrypted("plain text") is False
+        assert enc.is_encrypted("") is False
+
+    def test_different_passwords_cannot_decrypt(self):
+        """Chaves diferentes não devem conseguir descriptografar."""
+        enc1 = DBEncryption(password="password1", hwid="hw")
+        enc2 = DBEncryption(password="password2", hwid="hw")
+        encrypted = enc1.encrypt("secret")
+        with pytest.raises(DBEncryptionError):
+            enc2.decrypt(encrypted)
+
+    def test_different_hwids_cannot_decrypt(self):
+        """HWIDs diferentes não devem conseguir descriptografar."""
+        enc1 = DBEncryption(password="pw", hwid="hwid1")
+        enc2 = DBEncryption(password="pw", hwid="hwid2")
+        encrypted = enc1.encrypt("secret")
+        with pytest.raises(DBEncryptionError):
+            enc2.decrypt(encrypted)
+
+    def test_encrypt_json_roundtrip(self):
+        """Criptografar/descriptografar JSON deve funcionar."""
+        enc = DBEncryption(password="pw", hwid="hw")
+        data = {"key": "value", "number": 42, "nested": {"a": [1, 2, 3]}}
+        encrypted = enc.encrypt_json(data)
+        decrypted = enc.decrypt_json(encrypted)
+        assert decrypted == data
+
+    def test_decrypt_json_empty(self):
+        """Descriptografar JSON vazio retorna None."""
+        enc = DBEncryption(password="pw", hwid="hw")
+        assert enc.decrypt_json("") is None
+        assert enc.decrypt_json(None) is None
+
+    def test_needs_encryption(self):
+        """needs_encryption deve detectar dados não criptografados."""
+        assert needs_encryption("plain text") is True
+        assert needs_encryption(f"{ENC_PREFIX}encrypted") is False
+        assert needs_encryption("") is False
+        assert needs_encryption(None) is False
+
+    def test_consistent_encryption_same_input(self):
+        """Mesmos dados + mesma chave devem gerar criptografado diferente (Fernet é probabilístico)."""
+        enc = DBEncryption(password="pw", hwid="hw")
+        e1 = enc.encrypt("same input")
+        e2 = enc.encrypt("same input")
+        # Fernet gera ciphertext diferente a cada chamada (IV aleatório)
+        assert e1 != e2
+        # Mas ambos devem descriptografar para o mesmo valor
+        assert enc.decrypt(e1) == "same input"
+        assert enc.decrypt(e2) == "same input"
+
+    def test_legacy_data_passthrough(self):
+        """Dados legados (sem prefixo) devem passar direto no decrypt."""
+        enc = DBEncryption(password="pw", hwid="hw")
+        # Simular dado legado que não está criptografado
+        assert enc.decrypt("legacy_plain_text") == "legacy_plain_text"

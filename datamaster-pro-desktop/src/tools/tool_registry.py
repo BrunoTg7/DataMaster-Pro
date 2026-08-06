@@ -4,7 +4,7 @@ Usado pelo TaskManager para executar tarefas em background.
 
 Suporta três modos de registro:
 1. @plugin decorator (novo) - auto-registra com metadados
-2. @register_tool decorator (legado) - auto-registra ao definir a classe
+2. @register_tool decorator (novo - ITool adapters) - auto-registra ao definir a classe
 3. Dict manual TOOL_REGISTRY (legado) - mantido para compatibilidade
 """
 import logging
@@ -17,15 +17,16 @@ from src.tools.itool import (
 )
 from src.domain.plugin_registry import PluginRegistry
 
-# ── Ferramentas legadas (serão migradas para @register_tool gradualmente) ────
+# Import ITool adapters (auto-register via @register_tool decorator)
+from src.tools.consolidador.consolidador_tool import ConsolidadorTool
+from src.tools.categorizador.categorizador_tool import CategorizadorTool
+from src.tools.orcamentos.orcamentos_tool import OrcamentosTool
+from src.tools.minerador.minerador_tool import MineradorTool
+from src.tools.conciliador.conciliador_tool import ConciliadorTool
 
+# ── Ferramentas legadas sem ITool adapter (mantidas para compatibilidade) ────
 _LEGACY_IMPORTS = {
-    "minerador": ("src.tools.minerador.minerador_v2", "Minerador"),
     "comissoes": ("src.tools.comissoes.comissoes", "Comissoes"),
-    "conciliador": ("src.tools.conciliador.conciliador_v2", "Conciliador"),
-    "categorizador": ("src.tools.categorizador.categorizador_v2", "Categorizador"),
-    "orcamentos": ("src.tools.orcamentos.orcamentos", "Orcamentos"),
-    "consolidador": ("src.tools.consolidador.consolidador_v2", "Consolidador"),
     "calculadora_lucratividade": ("src.tools.calculadora_lucratividade.calculadora_lucratividade_v2", "CalculadoraLucratividade"),
     "analista_tendencias": ("src.tools.analista_tendencias.analista_tendencias_v2", "AnalistaTendencias"),
     "data_sanitizer": ("src.tools.data_sanitizer.data_sanitizer_v2", "DataSanitizer"),
@@ -40,21 +41,17 @@ _LEGACY_IMPORTS = {
 
 # Mapeamento tool_key -> page_module (legado)
 LEGACY_PAGE_MODULES = {
-    "consolidador": "src.gui.pages.tools.consolidador_page",
-    "categorizador": "src.gui.pages.tools.categorizador_page",
-    "orcamentos": "src.gui.pages.tools.orcamentos_page",
-    "minerador": "src.gui.pages.tools.minerador_page",
-    "conciliador": "src.gui.pages.tools.conciliador_page",
-    "validador_links": "src.gui.pages.tools.validador_links_page",
-    "extrator_reviews": "src.gui.pages.tools.extrator_reviews_page",
+    "comissoes": "src.gui.pages.tools.comissoes_page",
     "calculadora_lucratividade": "src.gui.pages.tools.calculadora_lucratividade_page",
     "analista_tendencias": "src.gui.pages.tools.analista_tendencias_page",
     "data_sanitizer": "src.gui.pages.tools.data_sanitizer_page",
+    "extrator_reviews": "src.gui.pages.tools.extrator_reviews_page",
+    "validador_links": "src.gui.pages.tools.validador_links_page",
     "conversor_ocr": "src.gui.pages.tools.conversor_ocr_page",
     "gerador_laudos": "src.gui.pages.tools.gerador_laudos_page",
-    "comissoes": "src.gui.pages.tools.comissoes_page",
-    "classificador_ncm": "src.gui.pages.tools.classificador_ncm_page",
     "precificador_canal": "src.gui.pages.tools.precificador_canal_page",
+    "extrator_nfe": "src.gui.pages.tools.extrator_nfe_page",
+    "classificador_ncm": "src.gui.pages.tools.classificador_ncm_page",
 }
 
 

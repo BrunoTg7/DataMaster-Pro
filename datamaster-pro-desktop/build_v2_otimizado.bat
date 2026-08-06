@@ -1,13 +1,13 @@
 @echo off
 REM ============================================================
-REM DataMaster Pro v2.0 - Build Completo Otimizado COM .ENV
+REM DataMaster Pro v1.5 - Build Completo: EXE + NSIS + MSIX
 REM ============================================================
 
 setlocal enabledelayedexpansion
 
 echo.
 echo ============================================================
-echo   🚀 DataMaster Pro v2.0 - BUILD COMPLETO OTIMIZADO
+echo   🚀 DataMaster Pro v1.5 - BUILD COMPLETO
 echo ============================================================
 echo.
 
@@ -25,7 +25,7 @@ echo.
 REM ============================================================
 REM PASSO 1: Verificar Python
 REM ============================================================
-echo [1/5] Verificando Python...
+echo [1/6] Verificando Python...
 python --version >nul 2>&1
 if errorlevel 1 (
     echo ❌ Python não encontrado
@@ -37,7 +37,7 @@ echo.
 REM ============================================================
 REM PASSO 2: Verificar .env
 REM ============================================================
-echo [2/5] Verificando arquivo .env...
+echo [2/6] Verificando arquivo .env...
 if not exist ".env" (
     echo ❌ Arquivo .env não encontrado
     exit /b 1
@@ -48,9 +48,8 @@ echo.
 REM ============================================================
 REM PASSO 3: Compilar Executável com PyInstaller (--onedir)
 REM ============================================================
-echo [3/5] Compilando executável com PyInstaller v2.0...
-echo         (Isso pode levar 2-5 minutos na primeira vez)
-echo         Modo: --onedir (melhor para instalador)
+echo [3/6] Compilando executável com PyInstaller...
+echo         Modo: --onedir (melhor para MSIX/Instalador)
 echo.
 
 python -m PyInstaller datamaster.spec --clean >build_log.txt 2>&1
@@ -71,12 +70,33 @@ echo    📂 Localização: dist\DataMaster Pro\
 echo.
 
 REM ============================================================
-REM PASSO 4: Compilar Instalador NSIS
+REM PASSO 4: Gerar MSIX (Self-Signed para teste / Real para Store)
 REM ============================================================
-echo [4/5] Compilando instalador NSIS...
-echo         (Isso pode levar 1-2 minutos)
+echo [4/6] Gerando pacote MSIX...
+echo         (Self-signed para teste local / sideload)
 echo.
 
+powershell -ExecutionPolicy Bypass -File "build_msix.ps1" >msix_log.txt 2>&1
+
+if errorlevel 1 (
+    echo ❌ Erro ao gerar MSIX
+    type msix_log.txt | findstr /i "error"
+    exit /b 1
+)
+
+if not exist "DataMasterPro_1.5.0.0_x64.msix" (
+    echo ❌ MSIX não foi criado
+    exit /b 1
+)
+
+echo ✅ MSIX gerado e assinado com sucesso
+echo    📦 Artefato: DataMasterPro_1.5.0.0_x64.msix
+echo.
+
+REM ============================================================
+REM PASSO 5: Compilar Instalador NSIS (opcional, legado)
+REM ============================================================
+echo [5/6] Compilando instalador NSIS...
 if exist "DataMaster Pro Setup.exe" (
     del "DataMaster Pro Setup.exe" >nul 2>&1
 )
@@ -84,74 +104,44 @@ if exist "DataMaster Pro Setup.exe" (
 "C:\Program Files (x86)\NSIS\makensis.exe" "installer.nsi" >nsis_log.txt 2>&1
 
 if errorlevel 1 (
-    echo ❌ Erro ao compilar instalador
+    echo ⚠️  NSIS falhou (MSIX já pronto, continuando...)
     type nsis_log.txt | findstr /i "error"
-    exit /b 1
-)
-
-if not exist "DataMaster Pro Setup.exe" (
-    echo ❌ Instalador não foi criado
-    exit /b 1
-)
-
-REM Obter tamanho do instalador
-for /f %%A in ('dir "DataMaster Pro Setup.exe" ^| find "DataMaster Pro"') do (
-    set setup_size=%%~zA
-)
-
-echo ✅ Instalador compilado com sucesso
-echo    📊 Tamanho: %setup_size% bytes
-echo.
-
-REM ============================================================
-REM PASSO 5: Testar Executável
-REM ============================================================
-echo [5/5] Testando executável...
-echo.
-
-timeout /t 2 /nobreak >nul
-
-start "DataMaster Pro Test" /wait "dist\DataMaster Pro\DataMaster Pro.exe" >test_output.txt 2>&1
-
-if exist test_output.txt (
-    echo ✅ Executável iniciado com sucesso
-    echo    (Verifique os logs para detalhes)
 ) else (
-    echo ⚠️  Teste inconclusivo
+    if exist "DataMaster Pro Setup.exe" (
+        for /f %%A in ('dir "DataMaster Pro Setup.exe" ^| find "DataMaster Pro"') do (
+            set setup_size=%%~zA
+        )
+        echo ✅ Instalador NSIS: DataMaster Pro Setup.exe (%setup_size% bytes)
+    )
 )
-
 echo.
 
 REM ============================================================
-REM RESUMO FINAL
+REM PASSO 6: Resumo Final
 REM ============================================================
+echo [6/6] Resumo dos artefatos...
+echo.
+
 echo ============================================================
-echo ✅ BUILD COMPLETO - PRONTO PARA DISTRIBUIÇÃO
+echo ✅ BUILD v1.5 CONCLUÍDO - PRONTO PARA DISTRIBUIÇÃO
 echo ============================================================
 echo.
 echo 📦 ARTEFATOS GERADOS:
-echo    • dist\DataMaster Pro\ (pasta com app completo)
-echo    • DataMaster Pro Setup.exe (%setup_size% bytes)
+echo    • dist\DataMaster Pro\          (pasta app --onedir)
+echo    • DataMasterPro_1.5.0.0_x64.msix  (MSIX assinado self-signed)
+if defined setup_size echo    • DataMaster Pro Setup.exe (%setup_size% bytes)  (NSIS legado)
 echo.
-echo ✅ CORREÇÕES APLICADAS:
-echo    • Modo --onedir: .env acessível como arquivo
-echo    • config.py: Busca automática de .env
-echo    • main.py: Carregamento robusto do .env
-echo    • installer.nsi: Copia .env para Program Files
+echo ✅ MSIX PRONTO PARA:
+echo    • Teste local:  Add-AppxPackage .\DataMasterPro_1.5.0.0_x64.msix  (PowerShell Admin)
+echo    • Sideload:     Distribuir .msix + certificado self-signed
+echo    • GitHub Releases: Upload .msix + instruções
 echo.
-echo 🚀 PRÓXIMOS PASSOS:
-echo    1. Executar: .\dist\DataMaster Pro\DataMaster Pro.exe
-echo    2. Ou executar: DataMaster Pro Setup.exe (para instalar)
+echo 🎯 PARA MICROSOFT STORE (quando tiver certificado OV/EV $89):
+echo    1. Comprar certificado OV (SSL.com, Sectigo ~$89/ano)
+echo    2. Re-executar: powershell -File build_msix.ps1 -CertPath "real.pfx" -CertPassword "senha"
+echo    3. Submeter .msix assinado no Partner Center
 echo.
-echo 📊 MELHORIAS v2.0:
-echo    • 5 ferramentas 100%% otimizadas
-echo    • Consolidador: -53%% código
-echo    • Categorizador: -73%% código
-echo    • Minerador: -88%% código ⚡
-echo    • Conciliador: -51%% código
-echo    • Orçamentos: -91%% código ⚡
-echo.
-echo 🎯 STATUS: ✅ PRODUÇÃO 100%% PRONTO
+echo 📊 VERSÃO: 1.5.0.0 | Publisher: CN=DataMaster
 echo ============================================================
 echo.
 

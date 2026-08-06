@@ -13,6 +13,7 @@ env/
 .env
 *.db
 datamaster.db
+.encryption_key
 
 # OS Files
 .DS_Store

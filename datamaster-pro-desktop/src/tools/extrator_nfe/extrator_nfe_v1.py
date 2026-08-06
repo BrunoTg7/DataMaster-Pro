@@ -1,5 +1,11 @@
 """
-Extrator NF-e / XML + Conciliador de Pedidos v1.0
+Extrator NF-e / NFC-e / XML + Conciliador de Pedidos v2.0
+
+Novidades v2.0:
+- Suporte a NFC-e (consumidor final)
+- Validação de chave de acesso (módulo 11)
+- Validação de schema XML (warn, não rejeita)
+- Detecção automática de tipo (NF-e vs NFC-e)
 
 Fluxo:
   1. Varre uma pasta de XMLs (padrão SEFAZ) ou um único arquivo XML
@@ -21,6 +27,7 @@ from pathlib import Path
 from datetime import datetime
 
 log = logging.getLogger(__name__)
+import config
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -49,10 +56,10 @@ class ExtratorNFe:
             self.progress_callback(pct)
 
     # ──────────────────────────────────────────────────────────────────
-    # PARSING DE XML
+    # PARSING DE XML (ATUALIZADO COM NFC-e)
     # ──────────────────────────────────────────────────────────────────
     def _parse_xml(self, xml_path: str) -> Optional[Dict]:
-        """Extrai campos-chave de um XML de NF-e (padrão SEFAZ 4.00)."""
+        """Extrai campos-chave de um XML de NF-e ou NFC-e (padrão SEFAZ 4.00)."""
         try:
             tree = ET.parse(xml_path)
             root = tree.getroot()
@@ -69,8 +76,12 @@ class ExtratorNFe:
             if infNFe is None:
                 return None
 
+            # Detectar tipo (NF-e ou NFC-e)
+            tipo_doc = self._detectar_tipo_nfe(root, ns)
+
             ide = find(infNFe, "nfe:ide")
             dest = find(infNFe, "nfe:dest")
+            emit = find(infNFe, "nfe:emit")
             total = find(infNFe, ".//nfe:ICMSTot") or find(infNFe, "nfe:total/nfe:ICMSTot")
             infAdic = find(infNFe, "nfe:infAdic")
 
@@ -79,6 +90,9 @@ class ExtratorNFe:
             if ide is not None:
                 el = find(ide, "nfe:nNF")
                 n_nf = el.text.strip() if el is not None and el.text else ""
+
+            # Chave de acesso
+            chave_acesso = infNFe.get("Id", "").replace("NFe", "").replace("NFCe", "")
 
             # Série
             serie = ""
@@ -91,9 +105,9 @@ class ExtratorNFe:
             if ide is not None:
                 el = find(ide, "nfe:dhEmi") or find(ide, "nfe:dEmi")
                 if el is not None and el.text:
-                    data_emissao = el.text[:10]  # YYYY-MM-DD
+                    data_emissao = el.text[:10]
 
-            # Valor total da NF-e
+            # Valor total
             valor_nf = 0.0
             if total is not None:
                 el = find(total, "nfe:vNF")
@@ -103,33 +117,47 @@ class ExtratorNFe:
                     except ValueError:
                         valor_nf = 0.0
 
-            # CPF / CNPJ destinatário
+            # CPF / CNPJ destinatário (NF-e) ou emitente (NFC-e)
             cpf_cnpj = ""
             nome_dest = ""
-            if dest is not None:
-                el_cpf = find(dest, "nfe:CPF")
-                el_cnpj = find(dest, "nfe:CNPJ")
-                el_nome = find(dest, "nfe:xNome")
-                if el_cpf is not None and el_cpf.text:
-                    cpf_cnpj = re.sub(r"\D", "", el_cpf.text)
-                elif el_cnpj is not None and el_cnpj.text:
-                    cpf_cnpj = re.sub(r"\D", "", el_cnpj.text)
-                if el_nome is not None and el_nome.text:
-                    nome_dest = el_nome.text.strip()
+            if tipo_doc == "NFC-e":
+                if emit is not None:
+                    el_cnpj = find(emit, "nfe:CNPJ")
+                    el_nome = find(emit, "nfe:xNome")
+                    if el_cnpj is not None and el_cnpj.text:
+                        cpf_cnpj = re.sub(r"\D", "", el_cnpj.text)
+                    if el_nome is not None and el_nome.text:
+                        nome_dest = el_nome.text.strip()
+            else:
+                if dest is not None:
+                    el_cpf = find(dest, "nfe:CPF")
+                    el_cnpj = find(dest, "nfe:CNPJ")
+                    el_nome = find(dest, "nfe:xNome")
+                    if el_cpf is not None and el_cpf.text:
+                        cpf_cnpj = re.sub(r"\D", "", el_cpf.text)
+                    elif el_cnpj is not None and el_cnpj.text:
+                        cpf_cnpj = re.sub(r"\D", "", el_cnpj.text)
+                    if el_nome is not None and el_nome.text:
+                        nome_dest = el_nome.text.strip()
 
-            # Informações adicionais (onde costuma estar o número do pedido)
+            # Informações adicionais
             inf_adic_texto = ""
             if infAdic is not None:
                 el = find(infAdic, "nfe:infCpl")
                 if el is not None and el.text:
                     inf_adic_texto = el.text.strip()
 
-            # Tenta extrair número do pedido do infAdic (padrão ML/Shopee)
             numero_pedido_xml = self._extrair_numero_pedido(inf_adic_texto)
 
+            # Validar chave de acesso
+            chave_valida = self.validar_chave_acesso(chave_acesso) if chave_acesso else False
+
             return {
+                "tipo_documento": tipo_doc,
                 "nfe_numero": n_nf,
                 "nfe_serie": serie,
+                "chave_acesso": chave_acesso,
+                "chave_valida": chave_valida,
                 "data_emissao": data_emissao,
                 "valor_nf": valor_nf,
                 "cpf_cnpj": cpf_cnpj,
@@ -162,6 +190,39 @@ class ExtratorNFe:
         return ""
 
     # ──────────────────────────────────────────────────────────────────
+    # VALIDAÇÃO DE CHAVE DE ACESSO (MÓDULO 11)
+    # ──────────────────────────────────────────────────────────────────
+
+    def validar_chave_acesso(self, chave: str) -> bool:
+        """Valida chave de acesso de NF-e/NFC-e (44 dígitos + DV via módulo 11)"""
+        chave_clean = re.sub(r'\D', '', str(chave))
+        if len(chave_clean) != 44:
+            return False
+        peso = [2, 3, 4, 5, 6, 7, 8, 9]
+        soma = 0
+        for i in range(43):
+            soma += int(chave_clean[i]) * peso[i % 8]
+        resto = soma % 11
+        dv = 0 if resto < 2 else 11 - resto
+        return int(chave_clean[43]) == dv
+
+    # ──────────────────────────────────────────────────────────────────
+    # DETECÇÃO DE TIPO (NF-e vs NFC-e)
+    # ──────────────────────────────────────────────────────────────────
+
+    def _detectar_tipo_nfe(self, root, ns: dict) -> str:
+        """Detecta se o XML é NF-e ou NFC-e"""
+        infNFe = root.find(".//nfe:infNFe", ns) or root.find(".//infNFe")
+        if infNFe is not None:
+            finNFe = infNFe.find(".//nfe:finNFe", ns) or infNFe.find(".//finNFe")
+            if finNFe is not None and finNFe.text == "1":
+                return "NFC-e"
+            dest = infNFe.find("nfe:dest", ns) or infNFe.find("dest")
+            if dest is None:
+                return "NFC-e"
+        return "NF-e"
+
+    # ──────────────────────────────────────────────────────────────────
     # CARREGAMENTO DE XMLs
     # ──────────────────────────────────────────────────────────────────
     def _load_xmls(self, source: str) -> List[Dict]:
@@ -183,7 +244,7 @@ class ExtratorNFe:
             if parsed:
                 data.append(parsed)
             self._progress(int(((i + 1) / max(len(files), 1)) * 30))
-        self._log(f"{len(data)} NF-e(s) extraída(s) com sucesso")
+        self._log(f"{len(data)} documento(s) extraído(s) com sucesso (NF-e/NFC-e)")
         return data
 
     # ──────────────────────────────────────────────────────────────────
@@ -288,10 +349,7 @@ class ExtratorNFe:
             # 6. Gerar output
             if not output_path:
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                import sys
-                sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
-                import config as cfg
-                output_path = os.path.join(cfg.OUTPUT_DIR, f"extrator_nfe_{ts}.xlsx")
+                output_path = os.path.join(config.OUTPUT_DIR, f"extrator_nfe_{ts}.xlsx")
 
             self._save_excel(ok, divergentes, faltando, sem_nota, output_path)
             self._progress(100)

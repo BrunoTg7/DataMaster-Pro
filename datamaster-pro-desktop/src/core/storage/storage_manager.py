@@ -7,7 +7,7 @@ import json
 import os
 import functools
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Dict, List
 import sys
 
@@ -19,6 +19,7 @@ from src.core.storage.user_storage import UserStorage
 from src.core.storage.task_storage import TaskStorage
 from src.core.storage.execution_storage import ExecutionStorage
 from src.core.storage.config_storage import ConfigStorage
+from src.core.storage.db_encryption import DBEncryption
 
 log = logging.getLogger(__name__)
 
@@ -56,15 +57,24 @@ class StorageManager:
     def __init__(self):
         self.db_path = config.DB_PATH
         self._hw_key = self._derive_encryption_key()
+
+        # ── Inicializar criptografia do banco ──────────────────────────
+        # Usar _hw_key diretamente como chave do DBEncryption (unifica app + migração)
+        self._db_enc = DBEncryption(password=self._hw_key, hwid="")
+        log.info("Banco de dados com criptografia de colunas ativada")
+
         self._init_database()
         self._init_execution_logs_table()
         self._init_scheduled_tasks_table()
         self._init_tool_configurations_table()
 
-        self._user = UserStorage(self.db_path, self._hw_key)
-        self._tasks = TaskStorage(self.db_path)
-        self._executions = ExecutionStorage(self.db_path)
-        self._config = ConfigStorage(self.db_path)
+        # ── Migrar dados existentes para criptografia ────────────────────
+        self._migrate_existing_data()
+
+        self._user = UserStorage(self.db_path, self._hw_key, self._db_enc)
+        self._tasks = TaskStorage(self.db_path, self._db_enc)
+        self._executions = ExecutionStorage(self.db_path, self._db_enc)
+        self._config = ConfigStorage(self.db_path, self._db_enc)
 
     def _derive_encryption_key(self) -> str:
         env_key = config.ENCRYPTION_KEY
@@ -270,6 +280,52 @@ class StorageManager:
         conn.commit()
         conn.close()
 
+    def _migrate_existing_data(self):
+        """Migra dados existentes em texto plano para criptografia."""
+        try:
+            from src.core.storage.db_encryption import needs_encryption, ENC_PREFIX
+            conn = self._get_conn()
+            cursor = conn.cursor()
+
+            # Verificar se há dados para migrar (checks simples)
+            has_plain = False
+
+            # Verificar users
+            try:
+                rows = cursor.execute("SELECT email, plan, session_token_encrypted FROM users LIMIT 5").fetchall()
+                for row in rows:
+                    for val in row:
+                        if val and not val.startswith(ENC_PREFIX):
+                            has_plain = True
+                            break
+                    if has_plain:
+                        break
+            except Exception:
+                pass
+
+            # Verificar tasks
+            if not has_plain:
+                try:
+                    rows = cursor.execute("SELECT input_params, output_path, log_text FROM tasks LIMIT 5").fetchall()
+                    for row in rows:
+                        for val in row:
+                            if val and not val.startswith(ENC_PREFIX):
+                                has_plain = True
+                                break
+                        if has_plain:
+                            break
+                except Exception:
+                    pass
+
+            conn.close()
+
+            if has_plain:
+                log.info("Detectados dados em texto plano — executando migração de criptografia...")
+                from scripts.migrate_db_encryption import run_migration
+                run_migration(self.db_path)
+        except Exception as e:
+            log.warning("Migração de criptografia ignorada: %s", e)
+
     # ── User Storage (delegation) ──────────────────────────────
     @_safe_db
     def save_user_session(self, user_data: Dict):
@@ -432,3 +488,104 @@ class StorageManager:
 
     def replace_scheduled_tasks_for_user(self, user_id: str, tasks: List[dict]):
         return self._config.replace_scheduled_tasks_for_user(user_id, tasks)
+
+    # ── LGPD: Grace Period Deletion ──────────────────────────────
+    @_safe_db
+    def request_account_deletion(self, user_id: str, grace_days: int = 30):
+        """Marca conta para exclusao apos grace_days (LGPD grace period)."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        delete_at = (datetime.now() + timedelta(days=grace_days)).isoformat()
+        encrypted_value = self._db_enc.encrypt(delete_at)
+        cursor.execute("""
+            INSERT INTO settings (key, value)
+            VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+        """, (f"deletion_scheduled_{user_id}", encrypted_value))
+        conn.commit()
+        conn.close()
+        log.info("Exclusao agendada para %s em %s", user_id, delete_at)
+
+    @_safe_db
+    def cancel_account_deletion(self, user_id: str):
+        """Cancela exclusao agendada (user mudou de ideia)."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM settings WHERE key = ?",
+                       (f"deletion_scheduled_{user_id}",))
+        conn.commit()
+        conn.close()
+        log.info("Exclusao cancelada para %s", user_id)
+
+    @_safe_db
+    def purge_expired_accounts(self):
+        """Remove dados de contas cujo grace period expirou."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        rows = cursor.execute(
+            "SELECT key, value FROM settings WHERE key LIKE 'deletion_scheduled_%'"
+        ).fetchall()
+        for row in rows:
+            try:
+                delete_at = self._db_enc.decrypt(row[1])
+            except Exception:
+                delete_at = row[1]
+            if delete_at and delete_at <= now:
+                user_id = row[0].replace("deletion_scheduled_", "")
+                self._purge_user_data(cursor, user_id)
+                cursor.execute("DELETE FROM settings WHERE key = ?", (row[0],))
+        conn.commit()
+        conn.close()
+
+    def _purge_user_data(self, cursor, user_id: str):
+        """Remove todos os dados do usuario do SQLite local."""
+        for table, col in [
+            ("users", "id"), ("tasks", "user_id"), ("executions", "user_id"),
+            ("execution_logs_local", "user_id"), ("scheduled_tasks_local", "user_id"),
+            ("tool_configurations_local", "tool_key"),
+        ]:
+            try:
+                cursor.execute(f"DELETE FROM {table} WHERE {col} = ?", (user_id,))
+            except Exception:
+                pass
+        log.info("Dados purgados localmente para %s", user_id)
+
+    # ── LGPD: Consent Storage ────────────────────────────────────
+    @_safe_db
+    def save_consent(self, user_id: str, consented: bool):
+        """Salva registro de consentimento LGPD localmente."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        consent_data = json.dumps({
+            "consented": consented,
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0"
+        })
+        encrypted_value = self._db_enc.encrypt(consent_data)
+        cursor.execute("""
+            INSERT INTO settings (key, value)
+            VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+        """, (f"lgpd_consent_{user_id}", encrypted_value))
+        conn.commit()
+        conn.close()
+
+    @_safe_db
+    def has_consented(self, user_id: str) -> bool:
+        """Verifica se usuario consentiu com LGPD."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        row = cursor.execute(
+            "SELECT value FROM settings WHERE key = ?",
+            (f"lgpd_consent_{user_id}",)
+        ).fetchone()
+        conn.close()
+        if row:
+            try:
+                decrypted = self._db_enc.decrypt(row[0])
+                data = json.loads(decrypted)
+                return data.get("consented", False)
+            except Exception:
+                return False
+        return False

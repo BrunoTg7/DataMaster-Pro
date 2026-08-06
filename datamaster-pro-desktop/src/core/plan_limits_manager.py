@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 class PlanType(str, Enum):
     """Tipos de plano disponíveis - espelha config.PlanType"""
     GRATIS = "gratis"
+    STARTER = "starter"
     PRO = "pro"
-    ENTERPRISE = "enterprise"
 
 
 class PlanLimits:

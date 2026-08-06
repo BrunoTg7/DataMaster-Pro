@@ -10,7 +10,7 @@ class User:
     id: str
     email: str
     nome: str
-    plano_tipo: Literal["gratis", "pro", "enterprise"]
+    plano_tipo: Literal["gratis", "starter", "pro"]
     data_expiracao: datetime
     created_at: datetime
     updated_at: datetime

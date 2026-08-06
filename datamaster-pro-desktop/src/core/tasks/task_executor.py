@@ -94,7 +94,10 @@ class TaskExecutor:
     @property
     def max_concurrent(self) -> int:
         session = self._storage.get_saved_session()
-        return 2 if session and session.get("plan") == "pro" else 1
+        user_plan = session.get("plan", "gratis") if session else "gratis"
+        plan_type = config.PlanType[user_plan.upper()] if user_plan.upper() in config.PlanType.__members__ else config.PlanType.GRATIS
+        plan_limits = config.PLAN_LIMITS.get(plan_type, config.PLAN_LIMITS[config.PlanType.GRATIS])
+        return plan_limits.get("max_concurrent_tasks", 1)
 
     # ── Tool registry ──────────────────────────────────────────────────────
 
@@ -176,6 +179,9 @@ class TaskExecutor:
                         task.rows_processed = result.get("rows_processed") or result.get("collected") or result.get("total_rows", 0)
                         task.output_path = result.get("output_path") or result.get("output_file", "")
                         task.hours_saved = result.get("hours_saved", 0)
+                    # Se a ferramenta não retornou hours_saved, calcular automaticamente
+                    if task.hours_saved == 0 and task.rows_processed > 0:
+                        task.hours_saved = (task.rows_processed * 30) / 3600
                     self._save_to_storage(task)
                 self._notify_state_change()
                 logger.info("%s concluída (%d linhas)", tool_display_name, task.rows_processed)
@@ -314,8 +320,13 @@ class TaskExecutor:
 
             if isinstance(result, dict):
                 output_path = result.get("output_path", str(output_dir))
-                rows_processed = result.get("rows_processed", 0)
+                rows_processed = result.get("rows_processed", 0) or result.get("collected", 0) or result.get("total_rows", 0)
                 hours_saved = result.get("hours_saved", 0)
+
+            # Se a ferramenta não retornou hours_saved, calcular automaticamente
+            # Média: 30 segundos economizados por linha processada
+            if hours_saved == 0 and rows_processed > 0:
+                hours_saved = (rows_processed * 30) / 3600
 
             self.complete_task(task_id, output_path, rows_processed, hours_saved)
 

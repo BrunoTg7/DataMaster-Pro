@@ -13,7 +13,7 @@ const corsHeaders = {
  */
 function mapPlanType(planName: string): string {
   const lower = (planName || "").toLowerCase()
-  if (lower.includes("enterprise") || lower.includes("empresas")) return "enterprise"
+  if (lower.includes("starter")) return "starter"
   if (lower.includes("pro") || lower.includes("premium")) return "pro"
   return "pro" // Default para planos pagos
 }

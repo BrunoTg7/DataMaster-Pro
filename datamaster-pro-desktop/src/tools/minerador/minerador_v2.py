@@ -941,49 +941,42 @@ class Minerador:
 
             return {"success": False, "error": "Todas as tentativas falharam", "url": url}
 
+    _MARKETPLACE_URL_MAP = {
+        "pichau.com.br": "pichau",
+        "kabum.com.br": "kabum",
+        "terabyteshop.com.br": "terabyteshop",
+        "aliexpress.com": "aliexpress",
+        "temu.com": "temu",
+        "dell.com": "dell",
+        "apple.com": "apple",
+        "fastshop.com.br": "fastshop",
+        "magazineluiza.com.br": "magalu",
+        "magalu.com.br": "magalu",
+        "casasbahia.com.br": "casasbahia",
+        "amazon.com.br": "amazon",
+        "amazon.com": "amazon",
+        "mercadolivre.com.br": "mercadolivre",
+        "mercadolivre.com": "mercadolivre",
+        "shopee.com.br": "shopee",
+        "shopee.com": "shopee",
+        "americanas.com.br": "americanas",
+        "americanas.com": "americanas",
+        "submarino.com.br": "submarino",
+        "shoptime.com.br": "shoptime",
+        "carrefour.com.br": "carrefour",
+        "ponto.com.br": "pontofrio",
+        "pontofrio.com.br": "pontofrio",
+        "extra.com.br": "extra",
+    }
+
     @staticmethod
     def _detect_marketplace(url: str, marketplace: str) -> str:
         if marketplace != "generico":
             return marketplace
         url_lower = url.lower()
-        if "pichau.com.br" in url_lower:
-            return "pichau"
-        if "kabum.com.br" in url_lower:
-            return "kabum"
-        if "terabyteshop.com.br" in url_lower:
-            return "terabyteshop"
-        if "aliexpress.com" in url_lower:
-            return "aliexpress"
-        if "temu.com" in url_lower:
-            return "temu"
-        if "dell.com" in url_lower:
-            return "dell"
-        if "apple.com" in url_lower:
-            return "apple"
-        if "fastshop.com.br" in url_lower:
-            return "fastshop"
-        if "magazineluiza.com.br" in url_lower or "magalu.com.br" in url_lower:
-            return "magalu"
-        if "casasbahia.com.br" in url_lower:
-            return "casasbahia"
-        if "amazon.com.br" in url_lower or "amazon.com" in url_lower:
-            return "amazon"
-        if "mercadolivre.com.br" in url_lower or "mercadolivre.com" in url_lower:
-            return "mercadolivre"
-        if "shopee.com.br" in url_lower or "shopee.com" in url_lower:
-            return "shopee"
-        if "americanas.com.br" in url_lower or "americanas.com" in url_lower:
-            return "americanas"
-        if "submarino.com.br" in url_lower:
-            return "submarino"
-        if "shoptime.com.br" in url_lower:
-            return "shoptime"
-        if "carrefour.com.br" in url_lower:
-            return "carrefour"
-        if "ponto.com.br" in url_lower or "pontofrio.com.br" in url_lower:
-            return "pontofrio"
-        if "extra.com.br" in url_lower:
-            return "extra"
+        for pattern, name in Minerador._MARKETPLACE_URL_MAP.items():
+            if pattern in url_lower:
+                return name
         return "generico"
 
     async def _extract_jsonld(self, page) -> Dict:

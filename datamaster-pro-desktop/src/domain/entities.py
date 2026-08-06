@@ -19,8 +19,8 @@ class TaskStatus(Enum):
 
 class PlanType(Enum):
     GRATIS = "gratis"
+    STARTER = "starter"
     PRO = "pro"
-    ENTERPRISE = "enterprise"
 
 
 class SyncStatus(Enum):
@@ -40,7 +40,7 @@ class User:
 
     @property
     def is_pro(self) -> bool:
-        return self.plan in (PlanType.PRO, PlanType.ENTERPRISE)
+        return self.plan == PlanType.PRO
 
 
 @dataclass

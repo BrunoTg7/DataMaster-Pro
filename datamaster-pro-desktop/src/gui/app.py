@@ -529,6 +529,9 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
 
     def _preload_tool_pages(self):
         for tool_key in list(TOOL_PAGE_MODULES.keys()):
+            # Pula ferramentas "coming_soon" - não carregar no startup
+            if config.TOOLS.get(tool_key, {}).get("status") == "coming_soon":
+                continue
             try:
                 self._get_tool_page_class(tool_key)
             except Exception as e:
@@ -606,6 +609,19 @@ class DataMasterApp(ctk.CTk, TkinterDnD.DnDWrapper):
         return TOOL_PAGE_CLASSES.get(tool_key)
 
     def _show_tool_page(self, tool_key: str):
+        # Guard: ferramentas "coming_soon" não podem ser acessadas
+        tool_config = config.TOOLS.get(tool_key, {})
+        if tool_config.get("status") == "coming_soon":
+            from tkinter import messagebox
+            messagebox.showinfo(
+                "Em Desenvolvimento",
+                f"A ferramenta '{tool_config.get('name', tool_key)}' está em desenvolvimento.\n"
+                f"Previsão: Atualização 2.0\n\n"
+                f"Funcionalidades planejadas:\n" + 
+                "\n".join(f"• {f}" for f in tool_config.get("features", []))
+            )
+            return
+
         page_class = self._get_tool_page_class(tool_key)
         if not page_class:
             return

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="DataMasterPro"
+    Publisher="CN=DataMaster"
+    Version="1.5.0.0" />
+
+  <Properties>
+    <DisplayName>DataMaster Pro</DisplayName>
+    <PublisherDisplayName>DataMaster</PublisherDisplayName>
+    <Description>Suíte desktop de automação e análise de dados: Consolidador, Categorizador, Orçamentos, Minerador, Conciliador + 10 ferramentas planejadas.</Description>
+    <Logo>assets/StoreLogo_150x150.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="pt-BR" />
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Applications>
+    <Application Id="DataMasterPro" Executable="DataMaster Pro.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="DataMaster Pro"
+        Square150x150Logo="assets/StoreLogo_150x150.png"
+        Square44x44Logo="assets/StoreLogo_44x44.png"
+        Description="Automação de planilhas, web scraping, OCR e inteligência financeira"
+        BackgroundColor="#09090B">
+        <uap:DefaultTile />
+        <uap:SplashScreen Image="assets/SplashScreen_620x300.png" BackgroundColor="#09090B" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="datamaster.xlsx">
+            <uap:SupportedFileTypes>
+              <uap:FileType>.xlsx</uap:FileType>
+              <uap:FileType>.xls</uap:FileType>
+              <uap:FileType>.csv</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+</Package>

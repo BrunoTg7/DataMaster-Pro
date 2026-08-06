@@ -8,13 +8,14 @@ from typing import TypedDict, Optional, List
 # ==================== PLANOS ====================
 class PlanType(str, Enum):
     GRATIS = "gratis"
+    STARTER = "starter"
     PRO = "pro"
-    ENTERPRISE = "enterprise"
 
 class PlanInfo(TypedDict):
     id: str
     name: str
-    max_lines: Optional[int]
+    max_lines_month: Optional[int]
+    max_execs_month: Optional[int]
     tools: List[str]
     watermark: bool
     price: Optional[float]
@@ -23,26 +24,29 @@ PLANOS: dict[str, PlanInfo] = {
     "gratis": {
         "id": "gratis",
         "name": "Grátis",
-        "max_lines": 10,
-        "tools": ["consolidador", "categorizador"],
+        "max_lines_month": 1200,
+        "max_execs_month": 15,
+        "tools": ["consolidador", "categorizador", "orcamentos", "minerador", "conciliador", "conversor_ocr", "validador_links", "calculadora_lucratividade", "analista_tendencias", "comissoes", "classificador_ncm", "precificador_canal"],
         "watermark": True,
         "price": 0
+    },
+    "starter": {
+        "id": "starter",
+        "name": "Starter",
+        "max_lines_month": 10000,
+        "max_execs_month": 80,
+        "tools": ["consolidador", "categorizador", "orcamentos", "minerador", "conciliador", "conversor_ocr", "validador_links", "calculadora_lucratividade", "analista_tendencias", "comissoes", "classificador_ncm", "precificador_canal"],
+        "watermark": False,
+        "price": 34.00
     },
     "pro": {
         "id": "pro",
         "name": "Pro",
-        "max_lines": None,
-        "tools": ["consolidador", "categorizador", "orcamentos", "minerador", "conciliador"],
-        "watermark": False,
-        "price": 29.90
-    },
-    "enterprise": {
-        "id": "enterprise",
-        "name": "Enterprise",
-        "max_lines": None,
+        "max_lines_month": None,
+        "max_execs_month": None,
         "tools": ["all"],
         "watermark": False,
-        "price": None
+        "price": 64.00
     }
 }
 
@@ -74,21 +78,21 @@ TOOLS: dict[str, ToolInfo] = {
         "name": "Orçamentos",
         "description": "Preenche templates de PDF em massa",
         "icon": "file",
-        "min_plan": "pro"
+        "min_plan": "gratis"
     },
     "minerador": {
         "id": "minerador",
         "name": "Minerador",
         "description": "Captura preços de sites concorrentes",
         "icon": "globe",
-        "min_plan": "pro"
+        "min_plan": "gratis"
     },
     "conciliador": {
         "id": "conciliador",
         "name": "Conciliador",
         "description": "Cruza extratos com planilhas de vendas",
         "icon": "check",
-        "min_plan": "pro"
+        "min_plan": "gratis"
     }
 }
 

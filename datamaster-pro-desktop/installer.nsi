@@ -1,12 +1,12 @@
 ; DataMaster Pro - Instalador NSIS Profissional
-; Versão v3.8 - Full Branding
+; Versão v4.0 - Suporte a Single-File EXE
 
 !include "MUI2.nsh"
 !include "x64.nsh"
 
 ; ==================== DEFINIÇÕES ====================
 !define APP_NAME "DataMaster Pro"
-!define APP_VERSION "1.5.0" ; <--- Mude aqui para atualizar o nome do instalador
+!define APP_VERSION "1.2.8"
 !define EXE_NAME "DataMaster Pro.exe"
 !define COMPANY "DataMaster"
 !define ICON_PATH "assets\datamaster.ico"
@@ -21,8 +21,6 @@ RequestExecutionLevel admin
 ; ==================== INTERFACE VISUAL ====================
 !define MUI_ICON "${ICON_PATH}"
 !define MUI_UNICON "${ICON_PATH}"
-; !define MUI_HEADERIMAGE
-; !define MUI_HEADERIMAGE_BITMAP "assets\header.bmp" ; Opcional: Imagem de topo
 !define MUI_ABORTWARNING
 
 ; Páginas do Instalador
@@ -45,18 +43,26 @@ RequestExecutionLevel admin
 Section "Instalar ${APP_NAME}"
     SetOutPath "$INSTDIR"
     
-    ; Copia os arquivos do build (PYINSTALLER)
+    ; Copiar EXE (single-file do PyInstaller)
     File "dist\${EXE_NAME}"
     
-    ; Cria atalhos
+    ; Copiar .env se existir (fallback para configuração)
+    IfFileExists ".env" 0 +2
+        File ".env"
+    
+    ; Copiar ícone para o diretório de instalação
+    SetOutPath "$INSTDIR"
+    File "assets\datamaster.ico"
+    
+    ; Criar atalhos com ícone explícito
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
-    CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${EXE_NAME}"
+    CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${EXE_NAME}" "" "$INSTDIR\datamaster.ico" 0
     CreateShortCut "$SMPROGRAMS\${APP_NAME}\Desinstalar.lnk" "$INSTDIR\Uninstall.exe"
     
     ; Atalho na área de trabalho
-    CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${EXE_NAME}"
+    CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${EXE_NAME}" "" "$INSTDIR\datamaster.ico" 0
     
-    ; Cria desinstalador
+    ; Criar desinstalador
     WriteUninstaller "$INSTDIR\Uninstall.exe"
     
     ; Registro para o Windows (Painel de Controle)
@@ -71,6 +77,8 @@ SectionEnd
 Section "Uninstall"
     ; Remove arquivos
     Delete "$INSTDIR\${EXE_NAME}"
+    Delete "$INSTDIR\datamaster.ico"
+    Delete "$INSTDIR\.env"
     Delete "$INSTDIR\Uninstall.exe"
     
     ; Remove atalhos

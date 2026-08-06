@@ -7,6 +7,7 @@ import logging
 import sqlite3
 from datetime import datetime
 from typing import Optional
+from src.core.audit_logger import audit_lgpd_export
 
 log = logging.getLogger(__name__)
 
@@ -57,6 +58,11 @@ class DataExport:
             export_data = self._redact_sensitive(export_data)
             
             log.info("Exportação concluída para usuário: %s", user_id)
+            total_records = sum(
+                len(v) if isinstance(v, list) else (1 if v else 0)
+                for v in export_data.values() if isinstance(v, (list, dict))
+            )
+            audit_lgpd_export(user_id, total_records, "json")
             return export_data
             
         except Exception as e:

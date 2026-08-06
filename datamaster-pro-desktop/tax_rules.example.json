@@ -1,0 +1,129 @@
+{
+  "_metadata": {
+    "description": "Configuração de taxas e impostos do DataMaster Pro",
+    "version": "1.0.0",
+    "last_updated": "2026-07-11",
+    "instructions": "Copie este arquivo para tax_rules.json e atualize com os valores reais do seu negócio."
+  },
+  "MARKETPLACE_FEES": {
+    "mercadolivre": {
+      "percent": 0.16,
+      "fixed": 6.00,
+      "frete_gratis_min": 79.00,
+      "custo_frete_medio": 15.00,
+      "emoji": "🛒",
+      "nota": "Comissão base ML: 16% + R$6 fixo. Frete grátis acima de R$79."
+    },
+    "amazon": {
+      "percent": 0.15,
+      "fixed": 2.00,
+      "frete_gratis_min": 0.0,
+      "custo_frete_medio": 0.0,
+      "emoji": "📦",
+      "nota": "FBA: taxa varia por categoria (8-15%). Ref: https://sellercentral.amazon.com/help/hub/reference/G201115760"
+    },
+    "shopee": {
+      "percent": 0.14,
+      "fixed": 3.00,
+      "frete_gratis_min": 0.0,
+      "custo_frete_medio": 0.0,
+      "emoji": "🍊",
+      "nota": "Comissão padrão 14%. Frete geralmente subsidiado pela plataforma."
+    },
+    "magalu": {
+      "percent": 0.18,
+      "fixed": 5.00,
+      "frete_gratis_min": 0.0,
+      "custo_frete_medio": 0.0,
+      "emoji": "🛍️",
+      "nota": "Comissão base Magalu: 18% + R$5 fixo."
+    },
+    "aliexpress": {
+      "percent": 0.10,
+      "fixed": 0.00,
+      "frete_gratis_min": 0.0,
+      "custo_frete_medio": 0.0,
+      "emoji": "🌐",
+      "nota": "Comissão AliExpress: ~10%. Frete internacional variável."
+    },
+    "other": {
+      "percent": 0.15,
+      "fixed": 0.00,
+      "frete_gratis_min": 0.0,
+      "custo_frete_medio": 0.0,
+      "emoji": "🔗",
+      "nota": "Fallback para canais não mapeados."
+    }
+  },
+  "TAX_RATES": {
+    "simples_nacional": {
+      "anexo_1_comercio": {
+        "faixa_1": {"limite": 180000, "aliquota": 0.04, "parcela": 0},
+        "faixa_2": {"limite": 360000, "aliquota": 0.073, "parcela": 5940},
+        "faixa_3": {"limite": 720000, "aliquota": 0.095, "parcela": 13860},
+        "faixa_4": {"limite": 1800000, "aliquota": 0.107, "parcela": 22500},
+        "faixa_5": {"limite": 3600000, "aliquota": 0.143, "parcela": 87300},
+        "faixa_6": {"limite": 4800000, "aliquota": 0.19, "parcela": 378000}
+      },
+      "anexo_2_servicos": {
+        "faixa_1": {"limite": 180000, "aliquota": 0.06, "parcela": 0},
+        "faixa_2": {"limite": 360000, "aliquota": 0.112, "parcela": 9360},
+        "faixa_3": {"limite": 720000, "aliquota": 0.135, "parcela": 17640},
+        "faixa_4": {"limite": 1800000, "aliquota": 0.16, "parcela": 35640},
+        "faixa_5": {"limite": 3600000, "aliquota": 0.21, "parcela": 125640},
+        "faixa_6": {"limite": 4800000, "aliquota": 0.33, "parcela": 648000}
+      },
+      "nota": "Tabelas ref. Lei 12.3/2006. Atualizar conforme legislação vigente."
+    },
+    "icms": {
+      " interestadual": 0.07,
+      "intraestadual_sp": 0.18,
+      "intraestadual_rj": 0.20,
+      "nota": "Alíquotas interestaduais variam por região (7% para Norte/Nordeste, 12% para Sul/Sudeste)."
+    },
+    "pis_cofins": {
+      "pis": 0.0165,
+      "cofins": 0.076,
+      "nota": "Regime não-cumulativo. PIS: 1,65% / COFINS: 7,6%."
+    },
+    "default_simples_pct": 6.0
+  },
+  "FREIGHT_TABLES": {
+    "correios_pac": [
+      {"peso_max_g": 300, "valor": 18.00},
+      {"peso_max_g": 500, "valor": 21.00},
+      {"peso_max_g": 1000, "valor": 25.00},
+      {"peso_max_g": 2000, "valor": 30.00},
+      {"peso_max_g": 5000, "valor": 45.00},
+      {"peso_max_g": 10000, "valor": 70.00},
+      {"peso_max_g": 30000, "valor": 120.00}
+    ],
+    "correios_seco": [
+      {"peso_max_g": 300, "valor": 22.00},
+      {"peso_max_g": 500, "valor": 26.00},
+      {"peso_max_g": 1000, "valor": 32.00},
+      {"peso_max_g": 2000, "valor": 38.00},
+      {"peso_max_g": 5000, "valor": 55.00},
+      {"peso_max_g": 10000, "valor": 85.00},
+      {"peso_max_g": 30000, "valor": 150.00}
+    ],
+    "mercado_envios": [
+      {"peso_max_g": 300, "valor": 15.00},
+      {"peso_max_g": 500, "valor": 18.00},
+      {"peso_max_g": 1000, "valor": 22.00},
+      {"peso_max_g": 2000, "valor": 28.00},
+      {"peso_max_g": 5000, "valor": 40.00},
+      {"peso_max_g": 10000, "valor": 65.00},
+      {"peso_max_g": 30000, "valor": 110.00}
+    ],
+    "shopee_envios": [
+      {"peso_max_g": 300, "valor": 0.00},
+      {"peso_max_g": 1000, "valor": 0.00},
+      {"peso_max_g": 2000, "valor": 5.00},
+      {"peso_max_g": 5000, "valor": 15.00},
+      {"peso_max_g": 10000, "valor": 30.00}
+    ],
+    "nota": "Valores de exemplo. Atualizar com tabelas oficiais vigentes de cada transportadora."
+  },
+  "DEFAULT_TAX_PERCENT": 6.0
+}

@@ -1,18 +1,40 @@
 """
-Precificador por Canal de Venda v1.0
+Precificador por Canal de Venda v1.2
 Motor de cálculo reverso de preços para múltiplos marketplaces.
 Garante a margem líquida desejada considerando: comissão, taxa fixa,
-imposto Simples Nacional e frete embutido.
+imposto Simples Nacional e frete dinâmico por peso.
+
+Novidades v1.2:
+- Integração API Melhor Envio para frete real por CEP
+- Cálculo de ICMS interestadual por UF (Convênio ICMS 23/2021)
+- Simulação what-if: cálculo de múltiplos cenários de margem
+- Tabelas de frete atualizáveis via JSON
+
+As taxas e tabelas de frete são carregadas de tax_rules.json.
+Consulte tax_rules.example.json para o schema completo.
 """
 import logging
+import json
+import os
+import re
 import pandas as pd
-from typing import Dict, Callable, Optional
+import httpx
+from typing import Dict, Callable, Optional, List
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from datetime import datetime
 
 log = logging.getLogger(__name__)
+
+# Tabela de ICMS interestadual (Fonte: Convênio ICMS 23/2021)
+# Origem\Destino → alíquota (%)
+ICMS_INTERESTADUAL = {
+    "SP": {"RJ": 12, "MG": 12, "ES": 7, "PR": 12, "SC": 12, "RS": 12, "BA": 12, "CE": 12, "PE": 12, "GO": 12, "DF": 12, "MT": 12, "MS": 12, "AM": 12, "PA": 12, "MA": 12, "PI": 12, "RN": 12, "PB": 12, "AL": 12, "SE": 12, "TO": 12, "AC": 12, "RO": 12, "RR": 12, "AP": 12},
+    "RJ": {"SP": 12, "MG": 12, "ES": 7, "PR": 12, "SC": 12, "RS": 12, "BA": 12, "CE": 12, "PE": 12, "GO": 12, "DF": 12, "MT": 12, "MS": 12, "AM": 12, "PA": 12, "MA": 12, "PI": 12, "RN": 12, "PB": 12, "AL": 12, "SE": 12, "TO": 12, "AC": 12, "RO": 12, "RR": 12, "AP": 12},
+    "MG": {"SP": 12, "RJ": 12, "ES": 7, "PR": 12, "SC": 12, "RS": 12, "BA": 12, "CE": 12, "PE": 12, "GO": 12, "DF": 12, "MT": 12, "MS": 12, "AM": 12, "PA": 12, "MA": 12, "PI": 12, "RN": 12, "PB": 12, "AL": 12, "SE": 12, "TO": 12, "AC": 12, "RO": 12, "RR": 12, "AP": 12},
+    "ES": {"SP": 12, "RJ": 12, "MG": 12, "PR": 12, "SC": 12, "RS": 12, "BA": 12, "CE": 12, "PE": 12, "GO": 12, "DF": 12, "MT": 12, "MS": 12, "AM": 12, "PA": 12, "MA": 12, "PI": 12, "RN": 12, "PB": 12, "AL": 12, "SE": 12, "TO": 12, "AC": 12, "RO": 12, "RR": 12, "AP": 12},
+}
 
 
 class PrecificadorCanal:
@@ -21,41 +43,58 @@ class PrecificadorCanal:
     para garantir a margem líquida desejada pelo lojista.
     """
 
-    # Tabela de regras dos marketplaces (atualizada 2025)
-    CANAIS = {
-        "Mercado Livre": {
-            "comissao_pct": 0.16,
-            "taxa_fixa": 6.00,
-            "frete_gratis_min": 79.00,   # acima deste valor, frete grátis obrigatório
-            "custo_frete_medio": 15.00,  # estimativa de custo de frete grátis
-            "emoji": "🛒",
-        },
-        "Shopee": {
-            "comissao_pct": 0.20,
-            "taxa_fixa": 3.00,
-            "frete_gratis_min": 0.0,
-            "custo_frete_medio": 0.0,    # Shopee subsidia o frete
-            "emoji": "🍊",
-        },
-        "Amazon": {
-            "comissao_pct": 0.15,
-            "taxa_fixa": 2.00,
-            "frete_gratis_min": 0.0,
-            "custo_frete_medio": 0.0,
-            "emoji": "📦",
-        },
-        "Magalu": {
-            "comissao_pct": 0.18,
-            "taxa_fixa": 5.00,
-            "frete_gratis_min": 0.0,
-            "custo_frete_medio": 0.0,
-            "emoji": "🛍️",
-        },
-    }
+    # Tabela de regras dos marketplaces (carregada dinamicamente via JSON)
+    # Evita perdas financeiras caso as tarifas ou regras mudem.
 
     def __init__(self, log_callback: Callable = None, progress_callback: Callable = None):
         self.log_callback = log_callback
         self.progress_callback = progress_callback
+        self.CANAIS = self._load_canais_config()
+
+    def _load_canais_config(self) -> dict:
+        """Carrega regras de taxas e tabelas de frete do JSON externo"""
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        tax_file = os.path.join(base_dir, "tax_rules.json")
+        example_file = os.path.join(base_dir, "tax_rules.example.json")
+        
+        target_file = tax_file if os.path.exists(tax_file) else example_file
+        self._freight_tables = {}
+        
+        try:
+            if os.path.exists(target_file):
+                with open(target_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    fees = data.get("MARKETPLACE_FEES", {})
+                    self._freight_tables = data.get("FREIGHT_TABLES", {})
+                    
+                    # Mapeamento nome_exibicao -> chave_json
+                    mapa = {
+                        "Mercado Livre": "mercadolivre",
+                        "Shopee": "shopee",
+                        "Amazon": "amazon",
+                        "Magalu": "magalu"
+                    }
+                    canais_finais = {}
+                    for nome_display, nome_json in mapa.items():
+                        cfg = fees.get(nome_json, {})
+                        canais_finais[nome_display] = {
+                            "comissao_pct": cfg.get("percent", 0.15),
+                            "taxa_fixa": cfg.get("fixed", 0.0),
+                            "frete_gratis_min": cfg.get("frete_gratis_min", 0.0),
+                            "custo_frete_medio": cfg.get("custo_frete_medio", 0.0),
+                            "emoji": cfg.get("emoji", "🔗"),
+                            "freight_table_key": cfg.get("freight_table_key", "mercado_envios")
+                        }
+                    self._log(f"Configurações de canais carregadas de: {os.path.basename(target_file)}")
+                    return canais_finais
+        except Exception as e:
+            self._log(f"Erro ao carregar configurações de canais: {e}. Usando fallback.")
+        
+        # Fallback de segurança se falhar
+        return {
+            "Mercado Livre": {"comissao_pct": 0.16, "taxa_fixa": 6.00, "frete_gratis_min": 79.0, "custo_frete_medio": 15.0, "emoji": "🛒", "freight_table_key": "mercado_envios"},
+            "Shopee": {"comissao_pct": 0.20, "taxa_fixa": 3.00, "frete_gratis_min": 0.0, "custo_frete_medio": 0.0, "emoji": "🍊", "freight_table_key": "shopee_envios"}
+        }
 
     def _log(self, message: str):
         log.info(message)
@@ -67,24 +106,121 @@ class PrecificadorCanal:
             self.progress_callback(pct)
 
     # ------------------------------------------------------------------
+    # ICMS INTERESTADUAL
+    # ------------------------------------------------------------------
+    def calcular_icms_interestadual(self, uf_origem: str, uf_destino: str, valor_produto: float) -> float:
+        """Calcula ICMS interestadual com base na tabela Convênio ICMS 23/2021"""
+        uf_origem = uf_origem.upper()
+        uf_destino = uf_destino.upper()
+        aliquota = ICMS_INTERESTADUAL.get(uf_origem, {}).get(uf_destino, 12)
+        return valor_produto * (aliquota / 100)
+
+    # ------------------------------------------------------------------
+    # FRETE REAL VIA MELHOR ENVIO API
+    # ------------------------------------------------------------------
+    def calcular_frete_real(
+        self,
+        cep_origem: str,
+        cep_destino: str,
+        peso_g: float,
+        altura_cm: float = 20,
+        largura_cm: float = 15,
+        comprimento_cm: float = 10,
+        api_token: str = None
+    ) -> Dict:
+        """Calcula frete real via Melhor Envio API (gratuita para consultas)"""
+        MELHOR_ENVIO_API = "https://www.melhorenvio.com.br/api/v2/me/shipment/calculate"
+        
+        token = api_token or os.environ.get("MELHOR_ENVIO_TOKEN", "")
+        if not token:
+            return {"error": "Token da API Melhor Envio não configurado. Configure MELHOR_ENVIO_TOKEN."}
+        
+        payload = {
+            "from": {"postal_code": re.sub(r'\D', '', cep_origem)},
+            "to": {"postal_code": re.sub(r'\D', '', cep_destino)},
+            "package": {
+                "height": altura_cm,
+                "width": largura_cm,
+                "length": comprimento_cm,
+                "weight": peso_g / 1000
+            }
+        }
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        
+        try:
+            resp = httpx.post(MELHOR_ENVIO_API, json=payload, headers=headers, timeout=15.0)
+            if resp.status_code == 200:
+                options = resp.json()
+                if isinstance(options, list) and len(options) > 0:
+                    cheapest = min(options, key=lambda x: float(x.get("price", 999)))
+                    fastest = min(options, key=lambda x: float(x.get("delivery_time", 999)))
+                    return {
+                        "cheapest": {"carrier": cheapest.get("company", {}).get("name", ""), "price": float(cheapest.get("price", 0)), "days": cheapest.get("delivery_time", 0)},
+                        "fastest": {"carrier": fastest.get("company", {}).get("name", ""), "price": float(fastest.get("price", 0)), "days": fastest.get("delivery_time", 0)},
+                        "all_options": len(options),
+                    }
+            return {"error": f"Erro na API: {resp.status_code}"}
+        except Exception as e:
+            return {"error": f"Erro de conexão: {e}"}
+
+    # ------------------------------------------------------------------
     # Cálculo Reverso: dado o custo + margem desejada, acha o preço de venda
     # ------------------------------------------------------------------
+    def _calcular_frete_dinamico(self, canal_nome: str, peso_g: float, preco_venda_estimado: float, frete_min: float, canal_info: dict = None) -> float:
+        """
+        Calcula o frete embutido de forma dinâmica baseada no peso do produto.
+        Utiliza tabelas de frete carregadas de tax_rules.json.
+        
+        PRÓXIMOS PASSOS (iteração futura):
+        - Integrar API do Melhor Envio/Frenet para cálculo real por CEP
+        - Adicionar seguro e peso cubagem
+        """
+        # Se não atinge a regra de frete grátis do canal, não embute frete
+        if frete_min > 0 and preco_venda_estimado < frete_min:
+            return 0.0
+
+        # Shopee e Amazon: frete geralmente subsidiado pelo marketplace
+        if canal_nome == "Shopee":
+            return 0.0
+        elif canal_nome == "Amazon":
+            return 0.0  # FBA: custo embutido na comissão
+
+        # Buscar tabela de frete adequada para o canal
+        freight_key = "mercado_envios"
+        if canal_info:
+            freight_key = canal_info.get("freight_table_key", "mercado_envios")
+        
+        tabela = self._freight_tables.get(freight_key, [])
+        
+        # Procurar a faixa de peso correta na tabela
+        for faixa in tabela:
+            peso_max = faixa.get("peso_max_g", float("inf"))
+            if peso_g <= peso_max:
+                return faixa.get("valor", 0.0)
+        
+        # Se exceder todas as faixas, usar a última faixa (peso pesado)
+        if tabela:
+            return tabela[-1].get("valor", 50.0)
+        
+        # Fallback absoluto (tabela vazia)
+        return 0.0
+
     def _preco_por_canal(
         self,
+        canal_nome: str,
         custo: float,
         imposto_pct: float,
         margem_desejada_pct: float,
+        peso_g: float,
         canal_info: dict,
     ) -> dict:
         """
-        Fórmula de cálculo reverso:
-            Preço = (CustoBase + TaxaFixa + FreteEmbutido)
-                    / (1 - Comissão% - Margem% - Imposto%)
-
-        Onde CustoBase = custo bruto sem imposto (o imposto é sobre o preço de venda).
+        Fórmula de cálculo reverso dinâmico.
         """
         comissao = canal_info["comissao_pct"]
         taxa_fixa = canal_info["taxa_fixa"]
+        
+        # Inicia com o frete padrão estático para o cálculo base
         frete_embutido = canal_info.get("custo_frete_medio", 0.0)
 
         # Percentual total que "sai" do preço de venda
@@ -93,14 +229,15 @@ class PrecificadorCanal:
         if desconto_total >= 1.0:
             return {"preco": None, "margem_real": None, "erro": "Margem inviável"}
 
-        # Preço de venda sugerido
+        # Preço de venda sugerido primário
         preco = (custo + taxa_fixa + frete_embutido) / (1 - desconto_total)
 
-        # Verificar se aciona custo de frete grátis no ML
+        # Atualiza para usar a lógica de frete dinâmico via peso
         frete_min = canal_info.get("frete_gratis_min", 0.0)
-        if frete_min > 0 and preco >= frete_min and frete_embutido == 0:
-            # Recalcular com frete embutido
-            frete_embutido = canal_info.get("custo_frete_medio", 15.0)
+        
+        # Verifica se aciona frete embutido
+        if frete_min > 0 and preco >= frete_min:
+            frete_embutido = self._calcular_frete_dinamico(canal_nome, peso_g, preco, frete_min, canal_info)
             preco = (custo + taxa_fixa + frete_embutido) / (1 - desconto_total)
 
         # Calcular margem real
@@ -153,10 +290,12 @@ class PrecificadorCanal:
                 produto = str(row.get("produto", f"Produto {i+1}"))
                 custo = float(row.get("custo", 0))
                 imposto_pct = float(row.get("imposto_pct", 6.0))
+                peso_g = float(row.get("peso_g", 500.0))
 
                 result_row = {
                     "Produto": produto,
                     "Custo (R$)": custo,
+                    "Peso (g)": peso_g,
                     "Imposto Simples (%)": imposto_pct,
                     "Margem Desejada (%)": margem_desejada_pct,
                 }
@@ -165,7 +304,7 @@ class PrecificadorCanal:
                     info = self.CANAIS.get(canal_nome)
                     if not info:
                         continue
-                    calc = self._preco_por_canal(custo, imposto_pct, margem_desejada_pct, info)
+                    calc = self._preco_por_canal(canal_nome, custo, imposto_pct, margem_desejada_pct, peso_g, info)
                     emoji = info["emoji"]
                     if calc["erro"]:
                         result_row[f"{emoji} {canal_nome} - Preço"] = "INVIÁVEL"
@@ -187,7 +326,9 @@ class PrecificadorCanal:
                 from datetime import datetime
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                 import os, sys
-                sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
+                project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+                if project_root not in sys.path:
+                    sys.path.insert(0, project_root)
                 import config
                 output_path = os.path.join(config.OUTPUT_DIR, f"precificacao_{ts}.xlsx")
 
@@ -216,6 +357,8 @@ class PrecificadorCanal:
                 col_map[col] = "custo"
             elif col_lower in ["imposto", "imposto_pct", "simples", "simples_nacional", "aliquota", "tax_pct"]:
                 col_map[col] = "imposto_pct"
+            elif col_lower in ["peso", "peso_g", "peso (g)", "weight"]:
+                col_map[col] = "peso_g"
 
         df_norm = df.rename(columns=col_map)
 
@@ -225,8 +368,10 @@ class PrecificadorCanal:
             return None
         if "imposto_pct" not in df_norm.columns:
             df_norm["imposto_pct"] = 6.0  # Simples Nacional padrão
+        if "peso_g" not in df_norm.columns:
+            df_norm["peso_g"] = 500.0  # Peso padrão de 500g
 
-        return df_norm[["produto", "custo", "imposto_pct"]]
+        return df_norm[["produto", "custo", "imposto_pct", "peso_g"]]
 
     # ------------------------------------------------------------------
     # Cálculo manual (produto único)
@@ -242,6 +387,60 @@ class PrecificadorCanal:
         """Para cálculo rápido de um único produto sem planilha."""
         df = pd.DataFrame([{"produto": produto, "custo": custo, "imposto_pct": imposto_pct}])
         return self.calcular_planilha(df, margem_desejada_pct, canais_selecionados)
+
+    # ------------------------------------------------------------------
+    # SIMULAÇÃO WHAT-IF
+    # ------------------------------------------------------------------
+    def simular_cenarios(
+        self,
+        custo_produto: float,
+        cenarios: List[Dict],
+        imposto_pct: float = 6.0,
+    ) -> pd.DataFrame:
+        """Simula múltiplos cenários de precificação com variações de margem e canal
+        
+        Args:
+            custo_produto: Custo de aquisição do produto
+            cenarios: Lista de dicts com {nome, margem, canal, peso_g}
+            imposto_pct: Alíquota Simples Nacional
+            
+        Returns:
+            DataFrame com resultados comparativos
+        """
+        resultados = []
+        
+        for cenario in cenarios:
+            margem = cenario.get("margem", 30.0)
+            canal = cenario.get("canal", "Mercado Livre")
+            peso = cenario.get("peso_g", 500)
+            nome = cenario.get("nome", f"Margem {margem:.0f}%")
+            
+            info = self.CANAIS.get(canal, {})
+            if not info:
+                continue
+            
+            calc = self._preco_por_canal(canal, custo_produto, imposto_pct, margem, peso, info)
+            
+            if calc["erro"]:
+                resultados.append({
+                    "Cenário": nome,
+                    "Canal": canal,
+                    "Margem Desejada": f"{margem:.1f}%",
+                    "Preço de Venda": "INVIÁVEL",
+                    "Lucro Líquido": "-",
+                    "Margem Real": "-",
+                })
+            else:
+                resultados.append({
+                    "Cenário": nome,
+                    "Canal": canal,
+                    "Margem Desejada": f"{margem:.1f}%",
+                    "Preço de Venda": f"R$ {calc['preco']:.2f}",
+                    "Lucro Líquido": f"R$ {calc['lucro_liquido']:.2f}",
+                    "Margem Real": f"{calc['margem_real_pct']:.1f}%",
+                })
+        
+        return pd.DataFrame(resultados)
 
     # ------------------------------------------------------------------
     # Exportação Excel Premium
@@ -266,7 +465,10 @@ class PrecificadorCanal:
         border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
         # === CABEÇALHO DA PLANILHA ===
-        ws.merge_cells("A1:C1")
+        try:
+            ws.merge_cells("A1:C1")
+        except Exception:
+            pass
         title_cell = ws["A1"]
         title_cell.value = f"📊 DataMaster Pro — Simulador de Precificação por Canal"
         title_cell.font = Font(name="Calibri", size=14, bold=True, color=HEADER_FG)
@@ -274,7 +476,10 @@ class PrecificadorCanal:
         title_cell.alignment = Alignment(horizontal="center", vertical="center")
         ws.row_dimensions[1].height = 30
 
-        ws.merge_cells(f"D1:{get_column_letter(len(df.columns))}1")
+        try:
+            ws.merge_cells(f"D1:{get_column_letter(len(df.columns))}1")
+        except Exception:
+            pass
         meta_cell = ws["D1"]
         meta_cell.value = f"Margem Desejada: {margem}%  |  Canais: {', '.join(canais)}  |  Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
         meta_cell.font = Font(name="Calibri", size=10, color="A1A1AA")

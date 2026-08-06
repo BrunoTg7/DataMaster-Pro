@@ -16,6 +16,7 @@ from typing import Dict, List, Callable, Optional
 from datetime import datetime
 
 log = logging.getLogger(__name__)
+import config
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -31,7 +32,7 @@ CONFIDENCE_THRESHOLD = 70
 class ClassificadorNCM:
     """
     Motor de classificação NCM/CEST via fuzzy matching.
-    Usa fuzzywuzzy (já no requirements.txt) para comparar descrições
+    Usa thefuzz (já no requirements.txt) para comparar descrições
     de produtos com as descrições oficiais da TIPI.
     """
 
@@ -81,10 +82,12 @@ class ClassificadorNCM:
             }
 
         try:
-            from fuzzywuzzy import process, fuzz
+            from thefuzz import process, fuzz
+            import unicodedata
 
-            # Normalizar: minúsculas, remover acentos básicos
-            desc_norm = str(descricao).strip().lower()
+            # Normalizar: minúsculas, remover acentos via decomposição NFD
+            raw = str(descricao).strip().lower()
+            desc_norm = ''.join(c for c in unicodedata.normalize('NFD', raw) if unicodedata.category(c) != 'Mn')
 
             # Tentar match exato primeiro (case-insensitive)
             for key in self._descricoes:
@@ -230,8 +233,6 @@ class ClassificadorNCM:
             # Gerar output
             if not output_path:
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                import sys
-                sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
                 import config as cfg
                 output_path = os.path.join(cfg.OUTPUT_DIR, f"classificador_ncm_{ts}.xlsx")
 

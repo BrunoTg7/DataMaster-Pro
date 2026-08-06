@@ -1,13 +1,35 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+// Webhook da Cakto - apenas origens da Cakto e do proprio app
+const ALLOWED_ORIGINS = [
+  "https://pay.cakto.com.br",
+  "https://cakto.com.br",
+  "https://datamaster.pro",
+  "https://www.datamaster.pro",
+]
+
+function getAllowedOrigin(req: Request): string | null {
+  const origin = req.headers.get("origin")
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    return origin
+  }
+  // Webhooks podem nao ter origin - permitir se autenticado via secret
+  return ALLOWED_ORIGINS[0]
+}
+
+function getCorsHeaders(req: Request): Record<string, string> {
+  const allowedOrigin = getAllowedOrigin(req)
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  }
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req)
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
   }

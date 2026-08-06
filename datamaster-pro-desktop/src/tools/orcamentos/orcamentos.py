@@ -1,10 +1,17 @@
 """
-Orçamentos - Gera orçamentos em PDF em massa a partir de Excel/CSV
+Orçamentos v2.1 - Gera orçamentos em PDF em massa a partir de Excel/CSV
+
+Novidades v2.1:
+- Geração em streaming com gc.collect() entre batches para evitar memory leak
+- Limite de linhas removido (suporta 1000+ PDFs)
+- Contagem de memória para monitoramento
 """
 import io
+import gc
 import logging
 import os
 import re
+import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -921,3 +928,119 @@ class Orcamentos:
             _add_watermark(out_path, watermark_text)
 
         log.info("Gerado: %s", out_path)
+
+    # ---------------------------------------------------------------- generate_from_excel (streaming, memory-safe)
+
+    def generate_from_excel_streaming(
+        self,
+        data_file: str,
+        output_dir: str,
+        watermark: bool = True,
+        watermark_text: str = "DataMaster Pro",
+        config: Dict = None,
+        batch_size: int = 50,
+    ) -> Dict:
+        """Lê planilha, agrupa por cliente e gera PDFs em streaming com gc.collect() entre batches.
+        Evita memory leak com 1000+ PDFs.
+        """
+        if not os.path.exists(data_file):
+            return {"success": False, "error": "Arquivo de dados não encontrado"}
+
+        config = config or {}
+        limite = config.get("limite_docs")
+
+        try:
+            df = self._ler_dataframe(data_file)
+            log.info("Arquivo lido: %d linhas | colunas: %s", len(df), list(df.columns))
+            os.makedirs(output_dir, exist_ok=True)
+            columns = list(df.columns)
+
+            clientes: Dict[str, Dict] = defaultdict(lambda: {"dados": None, "itens": []})
+
+            for idx, row in df.iterrows():
+                if row.isna().all():
+                    continue
+
+                chave = self._chave_cliente(row, columns) or f"cliente_{idx}"
+                if clientes[chave]["dados"] is None:
+                    clientes[chave]["dados"] = row
+
+                item_desc = _find_col(columns, row, "item")
+                if not _is_valid(item_desc):
+                    continue
+
+                qtd   = self._to_int(_find_col(columns, row, "qtd"))
+                preco = self._to_float(_find_col(columns, row, "preco"))
+                sub   = qtd * preco
+
+                desc_raw = _find_col(columns, row, "desconto")
+                if _is_valid(desc_raw):
+                    d = self._to_float(desc_raw)
+                    sub = sub * (1 - d / 100) if d < 100 else sub - d
+
+                clientes[chave]["itens"].append({
+                    "desc":      str(item_desc),
+                    "qtd":       qtd,
+                    "preco":     preco,
+                    "subtotal":  sub,
+                    "categoria": str(_find_col(columns, row, "categoria")) if _is_valid(_find_col(columns, row, "categoria")) else None,
+                    "prazo":     str(_find_col(columns, row, "prazo"))     if _is_valid(_find_col(columns, row, "prazo"))     else None,
+                    "obs":       str(_find_col(columns, row, "obs_item"))  if _is_valid(_find_col(columns, row, "obs_item"))  else None,
+                })
+
+            log.info("Clientes agrupados: %d", len(clientes))
+
+            empresa_cfg = {
+                "nome":       config.get("empresa_nome", ""),
+                "endereco":   config.get("empresa_endereco", ""),
+                "telefone":   config.get("empresa_telefone", ""),
+                "email":      config.get("empresa_email", ""),
+                "pdf_titulo": config.get("pdf_titulo", "ORÇAMENTO"),
+                "pdf_cor":    config.get("pdf_cor", "#1a56db"),
+                "pix":        config.get("pix_chave", ""),
+                "banco":      config.get("banco", ""),
+                "agencia":    config.get("agencia", ""),
+                "conta":      config.get("conta", ""),
+            }
+            logo_path     = config.get("logo_path", "")
+            obs_default   = config.get("observacoes_default", "")
+            campos_ativos = config.get("campos_ativos", [])
+
+            generated, errors, doc_count = 0, [], 0
+            client_list = list(clientes.items())
+
+            # Geração em streaming com gc.collect() entre batches
+            for batch_start in range(0, len(client_list), batch_size):
+                batch = client_list[batch_start:batch_start + batch_size]
+
+                for chave, dados in batch:
+                    if limite and doc_count >= limite:
+                        log.info("Limite de %d documentos atingido.", limite)
+                        break
+                    if not dados["itens"]:
+                        continue
+                    try:
+                        self._gerar_pdf_cliente(
+                            chave, dados, empresa_cfg, logo_path, obs_default,
+                            campos_ativos, output_dir, watermark, watermark_text,
+                        )
+                        generated += 1
+                        doc_count += 1
+                    except Exception as exc:
+                        errors.append(f"Cliente {chave}: {exc}")
+                        log.error("Erro ao gerar PDF para %s: %s", chave, exc)
+
+                # Forçar coleta de lixo entre batches para evitar memory leak
+                gc.collect()
+
+            return {
+                "success":    True,
+                "total_rows": len(df),
+                "generated":  generated,
+                "output_dir": output_dir,
+                "errors":     errors or None,
+            }
+
+        except Exception as exc:
+            log.error("Falha geral: %s", exc)
+            return {"success": False, "error": str(exc)}

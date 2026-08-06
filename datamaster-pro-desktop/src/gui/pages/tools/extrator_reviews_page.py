@@ -1,5 +1,6 @@
 """
 Extrator de Reviews Page - Extrai e analisa sentimento de reviews de marketplaces
+Versão Oficial - APIs licenciadas apenas (zero scraping)
 """
 import customtkinter as ctk
 from tkinter import messagebox
@@ -10,7 +11,7 @@ import threading
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import config
 from src.gui.pages.tool_page import ToolPage
-from src.tools.extrator_reviews.extrator_reviews_v2 import ExtratorReviews
+from src.tools.extrator_reviews import ExtratorReviewsOfficial, ReviewsProviderFactory
 from src.gui.components.result_viewer_modal import ResultViewerButton
 from src.gui.helpers.execution_helper import ExecutionHelper
 from src.core.tasks.task_executor import task_executor
@@ -19,16 +20,42 @@ from src.core.tasks.task_executor import task_executor
 
 class ExtratorReviewsPage(ToolPage):
     def __init__(self, master, on_back, execution_tracker=None, user_id=None):
-        self.extrator = ExtratorReviews(
-            _p0=config._r1(),
+        self.extrator = ExtratorReviewsOfficial(
             progress_callback=self._update_progress,
-            log_callback=self._log_from_thread
+            log_callback=self._log_from_thread,
+            max_concurrency=2
         )
         self.execution = ExecutionHelper("extrator_reviews", "Extrator de Reviews", user_id)
         super().__init__(master, "extrator_reviews", "Extrator de Reviews", on_back, execution_tracker, user_id)
         self._check_task_state()
         self.urls = []
         self._last_result_text = ""
+        self._check_provider_status()
+
+    def _check_provider_status(self):
+        """Verifica quais providers estão configurados e alerta o usuário"""
+        active_sources = ReviewsProviderFactory.get_active_sources()
+        if not active_sources:
+            self.after(1000, lambda: messagebox.showinfo(
+                "Configuração Necessária",
+                "⚠️ Nenhuma API de reviews configurada!\n\n"
+                "Para usar o Extrator de Reviews, configure no .env:\n\n"
+                "📦 Mercado Livre (Obrigatório):\n"
+                "   ML_CLIENT_ID=seu_client_id\n"
+                "   ML_CLIENT_SECRET=seu_client_secret\n\n"
+                "🛍️ Shopee (Opcional):\n"
+                "   SHOPEE_PARTNER_ID=seu_partner_id\n"
+                "   SHOPEE_PARTNER_KEY=sua_partner_key\n"
+                "   SHOPEE_SHOP_ID=sua_shop_id\n\n"
+                "📚 Amazon (via serviço terceirizado licenciado):\n"
+                "   THIRD_PARTY_REVIEWS_API_KEY=sua_chave\n\n"
+                "Obtenha credenciais em:\n"
+                "• ML: https://developers.mercadolivre.com.br\n"
+                "• Shopee: https://open.shopee.com\n"
+            ))
+        else:
+            self._log_from_thread(f"✅ Providers ativos: {', '.join(active_sources)}")
+        self._check_provider_status()
 
     def _check_task_state(self):
         last_task = self._tool_service.get_last_task_by_tool("extrator_reviews")
@@ -85,10 +112,16 @@ class ExtratorReviewsPage(ToolPage):
 
         info = ctk.CTkLabel(
             content,
-            text="Cole URLs de produtos do Mercado Livre, Amazon ou Shopee para extrair reviews e analisar sentimento.",
-            font=ctk.CTkFont(size=12),
+            text=(
+                "Cole URLs de produtos do Mercado Livre, Amazon ou Shopee para extrair reviews e analisar sentimento.\n\n"
+                "✅ APIs Oficiais Licenciadas — Zero Scraping — Compliance LGPD/ToS\n\n"
+                "Requer credenciais no .env: ML_CLIENT_ID/SECRET (obrigatório), "
+                "SHOPEE_PARTNER_ID/KEY/SHOP_ID, THIRD_PARTY_REVIEWS_API_KEY (Amazon)"
+            ),
+            font=ctk.CTkFont(size=11),
             text_color=config.Colors.TEXT_SECONDARY,
-            wraplength=400
+            wraplength=500,
+            justify="left"
         )
         info.pack(pady=(20, 10))
 
@@ -207,16 +240,6 @@ class ExtratorReviewsPage(ToolPage):
             user_id=self.user_id
         )
 
-    def _analysis_worker(self):
-        try:
-            result = self.extrator.analyze_multiple(self.urls)
-            self.after(0, lambda r=result: self._show_results(r) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
-        except Exception as e:
-            err = str(e)
-            if self.log_callback:
-                self.log_callback(f"Erro: {err}")
-            self.after(0, lambda err=err: self._show_error(err) if hasattr(self, 'winfo_exists') and self.winfo_exists() else None)
-
     def _show_results(self, result):
         try:
             if not self.winfo_exists():
@@ -229,39 +252,71 @@ class ExtratorReviewsPage(ToolPage):
         self.results_text.configure(state="normal")
         self.results_text.delete("1.0", "end")
 
-        summary = f"""📊 RESUMO DA ANÁLISE
-{'='*40}
+        providers_used = result.get("providers_used", [])
+        summary_text = f"""📊 RESUMO DA ANÁLISE OFICIAL (Zero Scraping)
+{'='*50}
 Total de produtos: {result.get('total', 0)}
 Analisados com sucesso: {result.get('analyzed', 0)}
+Fontes ativas: {', '.join(providers_used) if providers_used else 'Nenhuma'}
+{result.get('summary', '')}
 
 """
-        self.results_text.insert("1.0", summary)
+        self.results_text.insert("1.0", summary_text)
 
-        full_result = summary
+        full_result = summary_text
+        positive_products = 0
+        
         for r in result.get("results", []):
             if not r.get("success"):
-                self.results_text.insert("end", f"❌ {r.get('url', 'URL')[:50]}...\n   Erro: {r.get('error', 'Erro desconhecido')}\n\n")
-                full_result += f"❌ {r.get('url', 'URL')[:50]}...\n   Erro: {r.get('error', 'Erro desconhecido')}\n\n"
+                error_msg = f"❌ {r.get('url', 'URL')[:50]}...\n   Erro: {r.get('error', 'Erro desconhecido')}\n\n"
+                self.results_text.insert("end", error_msg)
+                full_result += error_msg
                 continue
 
-            sentiment_emoji = {"positive": "😊", "negative": "😞", "neutral": "😐"}.get(r.get("sentiment", "neutral"), "😐")
+            marketplace = r.get('marketplace', 'Desconhecido')
+            product_id = r.get('product_id', 'N/A')
+            total_reviews = r.get('total_reviews', 0)
+            
+            summary = r.get('summary', {})
+            pos = summary.get('positive', 0)
+            neg = summary.get('negative', 0)
+            neu = summary.get('neutral', 0)
+            avg_rating = summary.get('avg_rating', 0)
+            
+            overall_sentiment = "positive" if pos > neg else "negative" if neg > pos else "neutral"
+            sentiment_emoji = {"positive": "😊", "negative": "😞", "neutral": "😐"}.get(overall_sentiment, "😐")
+            
+            if overall_sentiment == "positive":
+                positive_products += 1
 
-            line = f"""{sentiment_emoji} {r.get('site', 'Site')} - {r.get('total_reviews', 0)} reviews
-   Sentimento: {r.get('sentiment', 'unknown').upper()} (score: {r.get('score', 0)}%)
-   Positivos: {r.get('positive', 0)} | Negativos: {r.get('negative', 0)} | Neutros: {r.get('neutral', 0)}
+            line = f"""{sentiment_emoji} {marketplace} (ID: {product_id}) - {total_reviews} reviews
+   ⭐ Média: {avg_rating}/5  |  😊 {pos}  😞 {neg}  😐 {neu}
+   Sentimento geral: {overall_sentiment.upper()}
 
 """
             self.results_text.insert("end", line)
             full_result += line
 
+            # Mostrar primeiras 3 reviews
+            reviews = r.get('reviews', [])
+            for i, rev in enumerate(reviews[:3]):
+                rev_line = f"   📝 {rev.get('author', 'Anônimo')}: ⭐{rev.get('rating', 0)} - {rev.get('text', '')[:80]}...\n"
+                self.results_text.insert("end", rev_line)
+                full_result += rev_line
+            
+            if len(reviews) > 3:
+                more = f"   ... e mais {len(reviews) - 3} reviews\n"
+                self.results_text.insert("end", more)
+                full_result += more
+            full_result += "\n"
+
         self._last_result_text = full_result
 
         self.results_text.configure(state="disabled")
 
-        positive_count = sum(1 for r in result.get("results", []) if r.get("sentiment") == "positive")
         analyzed = result.get("analyzed", 0)
-        self._finalize_execution(result, "", analyzed, {"reviews": analyzed})
-        messagebox.showinfo("Concluído", f"Análise concluída!\n{positive_count} produtos com sentimento positivo")
+        self._finalize_execution(result, "", analyzed, {"reviews": analyzed, "positive_products": positive_products})
+        messagebox.showinfo("Concluído", f"Análise oficial concluída!\n{positive_products}/{analyzed} produtos com sentimento positivo\n\nFontes: {', '.join(providers_used) if providers_used else 'Nenhuma configurada'}")
 
     def _show_error(self, error):
         try:
