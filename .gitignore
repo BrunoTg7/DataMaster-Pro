@@ -41,3 +41,5 @@ build/
 *.exe
 *.msi
 *.spec
+datamaster-pro-desktop/DataMasterPro_1.5.0.0_x64.msix
+datamaster-pro-desktop/datamaster_selfsigned.pfx
