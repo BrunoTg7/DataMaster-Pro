@@ -219,3 +219,13 @@ DataMaster Pro v1.5.0 - Proprietary
 ---
 
 *Última atualização: 2026-08-05 | Versão 1.5.0*
+
+
+cd "C:\Users\Public\projetos\ferramente excel\datamaster-pro-desktop"
+python -m PyInstaller datamaster.spec --clean
+
+& "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+
+ou 
+
+.\build_v2_otimizado.bat

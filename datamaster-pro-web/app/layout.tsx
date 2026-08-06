@@ -79,6 +79,9 @@ export const metadata: Metadata = {
     },
   },
   manifest: "/manifest.json",
+  verification: {
+    google: "1HEMZIn_wJ8Q0rbpOylZiRbhjQPq59J0hSLz_k6s-8Q",
+  },
 };
 
 export default function RootLayout({

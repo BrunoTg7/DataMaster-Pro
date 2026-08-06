@@ -95,12 +95,17 @@ export function HeroSection() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8"
           >
-            <Link href={isLoggedIn ? "/dashboard" : "/auth/registro"} className="btn-primary group text-sm sm:text-base px-6 sm:px-8 py-3 sm:py-4">
-              {isLoggedIn ? "Acessar Painel" : "Começar Gratuitamente"}
+            <Link href="/downloads" className="btn-primary group text-sm sm:text-base px-6 sm:px-8 py-3 sm:py-4">
+              Baixar Instalador (EXE)
               <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Link>
 
-          </motion.div>
+            {isLoggedIn && (
+              <Link href="/dashboard" className="btn-secondary group text-sm sm:text-base px-6 sm:px-8 py-3 sm:py-4">
+                Acessar Painel
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            )}
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}

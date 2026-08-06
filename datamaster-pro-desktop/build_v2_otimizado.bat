@@ -1,13 +1,17 @@
 @echo off
 REM ============================================================
-REM DataMaster Pro v1.5 - Build Completo: EXE + NSIS + MSIX
+REM DataMaster Pro v1.5 - Build Completo: EXE (NSIS) + MSIX (opcional)
+REM ============================================================
+REM 
+REM PRIORIDADE: EXE (NSIS) como distribuição principal
+REM MSIX apenas para Microsoft Store futuro (certificado OV/EV $89)
 REM ============================================================
 
 setlocal enabledelayedexpansion
 
 echo.
 echo ============================================================
-echo   🚀 DataMaster Pro v1.5 - BUILD COMPLETO
+echo   🚀 DataMaster Pro v1.5 - BUILD COMPLETO (EXE PRINCIPAL)
 echo ============================================================
 echo.
 
@@ -25,7 +29,7 @@ echo.
 REM ============================================================
 REM PASSO 1: Verificar Python
 REM ============================================================
-echo [1/6] Verificando Python...
+echo [1/5] Verificando Python...
 python --version >nul 2>&1
 if errorlevel 1 (
     echo ❌ Python não encontrado
@@ -37,7 +41,7 @@ echo.
 REM ============================================================
 REM PASSO 2: Verificar .env
 REM ============================================================
-echo [2/6] Verificando arquivo .env...
+echo [2/5] Verificando arquivo .env...
 if not exist ".env" (
     echo ❌ Arquivo .env não encontrado
     exit /b 1
@@ -48,8 +52,8 @@ echo.
 REM ============================================================
 REM PASSO 3: Compilar Executável com PyInstaller (--onedir)
 REM ============================================================
-echo [3/6] Compilando executável com PyInstaller...
-echo         Modo: --onedir (melhor para MSIX/Instalador)
+echo [3/5] Compilando executável com PyInstaller...
+echo         Modo: --onedir (melhor para instalador NSIS)
 echo.
 
 python -m PyInstaller datamaster.spec --clean >build_log.txt 2>&1
@@ -70,33 +74,12 @@ echo    📂 Localização: dist\DataMaster Pro\
 echo.
 
 REM ============================================================
-REM PASSO 4: Gerar MSIX (Self-Signed para teste / Real para Store)
+REM PASSO 4: Compilar Instalador NSIS (DISTRIBUIÇÃO PRINCIPAL)
 REM ============================================================
-echo [4/6] Gerando pacote MSIX...
-echo         (Self-signed para teste local / sideload)
+echo [4/5] Compilando instalador NSIS (DISTRIBUIÇÃO PRINCIPAL)...
+echo         Instalador EXE padrão Windows - funciona sem certificados especiais
 echo.
 
-powershell -ExecutionPolicy Bypass -File "build_msix.ps1" >msix_log.txt 2>&1
-
-if errorlevel 1 (
-    echo ❌ Erro ao gerar MSIX
-    type msix_log.txt | findstr /i "error"
-    exit /b 1
-)
-
-if not exist "DataMasterPro_1.5.0.0_x64.msix" (
-    echo ❌ MSIX não foi criado
-    exit /b 1
-)
-
-echo ✅ MSIX gerado e assinado com sucesso
-echo    📦 Artefato: DataMasterPro_1.5.0.0_x64.msix
-echo.
-
-REM ============================================================
-REM PASSO 5: Compilar Instalador NSIS (opcional, legado)
-REM ============================================================
-echo [5/6] Compilando instalador NSIS...
 if exist "DataMaster Pro Setup.exe" (
     del "DataMaster Pro Setup.exe" >nul 2>&1
 )
@@ -104,37 +87,64 @@ if exist "DataMaster Pro Setup.exe" (
 "C:\Program Files (x86)\NSIS\makensis.exe" "installer.nsi" >nsis_log.txt 2>&1
 
 if errorlevel 1 (
-    echo ⚠️  NSIS falhou (MSIX já pronto, continuando...)
+    echo ❌ Erro ao compilar instalador NSIS
     type nsis_log.txt | findstr /i "error"
+    exit /b 1
+)
+
+if not exist "DataMaster Pro Setup.exe" (
+    echo ❌ Instalador NSIS não foi criado
+    exit /b 1
+)
+
+for /f %%A in ('dir "DataMaster Pro Setup.exe" ^| find "DataMaster Pro"') do (
+    set setup_size=%%~zA
+)
+
+echo ✅ Instalador NSIS criado com sucesso
+echo    📦 Artefato: DataMaster Pro Setup.exe (%setup_size% bytes)
+echo    ✅ Instala sem certificados especiais - Next → Next → Finish
+echo.
+
+REM ============================================================
+REM PASSO 5: Gerar MSIX (OPCIONAL - apenas para Microsoft Store futuro)
+REM ============================================================
+echo [5/5] Gerando MSIX (OPCIONAL - apenas para Microsoft Store futuro)...
+echo         Requer certificado OV/EV ($89) para Microsoft Store
+echo         Self-signed apenas para testes locais / sideload
+echo.
+
+powershell -ExecutionPolicy Bypass -File "build_msix.ps1" >msix_log.txt 2>&1
+
+if errorlevel 1 (
+    echo ⚠️  MSIX falhou (EXE já pronto, continuando...)
+    type msix_log.txt | findstr /i "error"
 ) else (
-    if exist "DataMaster Pro Setup.exe" (
-        for /f %%A in ('dir "DataMaster Pro Setup.exe" ^| find "DataMaster Pro"') do (
-            set setup_size=%%~zA
-        )
-        echo ✅ Instalador NSIS: DataMaster Pro Setup.exe (%setup_size% bytes)
+    if exist "DataMasterPro_1.5.0.0_x64.msix" (
+        echo ✅ MSIX gerado (opcional - para Store futuro)
     )
 )
 echo.
 
 REM ============================================================
-REM PASSO 6: Resumo Final
+REM RESUMO FINAL
 REM ============================================================
-echo [6/6] Resumo dos artefatos...
-echo.
-
 echo ============================================================
-echo ✅ BUILD v1.5 CONCLUÍDO - PRONTO PARA DISTRIBUIÇÃO
+echo ✅ BUILD v1.5 CONCLUÍDO - DISTRIBUIÇÃO PRONTA
 echo ============================================================
 echo.
 echo 📦 ARTEFATOS GERADOS:
-echo    • dist\DataMaster Pro\          (pasta app --onedir)
-echo    • DataMasterPro_1.5.0.0_x64.msix  (MSIX assinado self-signed)
-if defined setup_size echo    • DataMaster Pro Setup.exe (%setup_size% bytes)  (NSIS legado)
+echo    ✅ DataMaster Pro Setup.exe (%setup_size% bytes)  <- DISTRIBUIÇÃO PRINCIPAL
+echo    ✅ dist\DataMaster Pro\          (pasta app --onedir)
+if exist "DataMasterPro_1.5.0.0_x64.msix" (
+    echo    • DataMasterPro_1.5.0.0_x64.msix  (opcional - Store futuro)
+)
 echo.
-echo ✅ MSIX PRONTO PARA:
-echo    • Teste local:  Add-AppxPackage .\DataMasterPro_1.5.0.0_x64.msix  (PowerShell Admin)
-echo    • Sideload:     Distribuir .msix + certificado self-signed
-echo    • GitHub Releases: Upload .msix + instruções
+echo ✅ DISTRIBUIÇÃO PRINCIPAL (EXE NSIS):
+echo    • Instala sem certificados especiais
+echo    • Next → Next → Finish (padrão Windows)
+echo    • Funciona em Windows 10/11
+echo    • Distribua via GitHub Releases / Site
 echo.
 echo 🎯 PARA MICROSOFT STORE (quando tiver certificado OV/EV $89):
 echo    1. Comprar certificado OV (SSL.com, Sectigo ~$89/ano)

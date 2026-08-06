@@ -31,27 +31,27 @@ async function getLatestDownload() {
 export default async function DownloadsPage() {
   const latestUpdate = await getLatestDownload();
 
-  const downloads = [
+const downloads = [
     {
       platform: "Windows",
       icon: Monitor,
       version: latestUpdate?.versao_disponivel || "1.5.0",
       date: latestUpdate?.updated_at ? new Date(latestUpdate.updated_at).toLocaleDateString('pt-BR') : "05/08/2026",
-      size: latestUpdate?.tamanho_arquivo || "322 MB",
+      size: latestUpdate?.tamanho_arquivo || "320 MB",
       requirements: ["Windows 10 ou superior", "4GB RAM", "600MB disco"],
-changelog: latestUpdate?.changelog
+      changelog: latestUpdate?.changelog
         ? latestUpdate.changelog.split(/\n|\n/).map((line: string) => line.replace(/^#+\s*|^-\s*|^\*\s*/, '').trim()).filter((i: string) => i)
         : [
-            "MSIX Package v1.5.0 para Microsoft Store",
+            "Instalador EXE (NSIS) - instala sem certificados especiais",
             "5 ferramentas ativas com interface ITool",
             "Orçamentos streaming (evita OOM em 1000+ PDFs)",
             "Minerador com Selector Registry auto-update",
             "Laudos com assinatura pAdES-B",
             "NCM/CEST pipeline completo",
             "Config dinâmica (tax_rules.json + simples_nacional_2026.json)",
-            "MSIX Package pronto para Microsoft Store",
+            "Instalador padrão Windows - Next → Next → Finish",
           ],
-        downloadUrl: latestUpdate?.url_download || "https://github.com/BrunoTg7/DataMaster-Pro-Upgrade/releases/download/v1.5.0/DataMasterPro_1.5.0.0_x64.msix",
+        downloadUrl: latestUpdate?.url_download || "https://github.com/BrunoTg7/DataMaster-Pro-Upgrade/releases/download/v1.5.0/DataMaster.Pro.Setup.v1.5.0.exe",
     },
   ];
 
